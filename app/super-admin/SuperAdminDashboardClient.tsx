@@ -1,0 +1,756 @@
+"use client"
+import React, { useState, useMemo } from "react"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Badge } from "@/components/ui/badge"
+import { Building2, AlertCircle, MoreHorizontal, ArrowUpDown, Pencil, Trash2, Users, ChevronDown, ChevronRight, DollarSign, Calculator, Calendar, CreditCard, Banknote, CalendarDays, CreditCardIcon, TrendingUp, Clock, UserCheck, Clock3, FileText, Briefcase, Scale, Projector, Receipt, Menu } from "lucide-react"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
+import type { Company } from "@/lib/auth"
+import { CreateCompanyDialog } from "../../components/dialogs/CreateCompanyDialog"
+import { CompanyMasterDialog } from "../../components/dialogs/CompanyMasterDialog"
+import { toast } from "@/components/ui/use-toast"
+
+// Extend base Company with optional fields
+type CompanyExtended = Company & {
+  adminName?: string
+  serviceName?: string
+  startDate?: string | Date
+  endDate?: string | Date
+  code?: string
+  flat?: string
+  road?: string
+  city?: string
+  pin?: string
+  state?: string
+  stdCode?: string
+  phone?: string
+  email?: string
+  dateOfStartingBusiness?: string
+  typeOfCompany?: string
+  pfRegionalOffice?: string
+  pensionCoverageDate?: string
+  esiLocalOffice?: string
+  ptoCircleNo?: string
+  website?: string
+  defaultAttendance?: string
+  companyVisibility?: string
+  apName?: string
+  apDob?: string
+  apSex?: string
+  apPremise?: string
+  apArea?: string
+  apPin?: string
+  apState?: string
+  apStd?: string
+  apPhone?: string
+  apDesignation?: string
+  apFatherName?: string
+  apFlat?: string
+  apRoad?: string
+  apCity?: string
+  apEmail?: string
+  cin?: string
+  deductorType?: string
+  paoCode?: string
+  ministryName?: string
+  ministryIfOthers?: string
+  tdsCircle?: string
+  ain?: string
+  ddoCode?: string
+  ddoRegNo?: string
+  tanRegNo?: string
+  lwfRegNo?: string
+  branchDivision?: string
+}
+
+interface SuperAdminDashboardClientProps {
+  companies: Company[]
+  stats: {
+    totalCompanies: number
+    activeCompanies: number
+    totalEmployees: number
+  }
+}
+
+// Employee Master Options
+const employeeMasterOptions = [
+  { id: "employee-details", title: "Employee Details", icon: Users, description: "Manage employee personal and professional information", href: "/super-admin/employee-details" },
+  { id: "salary-heads", title: "Salary Heads", icon: DollarSign, description: "Configure salary components and allowances", href: "/super-admin/salary-head" },
+  { id: "salary-setup", title: "Salary SetUp", icon: Calculator, description: "Set up salary structures and calculations", shortcut: "F1" },
+  { id: "resign-date-setting", title: "Resign Date Setting", icon: Calendar, description: "Configure resignation date settings" },
+  { id: "pf-esi-rate", title: "PF/ESI Rate", icon: CreditCard, description: "Manage Provident Fund and ESI rates" },
+  { id: "pf-interest-loan", title: "PF (Interest Due & Loan Applicable)", icon: Banknote, description: "Configure PF interest and loan settings" },
+  { id: "professional-tax-rate", title: "Professional Tax Rate", icon: Calculator, description: "Set up professional tax rates" },
+  { id: "wage-gratuity-leave", title: "Wage, Gratuity, Leave Encashment & Retirement Age", icon: CalendarDays, description: "Configure wage, gratuity, and leave encashment policies" },
+  { id: "payment-mode", title: "Payment Mode", icon: CreditCardIcon, description: "Set up payment methods and modes" },
+  { id: "increment-due-setup", title: "Increment Due SetUp", icon: TrendingUp, description: "Configure increment schedules and policies" },
+  { id: "pt-group-master", title: "PT Group Master", icon: Users, description: "Manage Professional Tax groups" },
+  { id: "reminder-setup", title: "Reminder SetUp", icon: Clock, description: "Configure system reminders and notifications" },
+  { id: "unpaid-leave-master", title: "Unpaid Leave Master", icon: Calendar, description: "Manage unpaid leave policies" },
+  { id: "leave-setup", title: "Leave SetUp", icon: CalendarDays, description: "Configure leave types and policies" },
+  { id: "monthly-variables", title: "Monthly Variables", icon: Calculator, description: "Set up monthly variable components" },
+  { id: "import-wkoff-attendance", title: "Import WkOff From Attendance Machine", icon: Clock3, description: "Import weekly offs from attendance machines" },
+  { id: "monthly-calendar-emp", title: "Monthly Calendar (Emp. Wise)", icon: Calendar, description: "Create employee-wise monthly calendars" },
+  { id: "monthly-calendar-group", title: "Monthly Calendar (Group Wise)", icon: Calendar, description: "Create group-wise monthly calendars" },
+  { id: "holiday-assignment", title: "Holiday Assignment (Emp./Group Wise)", icon: CalendarDays, description: "Assign holidays to employees or groups" },
+  { id: "monthly-absent", title: "Monthly Absent (Emp./Group Wise)", icon: UserCheck, description: "Track monthly absences by employee or group" },
+  { id: "import-export-days-off", title: "Import/Export Days Off (UnPaid)", icon: FileText, description: "Import and export unpaid days off data" },
+  { id: "bank-detail", title: "Bank Detail", icon: CreditCard, description: "Manage bank account details" },
+  { id: "branch-detail", title: "Branch Detail", icon: Building2, description: "Configure branch information" },
+  { id: "category", title: "Category", icon: Briefcase, description: "Manage employee categories" },
+  { id: "designation", title: "Designation", icon: Briefcase, description: "Configure job designations" },
+  { id: "department", title: "Department", icon: Building2, description: "Manage organizational departments" },
+  { id: "scale", title: "Scale", icon: Scale, description: "Configure salary scales and grades" },
+  { id: "shift", title: "Shift", icon: Clock3, description: "Manage work shifts and timings" },
+  { id: "loan-detail", title: "Loan Detail", icon: Banknote, description: "Configure loan types and details" },
+  { id: "project-master", title: "Project Master", icon: Projector, description: "Manage project information" },
+  { id: "project-salary-definition", title: "Project Salary Definition", icon: Calculator, description: "Define salary structures for projects" },
+  { id: "reimbursement-type", title: "Reimbursement Type", icon: Receipt, description: "Configure reimbursement types and policies" }
+]
+
+const groupedEmployeeMasterOptions = {
+  "Employee Management": employeeMasterOptions.slice(0, 8),
+  "Payroll Configuration": employeeMasterOptions.slice(8, 16),
+  "Leave & Attendance": employeeMasterOptions.slice(16, 20),
+  "Organizational Setup": employeeMasterOptions.slice(20, 28),
+  "Financial Management": employeeMasterOptions.slice(28, 32)
+}
+
+export function SuperAdminDashboardClient({ companies: initialCompanies, stats }: SuperAdminDashboardClientProps) {
+  const [companies, setCompanies] = useState<CompanyExtended[]>(initialCompanies as CompanyExtended[])
+  const [isCreateOpen, setIsCreateOpen] = useState(false)
+  const [isCompanyMasterOpen, setIsCompanyMasterOpen] = useState(false)
+  const [selectedCompany, setSelectedCompany] = useState<CompanyExtended | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [sortConfig, setSortConfig] = useState<{ key: keyof CompanyExtended; direction: 'asc' | 'desc' } | null>(null)
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
+  const [selectedEmployeeMasterOption, setSelectedEmployeeMasterOption] = useState<string | undefined>()
+  const [currentCompany, setCurrentCompany] = useState<CompanyExtended | null>(null)
+  const [isCompanyConfirmed, setIsCompanyConfirmed] = useState(false)
+  const [companySearchTerm, setCompanySearchTerm] = useState("")
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
+  const router = useRouter()
+
+  // Search filtering for Current Company card
+  const filteredSearchCompanies = useMemo(() => {
+    return companies.filter(
+      (company) =>
+        company.name.toLowerCase().includes(companySearchTerm.toLowerCase()) ||
+        (company.serviceName || "").toLowerCase().includes(companySearchTerm.toLowerCase()) ||
+        (company.adminName || "").toLowerCase().includes(companySearchTerm.toLowerCase())
+    );
+  }, [companies, companySearchTerm]);
+
+  // Create Company
+  const createCompany = async (formData: FormData) => {
+    setError(null)
+    try {
+      const companyData = {
+        name: formData.get("code") as string || `Company ${companies.length + 1}`,
+        adminName: formData.get("apName") as string || "New Admin",
+        nature: formData.get("natureOfCompany") as string || "",
+        address: `${formData.get("flat") || ""} ${formData.get("road") || ""} ${formData.get("city") || ""}`.trim(),
+        pan: formData.get("pan") as string || "",
+        gstin: formData.get("gstin") as string || "",
+        tan: formData.get("tan") as string || "",
+        serviceName: (formData.get("serviceName") as string) || undefined,
+        startDate: (formData.get("startDate") as string) || undefined,
+        endDate: (formData.get("endDate") as string) || undefined,
+        code: formData.get("code") as string || "",
+        flat: formData.get("flat") as string || "",
+        road: formData.get("road") as string || "",
+        city: formData.get("city") as string || "",
+        pin: formData.get("pin") as string || "",
+        state: formData.get("state") as string || "",
+        stdCode: formData.get("stdCode") as string || "",
+        phone: formData.get("phone") as string || "",
+        email: formData.get("email") as string || "",
+        dateOfStartingBusiness: formData.get("dateOfStartingBusiness") as string || "",
+        typeOfCompany: formData.get("typeOfCompany") as string || "",
+        pfRegionalOffice: formData.get("pfRegionalOffice") as string || "",
+        pensionCoverageDate: formData.get("pensionCoverageDate") as string || "",
+        esiLocalOffice: formData.get("esiLocalOffice") as string || "",
+        ptoCircleNo: formData.get("ptoCircleNo") as string || "",
+        website: formData.get("website") as string || "",
+        defaultAttendance: formData.get("defaultAttendance") as string || "",
+        companyVisibility: formData.get("companyVisibility") as string || "",
+        apName: formData.get("apName") as string || "",
+        apDob: formData.get("apDob") as string || "",
+        apSex: formData.get("apSex") as string || "",
+        apPremise: formData.get("apPremise") as string || "",
+        apArea: formData.get("apArea") as string || "",
+        apPin: formData.get("apPin") as string || "",
+        apState: formData.get("apState") as string || "",
+        apStd: formData.get("apStdCode") as string || "",
+        apPhone: formData.get("apPhone") as string || "",
+        apDesignation: formData.get("apDesignation") as string || "",
+        apFatherName: formData.get("apFatherName") as string || "",
+        apFlat: formData.get("apFlat") as string || "",
+        apRoad: formData.get("apRoad") as string || "",
+        apCity: formData.get("apCity") as string || "",
+        apEmail: formData.get("apEmail") as string || "",
+        apPan: formData.get("apPan") as string || "",
+        cin: formData.get("cin") as string || "",
+        deductorType: formData.get("deductorType") as string || "",
+        paoCode: formData.get("paoCode") as string || "",
+        ministryName: formData.get("ministryName") as string || "",
+        ministryIfOthers: formData.get("ministryIfOthers") as string || "",
+        tdsCircle: formData.get("tdsCircle") as string || "",
+        ain: formData.get("ain") as string || "",
+        ddoCode: formData.get("ddoCode") as string || "",
+        ddoRegNo: formData.get("ddoRegNo") as string || "",
+        tanRegNo: formData.get("tanRegNo") as string || "",
+        lwfRegNo: formData.get("lwfRegNo") as string || "",
+        branchDivision: formData.get("branchDivision") as string || "",
+        status: "active",
+        createdAt: new Date().toISOString(),
+        id: `company_${Date.now()}`,
+        adminId: `admin_${Date.now()}`
+      }
+      
+      // Store in localStorage for immediate display
+      localStorage.setItem("companyData", JSON.stringify(companyData))
+      
+      // Add to companies list
+      setCompanies([...companies, companyData as unknown as CompanyExtended])
+      setIsCreateOpen(false)
+      
+      // Show success message
+      toast({
+        title: "Company Created Successfully",
+        description: `Company "${companyData.name}" has been added to the system.`,
+        duration: 5000,
+      })
+    } catch (error) {
+      setError('Failed to create company')
+    }
+  }
+
+  // Update Company
+  const updateCompany = (formData: FormData) => {
+    if (selectedCompany) {
+      const updatedCompany: CompanyExtended = {
+        ...selectedCompany,
+        name: formData.get("nameAdd") as string || selectedCompany.name,
+        adminName: formData.get("authorisedPersonName") as string || selectedCompany.adminName,
+        createdAt: formData.get("dateOfStartingBusiness") as string || selectedCompany.createdAt,
+        status: (formData.get("status") as "active" | "inactive") || selectedCompany.status,
+        nature: formData.get("natureOfBusiness") as string || selectedCompany.nature,
+        address: formData.get("address") as string || selectedCompany.address,
+        pan: formData.get("pan") as string || selectedCompany.pan,
+        gstin: formData.get("gstin") as string || selectedCompany.gstin || "",
+        tan: formData.get("tan") as string || selectedCompany.tan || "",
+        serviceName: (formData.get("serviceName") as string) || selectedCompany.serviceName,
+        startDate: (formData.get("startDate") as string) || selectedCompany.startDate,
+        endDate: (formData.get("endDate") as string) || selectedCompany.endDate,
+        code: formData.get("code") as string || selectedCompany.code || "",
+        flat: formData.get("flat") as string || selectedCompany.flat || "",
+        road: formData.get("road") as string || selectedCompany.road || "",
+        city: formData.get("city") as string || selectedCompany.city || "",
+        pin: formData.get("pin") as string || selectedCompany.pin || "",
+        state: formData.get("state") as string || selectedCompany.state || "",
+        stdCode: formData.get("stdCode") as string || selectedCompany.stdCode || "",
+        phone: formData.get("phone") as string || selectedCompany.phone || "",
+        email: formData.get("email") as string || selectedCompany.email || "",
+        dateOfStartingBusiness: formData.get("dateOfStartingBusiness") as string || selectedCompany.createdAt || "",
+        typeOfCompany: formData.get("typeOfCompany") as string || selectedCompany.typeOfCompany || "",
+        pfRegionalOffice: formData.get("pfRegionalOffice") as string || selectedCompany.pfRegionalOffice || "",
+        pensionCoverageDate: formData.get("pensionCoverageDate") as string || selectedCompany.pensionCoverageDate || "",
+        esiLocalOffice: formData.get("esiLocalOffice") as string || selectedCompany.esiLocalOffice || "",
+        ptoCircleNo: formData.get("ptoCircleNo") as string || selectedCompany.ptoCircleNo || "",
+        website: formData.get("website") as string || selectedCompany.website || "",
+        defaultAttendance: formData.get("defaultAttendance") as string || selectedCompany.defaultAttendance || "",
+        companyVisibility: formData.get("companyVisibility") as string || selectedCompany.companyVisibility || "",
+        apName: formData.get("apName") as string || selectedCompany.apName || "",
+        apDob: formData.get("apDob") as string || selectedCompany.apDob || "",
+        apSex: formData.get("apSex") as string || selectedCompany.apSex || "",
+        apPremise: formData.get("apPremise") as string || selectedCompany.apPremise || "",
+        apArea: formData.get("apArea") as string || selectedCompany.apArea || "",
+        apPin: formData.get("apPin") as string || selectedCompany.apPin || "",
+        apState: formData.get("apState") as string || selectedCompany.apState || "",
+        apStd: formData.get("apStd") as string || selectedCompany.apStd || "",
+        apPhone: formData.get("apPhone") as string || selectedCompany.apPhone || "",
+        apDesignation: formData.get("apDesignation") as string || selectedCompany.apDesignation || "",
+        apFatherName: formData.get("apFatherName") as string || selectedCompany.apFatherName || "",
+        apFlat: formData.get("apFlat") as string || selectedCompany.apFlat || "",
+        apRoad: formData.get("apRoad") as string || selectedCompany.apRoad || "",
+        apCity: formData.get("apCity") as string || selectedCompany.apCity || "",
+        apEmail: formData.get("apEmail") as string || selectedCompany.apEmail || "",
+        cin: formData.get("cin") as string || selectedCompany.cin || "",
+        deductorType: formData.get("deductorType") as string || selectedCompany.deductorType || "",
+        paoCode: formData.get("paoCode") as string || selectedCompany.paoCode || "",
+        ministryName: formData.get("ministryName") as string || selectedCompany.ministryName || "",
+        ministryIfOthers: formData.get("ministryIfOthers") as string || selectedCompany.ministryIfOthers || "",
+        tdsCircle: formData.get("tdsCircle") as string || selectedCompany.tdsCircle || "",
+        ain: formData.get("ain") as string || selectedCompany.ain || "",
+        ddoCode: formData.get("ddoCode") as string || selectedCompany.ddoCode || "",
+        ddoRegNo: formData.get("ddoRegNo") as string || selectedCompany.ddoRegNo || "",
+        tanRegNo: formData.get("tanRegNo") as string || selectedCompany.tanRegNo || "",
+        lwfRegNo: formData.get("lwfRegNo") as string || selectedCompany.lwfRegNo || "",
+        branchDivision: formData.get("branchDivision") as string || selectedCompany.branchDivision || "",
+      }
+      setCompanies(companies.map(c => c.id === selectedCompany.id ? updatedCompany : c))
+      setIsCompanyMasterOpen(false)
+    }
+  }
+
+  // Delete Company
+  const deleteCompany = (id: string) => {
+    if (confirm('Are you sure you want to delete this company?')) {
+      setCompanies(companies.filter(c => c.id !== id))
+      setSelectedRows(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(id)
+        return newSet
+      })
+      if (currentCompany?.id === id) {
+        setCurrentCompany(null)
+        setIsCompanyConfirmed(false)
+      }
+    }
+  }
+
+  // Backup and Restore actions
+  const backupCompany = (id: string) => {
+    console.log('Backup company', id)
+  }
+
+  const restoreCompany = (id: string) => {
+    console.log('Restore company', id)
+  }
+
+  // Sorting logic
+  const sortedCompanies = useMemo(() => {
+    let sortableCompanies = [...companies]
+    if (sortConfig !== null) {
+      const { key, direction } = sortConfig
+      sortableCompanies.sort((a, b) => {
+        const aVal = a[key] as unknown as string | number | Date | undefined
+        const bVal = b[key] as unknown as string | number | Date | undefined
+
+        const normalize = (val: typeof aVal) => {
+          if (val == null) return ''
+          if (key === 'startDate' || key === 'endDate' || key === 'createdAt') {
+            return new Date(val as any).getTime()
+          }
+          return typeof val === 'number' ? val : String(val).toLowerCase()
+        }
+
+        const av = normalize(aVal) as any
+        const bv = normalize(bVal) as any
+
+        if (av < bv) return direction === 'asc' ? -1 : 1
+        if (av > bv) return direction === 'asc' ? 1 : -1
+        return 0
+      })
+    }
+    return sortableCompanies
+  }, [companies, sortConfig])
+
+  // Filtering logic for table
+  const filteredCompanies = sortedCompanies.filter(company =>
+    company.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (company as CompanyExtended).serviceName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    ((company as CompanyExtended).adminName || '').toLowerCase().includes(searchTerm.toLowerCase())
+  )
+
+  // Handle row selection
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      setSelectedRows(new Set(filteredCompanies.map(c => c.id)))
+    } else {
+      setSelectedRows(new Set())
+    }
+  }
+
+  const handleSelectRow = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    setSelectedRows(prev => {
+      const newSet = new Set(prev)
+      if (e.target.checked) {
+        newSet.add(id)
+      } else {
+        newSet.delete(id)
+      }
+      return newSet
+    })
+  }
+
+  // Toggle collapsible sections
+  const toggleSection = (sectionId: string) => {
+    setExpandedSections(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(sectionId)) {
+        newSet.delete(sectionId)
+      } else {
+        newSet.add(sectionId)
+      }
+      return newSet
+    })
+  }
+
+  // Employee Master option handler
+  const handleEmployeeMasterOptionSelect = (optionId: string) => {
+    setSelectedEmployeeMasterOption(optionId)
+  }
+
+  return (
+    <div className="min-h-screen bg-background">
+      <header className="border-b bg-card p-2 sm:p-4">
+        <div className="flex items-center justify-between flex-col sm:flex-row gap-2 sm:gap-4">
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <Building2 className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold">HRPro Super Admin</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">Platform Management</p>
+            </div>
+          </div>
+          <form action="/api/auth/signout" method="post" className="w-full sm:w-auto">
+            <Button variant="outline" type="submit" className="w-full sm:w-auto text-sm sm:text-base">Sign Out</Button>
+          </form>
+        </div>
+      </header>
+
+      <div className="flex flex-col sm:flex-row">
+        <aside className={`border-r bg-card transition-all duration-300 ${isSidebarOpen ? 'block' : 'hidden'} sm:block sm:w-64 md:w-72 lg:w-80 min-h-[calc(100vh-4rem)]`}>
+          <nav className="p-2 sm:p-4 space-y-2">
+            <Button variant="secondary" className="w-full justify-start" onClick={() => setIsSidebarOpen(false)}>
+              <Building2 className="mr-2 h-4 w-4" />
+              Dashboard
+            </Button>
+            <Button variant="ghost" className="w-full justify-start" onClick={() => setIsSidebarOpen(false)}>
+              <Building2 className="mr-2 h-4 w-4" />
+              Companies
+            </Button>
+            <Collapsible open={expandedSections.has("employee-master")} onOpenChange={() => toggleSection("employee-master")}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between p-2 sm:p-3 h-auto">
+                  <div className="flex items-center">
+                    <Users className="mr-2 h-4 w-4" />
+                    <span className="font-medium">Employee Master</span>
+                  </div>
+                  {expandedSections.has("employee-master") ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-1 ml-2 sm:ml-4">
+                {Object.entries(groupedEmployeeMasterOptions).map(([groupName, options]) => (
+                  <Collapsible key={groupName} open={expandedSections.has(groupName)} onOpenChange={() => toggleSection(groupName)}>
+                    <CollapsibleTrigger asChild>
+                      <Button variant="ghost" className="w-full justify-between p-1 sm:p-2 h-auto text-sm">
+                        <span className="font-medium">{groupName}</span>
+                        {expandedSections.has(groupName) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="space-y-1 ml-2 sm:ml-4">
+                      {options.map((option) => {
+                        const IconComponent = option.icon
+                        const isSelected = selectedEmployeeMasterOption === option.id
+                        return (
+                          <Link 
+                            key={option.id} 
+                            href={option.href || "#"} 
+                            onClick={() => { handleEmployeeMasterOptionSelect(option.id); setIsSidebarOpen(false) }}
+                            className={`flex items-center w-full rounded-md p-1 sm:p-2 text-xs sm:text-sm 
+                                        ${isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"} `}
+                          >
+                            <IconComponent className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                            {option.title}
+                          </Link>
+                        )
+                      })}
+                    </CollapsibleContent>
+                  </Collapsible>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
+          </nav>
+        </aside>
+        <button className="sm:hidden p-2 bg-card border-b" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+          <Menu className="h-6 w-6" />
+        </button>
+
+        <main className="flex-1 p-2 sm:p-4 overflow-auto">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4 mb-4">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm sm:text-base font-medium">Total Companies</CardTitle>
+                <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl sm:text-2xl font-bold">{stats.totalCompanies}</div>
+                <p className="text-xs sm:text-sm text-muted-foreground">{stats.activeCompanies} active, {stats.totalCompanies - stats.activeCompanies} inactive</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm sm:text-base font-medium">Current Company</CardTitle>
+                <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-1 sm:space-x-2">
+                    <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                    <span className="text-base sm:text-lg font-semibold">{currentCompany ? currentCompany.name : "No company selected"}</span>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      placeholder="Search companies..."
+                      value={companySearchTerm}
+                      onChange={(e) => setCompanySearchTerm(e.target.value)}
+                      className="w-full text-xs sm:text-sm"
+                    />
+                    {companySearchTerm && filteredSearchCompanies.length > 0 && (
+                      <div className="absolute z-10 w-full bg-card border rounded-md mt-1 max-h-40 sm:max-h-60 overflow-auto">
+                        {filteredSearchCompanies.map((company) => (
+                          <div
+                            key={company.id}
+                            className="p-1 sm:p-2 hover:bg-primary/10 cursor-pointer text-xs sm:text-sm"
+                            onClick={() => { setCurrentCompany(company); setIsCompanyConfirmed(false); setCompanySearchTerm(""); }}
+                          >
+                            {company.name}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col space-y-2 sm:flex-row sm:space-x-2 sm:space-y-0">
+                    <Button size="sm" onClick={() => setIsCompanyConfirmed(true)} disabled={!currentCompany || isCompanyConfirmed} className="w-full sm:w-auto text-xs sm:text-sm">OK</Button>
+                    <Button size="sm" variant="outline" onClick={() => { setCurrentCompany(null); setIsCompanyConfirmed(false); setCompanySearchTerm(""); }} className="w-full sm:w-auto text-xs sm:text-sm">Clear</Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm sm:text-base font-medium">Total Employees</CardTitle>
+                <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-xl sm:text-2xl font-bold">{stats.totalEmployees}</div>
+                <p className="text-xs sm:text-sm text-muted-foreground">Across all companies</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg sm:text-xl">Registered Companies</CardTitle>
+              <CardDescription className="text-sm sm:text-base">Manage all companies registered on the platform</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row items-center py-1 sm:py-2 gap-2 sm:gap-4">
+                <Input
+                  placeholder="Search by name or admin..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="max-w-full sm:max-w-sm text-xs sm:text-sm"
+                />
+                <Button onClick={() => setIsCreateOpen(true)} className="w-full sm:w-auto text-xs sm:text-sm">Add New Company</Button>
+                <Button onClick={() => setIsCompanyMasterOpen(true)} className="w-full sm:w-auto text-xs sm:text-sm">Company Master</Button>
+              </div>
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[50px] sm:min-w-[80px]"><input type="checkbox" checked={selectedRows.size === filteredCompanies.length} onChange={handleSelectAll} /></TableHead>
+                      <TableHead className="min-w-[50px] sm:min-w-[80px]">Sr.No.</TableHead>
+                      <TableHead className="min-w-[80px] sm:min-w-[120px]">
+                        <Button variant="ghost" onClick={() => setSortConfig({ key: 'id', direction: sortConfig?.key === 'id' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
+                          Company ID <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="min-w-[100px] sm:min-w-[150px]">
+                        <Button variant="ghost" onClick={() => setSortConfig({ key: 'name', direction: sortConfig?.key === 'name' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
+                          Company Name <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="min-w-[100px] sm:min-w-[150px]">
+                        <Button variant="ghost" onClick={() => setSortConfig({ key: 'serviceName', direction: sortConfig?.key === 'serviceName' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
+                          Name of Services <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="min-w-[80px] sm:min-w-[100px]">Status</TableHead>
+                      <TableHead className="min-w-[100px] sm:min-w-[120px]">
+                        <Button variant="ghost" onClick={() => setSortConfig({ key: 'startDate', direction: sortConfig?.key === 'startDate' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
+                          Start Date <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead className="min-w-[100px] sm:min-w-[120px]">
+                        <Button variant="ghost" onClick={() => setSortConfig({ key: 'endDate', direction: sortConfig?.key === 'endDate' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
+                          End Date <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
+                        </Button>
+                      </TableHead>
+                      <TableHead colSpan={2} className="text-right min-w-[100px] sm:min-w-[150px]">
+                        <Button onClick={() => setIsCreateOpen(true)} className="ml-auto text-xs sm:text-sm">Add New Company</Button>
+                      </TableHead>
+                      <TableHead className="min-w-[80px] sm:min-w-[100px]">Backup</TableHead>
+                      <TableHead className="min-w-[80px] sm:min-w-[100px]">Restore</TableHead>
+                      <TableHead className="min-w-[80px] sm:min-w-[100px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredCompanies.length ? (
+                      filteredCompanies.map((company, index) => (
+                        <TableRow key={company.id}>
+                          <TableCell className="min-w-[50px] sm:min-w-[80px]"><input type="checkbox" checked={selectedRows.has(company.id)} onChange={(e) => handleSelectRow(company.id, e)} /></TableCell>
+                          <TableCell className="min-w-[50px] sm:min-w-[80px]">{index + 1}</TableCell>
+                          <TableCell className="min-w-[80px] sm:min-w-[120px]">{company.id}</TableCell>
+                          <TableCell className="min-w-[100px] sm:min-w-[150px]">
+                            <button className="text-blue-600 hover:underline font-medium text-xs sm:text-sm" onClick={() => { setCurrentCompany(company); setIsCompanyConfirmed(false); setCompanySearchTerm(""); }}>
+                              {company.name}
+                            </button>
+                          </TableCell>
+                          <TableCell className="min-w-[100px] sm:min-w-[150px]">{company.serviceName ?? '—'}</TableCell>
+                          <TableCell className="min-w-[80px] sm:min-w-[100px]">
+                            <Badge variant={company.status === "active" ? "default" : "secondary"} className="text-xs sm:text-sm">{company.status}</Badge>
+                          </TableCell>
+                          <TableCell className="min-w-[100px] sm:min-w-[120px]">{company.startDate ? new Date(company.startDate as any).toLocaleDateString() : '—'}</TableCell>
+                          <TableCell className="min-w-[100px] sm:min-w-[120px]">{company.endDate ? new Date(company.endDate as any).toLocaleDateString() : '—'}</TableCell>
+                          <TableCell className="min-w-[80px] sm:min-w-[100px]">
+                            <Button variant="outline" size="sm" onClick={() => backupCompany(company.id)} className="text-xs sm:text-sm">Backup</Button>
+                          </TableCell>
+                          <TableCell className="min-w-[80px] sm:min-w-[100px]">
+                            <Button variant="outline" size="sm" onClick={() => restoreCompany(company.id)} className="text-xs sm:text-sm">Restore</Button>
+                          </TableCell>
+                          <TableCell className="min-w-[80px] sm:min-w-[100px]">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="h-6 w-6 sm:h-8 sm:w-8 p-0"><MoreHorizontal className="h-3 w-3 sm:h-4 sm:w-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem asChild><Link href={`/company/${company.id}`} className="text-xs sm:text-sm"><Building2 className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> View Details</Link></DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { setSelectedCompany(company); setIsCompanyMasterOpen(true); }} className="text-xs sm:text-sm"><Pencil className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Edit</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => deleteCompany(company.id)} className="text-xs sm:text-sm"><Trash2 className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Delete</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow><TableCell colSpan={13} className="h-16 sm:h-24 text-center text-xs sm:text-sm">No companies registered yet</TableCell></TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              {selectedRows.size > 0 && <div className="mt-1 sm:mt-2"><Badge className="text-xs sm:text-sm">{selectedRows.size} row(s) selected</Badge></div>}
+            </CardContent>
+          </Card>
+
+          {selectedEmployeeMasterOption && (
+            <Card className="mt-2 sm:mt-4">
+              <CardHeader>
+                <div className="flex items-center space-x-2 sm:space-x-3">
+                  <div className="p-1 sm:p-2 bg-primary/10 rounded-lg">
+                    {(() => {
+                      const option = employeeMasterOptions.find(opt => opt.id === selectedEmployeeMasterOption)
+                      const IconComponent = option?.icon || Users
+                      return <IconComponent className="h-4 w-4 sm:h-6 sm:w-6 text-primary" />
+                    })()}
+                  </div>
+                  <div>
+                    <CardTitle className="text-lg sm:text-2xl">
+                      {employeeMasterOptions.find(opt => opt.id === selectedEmployeeMasterOption)?.title || "Employee Master Option"}
+                    </CardTitle>
+                    <CardDescription className="text-sm sm:text-base">
+                      {employeeMasterOptions.find(opt => opt.id === selectedEmployeeMasterOption)?.description || "Configure employee management settings"}
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2 sm:space-y-4">
+                  <div className="p-2 sm:p-4 border rounded-lg bg-muted/50">
+                    <h3 className="text-base sm:text-lg font-semibold mb-1 sm:mb-2">Configuration Options</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">
+                      This section will contain the specific configuration options for {employeeMasterOptions.find(opt => opt.id === selectedEmployeeMasterOption)?.title}.
+                      The implementation will be added based on the specific requirements for each module.
+                    </p>
+                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-x-2 sm:space-y-0">
+                      <Button className="w-full sm:w-auto text-xs sm:text-sm">Configure Settings</Button>
+                      <Button variant="outline" className="w-full sm:w-auto text-xs sm:text-sm">View Documentation</Button>
+                      <Button variant="outline" className="w-full sm:w-auto text-xs sm:text-sm">Reset to Default</Button>
+
+                      {/* 🔹 New navigation button */}
+                      <Link href="/super-admin/employee-details">
+                        <Button variant="default" className="w-full sm:w-auto text-xs sm:text-sm">
+                          Go to Employee Details
+                        </Button>
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 hidden sm:block">
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base sm:text-lg">Quick Actions</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-1 sm:space-y-2">
+                          <Button variant="outline" className="w-full justify-start text-xs sm:text-sm"><FileText className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Import Data</Button>
+                          <Button variant="outline" className="w-full justify-start text-xs sm:text-sm"><FileText className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Export Data</Button>
+                          <Button variant="outline" className="w-full justify-start text-xs sm:text-sm"><Clock className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Advanced Settings</Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="text-base sm:text-lg">Recent Activity</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="space-y-1 sm:space-y-2 text-xs sm:text-sm text-muted-foreground">
+                          <p>• Last updated: {new Date().toLocaleDateString()}</p>
+                          <p>• Configuration changes: 0</p>
+                          <p>• Active users: 1</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )
+          }
+        </main>
+      </div>
+      
+      {/* Dialogs */}
+      <CreateCompanyDialog
+        isOpen={isCreateOpen}
+        onOpenChange={setIsCreateOpen}
+        onCreate={createCompany}
+        error={error}
+      />
+      
+      <CompanyMasterDialog
+        isOpen={isCompanyMasterOpen}
+        onOpenChange={setIsCompanyMasterOpen}
+        selectedCompany={selectedCompany}
+        onUpdate={updateCompany}
+        error={error}
+      />
+    </div>
+  )
+}
