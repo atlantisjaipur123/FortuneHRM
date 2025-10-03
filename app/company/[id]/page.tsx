@@ -1,4 +1,4 @@
-import { requireSuperAdmin, getCompanyById } from "@/lib/auth"
+import { requireSuperAdmin, getCompanyById } from "@/app/lib/auth"
 import { CompanyDetailClient } from "./CompanyDetailClient"
 
 export default async function CompanyPage({ params }: { params: Promise<{ id: string }> }) {

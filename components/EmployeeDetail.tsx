@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Plus, Trash2 } from "lucide-react";
-import type { Employee } from "@/lib/employees";
-import { getEmployeesByCompany, deleteEmployee } from "@/lib/employees";
+import type { Employee } from "@/app/lib/employees";
+import { getEmployeesByCompany, deleteEmployee } from "@/app/lib/employees";
 import {
   Table,
   TableBody,

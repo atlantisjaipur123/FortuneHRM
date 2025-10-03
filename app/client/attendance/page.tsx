@@ -1,4 +1,4 @@
-import { requireClientAuth } from "@/lib/client-auth"
+import { requireClientAuth } from "@/app/lib/client-auth"
 import { ClientDashboardLayout } from "@/components/client-dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Clock, Users, TrendingUp, Download, Filter, Search, MapPin } from "lucide-react"
-import { getAttendanceRecords, getAttendanceStats, getDepartments } from "@/lib/attendance"
+import { getAttendanceRecords, getAttendanceStats, getDepartments } from "@/app/lib/attendance"
 
 export default async function ClientAttendancePage() {
   const client = await requireClientAuth()

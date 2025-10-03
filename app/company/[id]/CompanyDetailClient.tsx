@@ -29,7 +29,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import Link from "next/link"
-import type { Company } from "@/lib/auth"
+import type { Company } from "@/app/lib/auth"
 
 interface Employee {
   id: string

@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/collapsible"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import type { Company } from "@/lib/auth"
+import type { Company } from "@/app/lib/auth"
 import { CreateCompanyDialog } from "../../components/dialogs/CreateCompanyDialog"
 import { CompanyMasterDialog } from "../../components/dialogs/CompanyMasterDialog"
 import { toast } from "@/components/ui/use-toast"

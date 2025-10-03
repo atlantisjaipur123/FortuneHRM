@@ -10,9 +10,9 @@ import { Progress } from "@/components/ui/progress"
 import { ArrowLeft, Play, CheckCircle, AlertCircle, Users, Calculator, DollarSign } from "lucide-react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import Link from "next/link"
-import { getEmployeesByCompany } from "@/lib/employees"
-import { calculatePayroll, months } from "@/lib/payroll"
-import type { User } from "@/lib/auth"
+import { getEmployeesByCompany } from "@/app/lib/employees"
+import { calculatePayroll, months } from "@/app/lib/payroll"
+import type { User } from "@/app/lib/auth"
 
 // Mock user for demo
 const mockUser: User = {

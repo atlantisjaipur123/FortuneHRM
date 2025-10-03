@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Building2, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { signupAction } from "@/app/actions/auth"
-import { getSession } from "@/lib/auth"
+import { getSession } from "@/app/lib/auth"
 import { redirect } from "next/navigation"
 
 export default async function SignUpPage({
@@ -49,7 +49,14 @@ export default async function SignUpPage({
               </div>
             )}
 
-            <form action={signupAction} className="grid grid-cols-2 gap-4">
+            <form action={async (formData) => {
+              'use server'
+              try {
+                await signupAction(formData)
+              } catch (error) {
+                redirect(`/signup?error=${encodeURIComponent(error instanceof Error ? error.message : 'Signup failed')}`)
+              }
+            }} className="grid grid-cols-2 gap-4">
               {/* User Info Section */}
               <div className="space-y-2 col-span-2">
                 <Label htmlFor="name">Full Name *</Label>

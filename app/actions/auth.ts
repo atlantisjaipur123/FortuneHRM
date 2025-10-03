@@ -1,21 +1,21 @@
 "use server"
 
-import { signIn, signUp, signOut, createCompany, getSession } from "@/lib/auth"
+import { signIn, signUp, signOut, createCompany, getSession } from "@/app/lib/auth"
 import { redirect } from "next/navigation"
 import { revalidatePath } from "next/cache"
 
-export async function loginAction(formData: FormData) {
+export async function loginAction(formData: FormData): Promise<void> {
   const email = formData.get("email") as string
   const password = formData.get("password") as string
 
   if (!email || !password) {
-    return { error: "Email and password are required" }
+    throw new Error("Email and password are required")
   }
 
   const result = await signIn(email, password)
 
   if (!result.success) {
-    return { error: result.error }
+    throw new Error(result.error || "Login failed")
   }
 
   if (result.user?.role === "super_admin") {
@@ -29,19 +29,19 @@ export async function loginAction(formData: FormData) {
   }
 }
 
-export async function signupAction(formData: FormData) {
+export async function signupAction(formData: FormData): Promise<void> {
   const name = formData.get("name") as string
   const email = formData.get("email") as string
   const password = formData.get("password") as string
 
   if (!name || !email || !password) {
-    return { error: "All fields are required" }
+    throw new Error("All fields are required")
   }
 
   const result = await signUp(name, email, password)
 
   if (!result.success) {
-    return { error: result.error }
+    throw new Error(result.error || "Signup failed")
   }
 
   await signIn(email, password)

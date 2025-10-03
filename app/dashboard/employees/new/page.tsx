@@ -11,8 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, Save, UserIcon, CreditCard, Briefcase } from "lucide-react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import Link from "next/link"
-import { departments, designations, generateEmployeeCode } from "@/lib/employees"
-import type { AuthUser } from "@/lib/auth"
+import { departments, designations, generateEmployeeCode } from "@/app/lib/employees"
+import type { AuthUser } from "@/app/lib/auth"
 
 // Mock user for demo
 const mockUser: AuthUser = {

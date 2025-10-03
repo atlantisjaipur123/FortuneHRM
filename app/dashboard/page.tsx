@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Users, Calendar, Calculator, Clock, Plus, TrendingUp, AlertCircle, CheckCircle } from "lucide-react"
-import { requireCompanyAdmin } from "@/lib/auth"
+import { requireCompanyAdmin } from "@/app/lib/auth"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import Link from "next/link"
 

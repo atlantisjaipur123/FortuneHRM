@@ -4,9 +4,9 @@ import { Badge } from "@/components/ui/badge"
 import { ArrowLeft, Edit, UserIcon, CreditCard, Briefcase, Phone, Mail, MapPin } from "lucide-react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import Link from "next/link"
-import { getEmployeeById } from "@/lib/employees"
+import { getEmployeeById } from "@/app/lib/employees"
 import { notFound } from "next/navigation"
-import type { AuthUser } from "@/lib/auth"
+import type { AuthUser } from "@/app/lib/auth"
 
 // Mock user for demo
 const mockUser: AuthUser = {

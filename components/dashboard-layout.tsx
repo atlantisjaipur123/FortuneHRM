@@ -9,8 +9,8 @@ import { Building2, Users, Calculator, Calendar, Clock, Settings, Menu, Home, Fi
 import { LogoutButton } from "@/components/logout-button"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
-import type { User } from "@/lib/auth"
+import { cn } from "@/app/lib/utils"
+import type { User } from "@/app/lib/auth"
 
 interface DashboardLayoutProps {
   children: React.ReactNode

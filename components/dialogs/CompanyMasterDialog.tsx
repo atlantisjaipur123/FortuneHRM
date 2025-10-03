@@ -1,7 +1,7 @@
 "use client"
 import React from "react"
 import { CompanyInformationForm } from "./CompanyInformationForm"
-import type { CompanyExtended } from "@/lib/types"
+import type { CompanyExtended } from "@/app/lib/types"
 
 interface CompanyMasterDialogProps {
   isOpen: boolean

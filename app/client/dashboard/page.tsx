@@ -1,4 +1,4 @@
-import { requireClientAuth } from "@/lib/client-auth"
+import { requireClientAuth } from "@/app/lib/client-auth"
 import { ClientDashboardLayout } from "@/components/client-dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"

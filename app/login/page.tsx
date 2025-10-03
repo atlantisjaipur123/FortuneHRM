@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label"
 import { Building2, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { loginAction } from "@/app/actions/auth"
-import { getSession } from "@/lib/auth"
+import { getSession } from "@/app/lib/auth"
 import { redirect } from "next/navigation"
 
 export default async function LoginPage({
@@ -49,7 +49,14 @@ export default async function LoginPage({
               </div>
             )}
 
-            <form action={loginAction} className="space-y-4">
+            <form action={async (formData) => {
+              'use server'
+              try {
+                await loginAction(formData)
+              } catch (error) {
+                redirect(`/login?error=${encodeURIComponent(error instanceof Error ? error.message : 'Login failed')}`)
+              }
+            }} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" name="email" type="email" placeholder="Enter your email" required />

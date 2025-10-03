@@ -9,8 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calculator, Download, Play, Eye, DollarSign, Users, TrendingUp, Clock } from "lucide-react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import Link from "next/link"
-import { getPayrollByCompany, getPayrollSummariesByCompany, months } from "@/lib/payroll"
-import type { User } from "@/lib/auth"
+import { getPayrollByCompany, getPayrollSummariesByCompany, months } from "@/app/lib/payroll"
+import type { User } from "@/app/lib/auth"
 
 // Mock user for demo
 const mockUser: User = {

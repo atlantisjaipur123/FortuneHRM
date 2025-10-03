@@ -1,6 +1,6 @@
 "use server"
 
-import { requireSuperAdmin, updateCompanyStatus } from "@/lib/auth"
+import { requireSuperAdmin, updateCompanyStatus } from "@/app/lib/auth"
 import { revalidatePath } from "next/cache"
 
 export async function toggleCompanyStatusAction(companyId: string, currentStatus: string) {

@@ -1,4 +1,4 @@
-import { requireSuperAdmin, getCompanies, getCompanyStats } from "@/lib/auth"
+import { requireSuperAdmin, getCompanies, getCompanyStats } from "@/app/lib/auth"
 import { SuperAdminDashboardClient } from "./SuperAdminDashboardClient"
 
 export default async function SuperAdminDashboard() {

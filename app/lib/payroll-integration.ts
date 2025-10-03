@@ -55,6 +55,7 @@ export function calculatePayrollWithAttendance(employeeData: any, month: string,
 
   const enhancedPayroll: EnhancedPayrollItem = {
     ...basePayroll,
+    id: `enhanced-${employeeData.id}-${month}-${year}`,
     grossSalary: Math.round(adjustedGrossSalary),
     netSalary: Math.round(adjustedNetSalary),
     workingDays: totalWorkingDays,
@@ -64,6 +65,8 @@ export function calculatePayrollWithAttendance(employeeData: any, month: string,
     overtimeAmount: Math.round(overtimePayment),
     payrollMonth: month,
     payrollYear: year,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
     attendanceData: {
       totalWorkingDays,
       actualPresentDays,

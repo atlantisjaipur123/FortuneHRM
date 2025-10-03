@@ -1,4 +1,4 @@
-import { requireClientAuth } from "@/lib/client-auth"
+import { requireClientAuth } from "@/app/lib/client-auth"
 import { ClientDashboardLayout } from "@/components/client-dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Calculator, Download, Play, Users, DollarSign, TrendingUp, FileText } from "lucide-react"
-import { getPayrollByCompany, getPayrollSummariesByCompany, months } from "@/lib/payroll"
+import { getPayrollByCompany, getPayrollSummariesByCompany, months } from "@/app/lib/payroll"
 import Link from "next/link"
 
 export default async function ClientPayrollPage() {

@@ -11,8 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Users, Search, Filter, Plus, Download, Upload, MoreHorizontal, Eye, Edit, UserX } from "lucide-react"
 import { DashboardLayout } from "@/components/dashboard-layout"
 import Link from "next/link"
-import { getEmployeesByCompany, departments, designations } from "@/lib/employees"
-import type { User } from "@/lib/auth"
+import { getEmployeesByCompany, departments, designations } from "@/app/lib/employees"
+import type { User } from "@/app/lib/auth"
 
 // Mock user for demo - in real app this would come from auth
 const mockUser: User = {

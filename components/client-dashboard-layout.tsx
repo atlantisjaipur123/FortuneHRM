@@ -9,8 +9,8 @@ import { Badge } from "@/components/ui/badge"
 import { Building2, Users, Calculator, Calendar, Clock, Settings, Menu, Home, BarChart3 } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { cn } from "@/lib/utils"
-import type { Client } from "@/lib/client-auth"
+import { cn } from "@/app/lib/utils"
+import type { Client } from "@/app/lib/client-auth"
 import { clientSignOutAction } from "@/app/actions/client-auth"
 
 interface ClientDashboardLayoutProps {

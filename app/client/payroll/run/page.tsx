@@ -1,4 +1,4 @@
-import { requireClientAuth } from "@/lib/client-auth"
+import { requireClientAuth } from "@/app/lib/client-auth"
 import { ClientDashboardLayout } from "@/components/client-dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -7,8 +7,8 @@ import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Calculator, Clock, AlertTriangle, CheckCircle, Play } from "lucide-react"
-import { months } from "@/lib/payroll"
-import { getAttendanceStats } from "@/lib/attendance"
+import { months } from "@/app/lib/payroll"
+import { getAttendanceStats } from "@/app/lib/attendance"
 
 export default async function PayrollRunPage() {
   const client = await requireClientAuth()

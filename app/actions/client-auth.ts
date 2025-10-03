@@ -1,6 +1,6 @@
 "use server"
 
-import { clientSignIn, clientSignUp, clientSignOut } from "@/lib/client-auth"
+import { clientSignIn, clientSignUp, clientSignOut } from "@/app/lib/client-auth"
 import { redirect } from "next/navigation"
 
 export async function clientSignInAction(email: string, password: string) {
