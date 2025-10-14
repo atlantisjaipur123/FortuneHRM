@@ -2,12 +2,16 @@ import type { Metadata } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import './globals.css'
+import { SidebarProvider } from '@/app/lib/sidebar-context'
 
 export const metadata: Metadata = {
   title: 'HRPro - HR Management System',
   description: 'Comprehensive HR management platform for modern businesses',
   generator: 'Next.js',
 }
+
+// Force dynamic rendering to avoid static pre-render issues with client context
+export const dynamic = 'force-dynamic'
 
 export default function RootLayout({
   children,
@@ -17,7 +21,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        {children}
+        <SidebarProvider>
+          {children}
+        </SidebarProvider>
       </body>
     </html>
   )

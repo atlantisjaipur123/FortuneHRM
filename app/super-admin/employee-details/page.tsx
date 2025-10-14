@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import AddEmployee from "@/components/add-employee"; // Imported component
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { GlobalLayout } from "@/app/components/global-layout";
 
 // --- Interfaces (No Changes) ---
 interface Address {
@@ -647,7 +648,8 @@ export default function EmployeeDetailsPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6">
+    <GlobalLayout>
+      <div className="p-4 sm:p-6">
       <Card>
         <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center sm:justify-between gap-4">
           <CardTitle className="text-lg sm:text-2xl">Employee Details</CardTitle>
@@ -789,6 +791,7 @@ export default function EmployeeDetailsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </GlobalLayout>
   );
 }

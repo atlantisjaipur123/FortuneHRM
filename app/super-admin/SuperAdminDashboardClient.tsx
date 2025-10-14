@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Building2, AlertCircle, MoreHorizontal, ArrowUpDown, Pencil, Trash2, Users, ChevronDown, ChevronRight, DollarSign, Calculator, Calendar, CreditCard, Banknote, CalendarDays, CreditCardIcon, TrendingUp, Clock, UserCheck, Clock3, FileText, Briefcase, Scale, Projector, Receipt, Menu } from "lucide-react"
+import { Building2, AlertCircle, MoreHorizontal, ArrowUpDown, Pencil, Trash2, Users, DollarSign, Calculator, Calendar, CreditCard, Banknote, CalendarDays, CreditCardIcon, TrendingUp, Clock, UserCheck, Clock3, FileText, Briefcase, Scale, Projector, Receipt } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -19,13 +19,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
+// Removed local collapsible sidebar usage
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+// Local sidebar utilities not needed anymore
 import type { Company } from "@/app/lib/auth"
 import { CreateCompanyDialog } from "../../components/dialogs/CreateCompanyDialog"
 import { CompanyMasterDialog } from "../../components/dialogs/CompanyMasterDialog"
@@ -99,7 +96,7 @@ const employeeMasterOptions = [
   { id: "salary-heads", title: "Salary Heads", icon: DollarSign, description: "Configure salary components and allowances", href: "/super-admin/salary-head" },
   { id: "salary-setup", title: "Salary SetUp", icon: Calculator, description: "Set up salary structures and calculations", shortcut: "F1" },
   { id: "resign-date-setting", title: "Resign Date Setting", icon: Calendar, description: "Configure resignation date settings" },
-  { id: "pf-esi-rate", title: "PF/ESI Rate", icon: CreditCard, description: "Manage Provident Fund and ESI rates" },
+  { id: "pf-esi-rate", title: "PF/ESI Rate", icon: CreditCard, description: "Manage Provident Fund and ESI rates", href: "/super-admin/PF-ESI" },
   { id: "pf-interest-loan", title: "PF (Interest Due & Loan Applicable)", icon: Banknote, description: "Configure PF interest and loan settings" },
   { id: "professional-tax-rate", title: "Professional Tax Rate", icon: Calculator, description: "Set up professional tax rates" },
   { id: "wage-gratuity-leave", title: "Wage, Gratuity, Leave Encashment & Retirement Age", icon: CalendarDays, description: "Configure wage, gratuity, and leave encashment policies" },
@@ -146,12 +143,10 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
   const [searchTerm, setSearchTerm] = useState("")
   const [sortConfig, setSortConfig] = useState<{ key: keyof CompanyExtended; direction: 'asc' | 'desc' } | null>(null)
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
-  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
-  const [selectedEmployeeMasterOption, setSelectedEmployeeMasterOption] = useState<string | undefined>()
+  // Removed local sidebar state; global universal sidebar is used
   const [currentCompany, setCurrentCompany] = useState<CompanyExtended | null>(null)
   const [isCompanyConfirmed, setIsCompanyConfirmed] = useState(false)
   const [companySearchTerm, setCompanySearchTerm] = useState("")
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const router = useRouter()
 
   // Search filtering for Current Company card
@@ -398,101 +393,21 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
     })
   }
 
-  // Toggle collapsible sections
-  const toggleSection = (sectionId: string) => {
-    setExpandedSections(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(sectionId)) {
-        newSet.delete(sectionId)
-      } else {
-        newSet.add(sectionId)
-      }
-      return newSet
-    })
-  }
-
-  // Employee Master option handler
-  const handleEmployeeMasterOptionSelect = (optionId: string) => {
-    setSelectedEmployeeMasterOption(optionId)
-  }
+  // Removed local sidebar expand/select handlers – handled by global sidebar now
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card p-2 sm:p-4">
-        <div className="flex items-center justify-between flex-col sm:flex-row gap-2 sm:gap-4">
-          <div className="flex items-center space-x-2 sm:space-x-4">
-            <Building2 className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
-            <div>
-              <h1 className="text-lg sm:text-xl font-bold">HRPro Super Admin</h1>
-              <p className="text-sm sm:text-base text-muted-foreground">Platform Management</p>
-            </div>
-          </div>
-          <form action="/api/auth/signout" method="post" className="w-full sm:w-auto">
-            <Button variant="outline" type="submit" className="w-full sm:w-auto text-sm sm:text-base">Sign Out</Button>
-          </form>
-        </div>
-      </header>
 
       <div className="flex flex-col sm:flex-row">
-        <aside className={`border-r bg-card transition-all duration-300 ${isSidebarOpen ? 'block' : 'hidden'} sm:block sm:w-64 md:w-72 lg:w-80 min-h-[calc(100vh-4rem)]`}>
-          <nav className="p-2 sm:p-4 space-y-2">
-            <Button variant="secondary" className="w-full justify-start" onClick={() => setIsSidebarOpen(false)}>
-              <Building2 className="mr-2 h-4 w-4" />
-              Dashboard
-            </Button>
-            <Button variant="ghost" className="w-full justify-start" onClick={() => setIsSidebarOpen(false)}>
-              <Building2 className="mr-2 h-4 w-4" />
-              Companies
-            </Button>
-            <Collapsible open={expandedSections.has("employee-master")} onOpenChange={() => toggleSection("employee-master")}>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="w-full justify-between p-2 sm:p-3 h-auto">
-                  <div className="flex items-center">
-                    <Users className="mr-2 h-4 w-4" />
-                    <span className="font-medium">Employee Master</span>
-                  </div>
-                  {expandedSections.has("employee-master") ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-1 ml-2 sm:ml-4">
-                {Object.entries(groupedEmployeeMasterOptions).map(([groupName, options]) => (
-                  <Collapsible key={groupName} open={expandedSections.has(groupName)} onOpenChange={() => toggleSection(groupName)}>
-                    <CollapsibleTrigger asChild>
-                      <Button variant="ghost" className="w-full justify-between p-1 sm:p-2 h-auto text-sm">
-                        <span className="font-medium">{groupName}</span>
-                        {expandedSections.has(groupName) ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                      </Button>
-                    </CollapsibleTrigger>
-                    <CollapsibleContent className="space-y-1 ml-2 sm:ml-4">
-                      {options.map((option) => {
-                        const IconComponent = option.icon
-                        const isSelected = selectedEmployeeMasterOption === option.id
-                        return (
-                          <Link 
-                            key={option.id} 
-                            href={option.href || "#"} 
-                            onClick={() => { handleEmployeeMasterOptionSelect(option.id); setIsSidebarOpen(false) }}
-                            className={`flex items-center w-full rounded-md p-1 sm:p-2 text-xs sm:text-sm 
-                                        ${isSelected ? "bg-primary/10 text-primary" : "hover:bg-muted"} `}
-                          >
-                            <IconComponent className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                            {option.title}
-                          </Link>
-                        )
-                      })}
-                    </CollapsibleContent>
-                  </Collapsible>
-                ))}
-              </CollapsibleContent>
-            </Collapsible>
-          </nav>
-        </aside>
-        <button className="sm:hidden p-2 bg-card border-b" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
-          <Menu className="h-6 w-6" />
-        </button>
-
         <main className="flex-1 p-2 sm:p-4 overflow-auto">
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4 mb-4">
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold">Companies</h1>
+                <p className="text-muted-foreground">Manage all companies registered on the platform</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4 mb-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm sm:text-base font-medium">Total Companies</CardTitle>
@@ -658,81 +573,8 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
             </CardContent>
           </Card>
 
-          {selectedEmployeeMasterOption && (
-            <Card className="mt-2 sm:mt-4">
-              <CardHeader>
-                <div className="flex items-center space-x-2 sm:space-x-3">
-                  <div className="p-1 sm:p-2 bg-primary/10 rounded-lg">
-                    {(() => {
-                      const option = employeeMasterOptions.find(opt => opt.id === selectedEmployeeMasterOption)
-                      const IconComponent = option?.icon || Users
-                      return <IconComponent className="h-4 w-4 sm:h-6 sm:w-6 text-primary" />
-                    })()}
-                  </div>
-                  <div>
-                    <CardTitle className="text-lg sm:text-2xl">
-                      {employeeMasterOptions.find(opt => opt.id === selectedEmployeeMasterOption)?.title || "Employee Master Option"}
-                    </CardTitle>
-                    <CardDescription className="text-sm sm:text-base">
-                      {employeeMasterOptions.find(opt => opt.id === selectedEmployeeMasterOption)?.description || "Configure employee management settings"}
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 sm:space-y-4">
-                  <div className="p-2 sm:p-4 border rounded-lg bg-muted/50">
-                    <h3 className="text-base sm:text-lg font-semibold mb-1 sm:mb-2">Configuration Options</h3>
-                    <p className="text-xs sm:text-sm text-muted-foreground mb-1 sm:mb-2">
-                      This section will contain the specific configuration options for {employeeMasterOptions.find(opt => opt.id === selectedEmployeeMasterOption)?.title}.
-                      The implementation will be added based on the specific requirements for each module.
-                    </p>
-                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-x-2 sm:space-y-0">
-                      <Button className="w-full sm:w-auto text-xs sm:text-sm">Configure Settings</Button>
-                      <Button variant="outline" className="w-full sm:w-auto text-xs sm:text-sm">View Documentation</Button>
-                      <Button variant="outline" className="w-full sm:w-auto text-xs sm:text-sm">Reset to Default</Button>
-
-                      {/* 🔹 New navigation button */}
-                      <Link href="/super-admin/employee-details">
-                        <Button variant="default" className="w-full sm:w-auto text-xs sm:text-sm">
-                          Go to Employee Details
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-4 hidden sm:block">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base sm:text-lg">Quick Actions</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-1 sm:space-y-2">
-                          <Button variant="outline" className="w-full justify-start text-xs sm:text-sm"><FileText className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Import Data</Button>
-                          <Button variant="outline" className="w-full justify-start text-xs sm:text-sm"><FileText className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Export Data</Button>
-                          <Button variant="outline" className="w-full justify-start text-xs sm:text-sm"><Clock className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Advanced Settings</Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-base sm:text-lg">Recent Activity</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-1 sm:space-y-2 text-xs sm:text-sm text-muted-foreground">
-                          <p>• Last updated: {new Date().toLocaleDateString()}</p>
-                          <p>• Configuration changes: 0</p>
-                          <p>• Active users: 1</p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )
-          }
+          {/* Removed local sidebar-driven detail card */}
+          </div>
         </main>
       </div>
       

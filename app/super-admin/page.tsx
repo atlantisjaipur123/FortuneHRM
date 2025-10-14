@@ -1,5 +1,6 @@
 import { requireSuperAdmin, getCompanies, getCompanyStats } from "@/app/lib/auth"
 import { SuperAdminDashboardClient } from "./SuperAdminDashboardClient"
+import { GlobalLayout } from "@/app/components/global-layout"
 
 export default async function SuperAdminDashboard() {
   await requireSuperAdmin()
@@ -7,5 +8,9 @@ export default async function SuperAdminDashboard() {
   const companies = getCompanies()
   const stats = getCompanyStats()
 
-  return <SuperAdminDashboardClient companies={companies} stats={stats} />
+  return (
+    <GlobalLayout>
+      <SuperAdminDashboardClient companies={companies} stats={stats} />
+    </GlobalLayout>
+  )
 }
