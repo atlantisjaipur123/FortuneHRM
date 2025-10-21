@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Building2, AlertCircle, MoreHorizontal, ArrowUpDown, Pencil, Trash2, Users, DollarSign, Calculator, Calendar, CreditCard, Banknote, CalendarDays, CreditCardIcon, TrendingUp, Clock, UserCheck, Clock3, FileText, Briefcase, Scale, Projector, Receipt } from "lucide-react"
 import {
   Table,
@@ -19,10 +20,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-// Removed local collapsible sidebar usage
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-// Local sidebar utilities not needed anymore
 import type { Company } from "@/app/lib/auth"
 import { CreateCompanyDialog } from "../../components/dialogs/CreateCompanyDialog"
 import { CompanyMasterDialog } from "../../components/dialogs/CompanyMasterDialog"
@@ -143,10 +142,11 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
   const [searchTerm, setSearchTerm] = useState("")
   const [sortConfig, setSortConfig] = useState<{ key: keyof CompanyExtended; direction: 'asc' | 'desc' } | null>(null)
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
-  // Removed local sidebar state; global universal sidebar is used
   const [currentCompany, setCurrentCompany] = useState<CompanyExtended | null>(null)
   const [isCompanyConfirmed, setIsCompanyConfirmed] = useState(false)
   const [companySearchTerm, setCompanySearchTerm] = useState("")
+  const [selectedMonth, setSelectedMonth] = useState<string>("")
+  const [selectedYear, setSelectedYear] = useState<string>("")
   const router = useRouter()
 
   // Search filtering for Current Company card
@@ -158,6 +158,12 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
         (company.adminName || "").toLowerCase().includes(companySearchTerm.toLowerCase())
     );
   }, [companies, companySearchTerm]);
+
+  // Generate years for dropdown (current year and past 5 years)
+  const years = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return Array.from({ length: 6 }, (_, i) => (currentYear - i).toString());
+  }, []);
 
   // Create Company
   const createCompany = async (formData: FormData) => {
@@ -324,6 +330,8 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
       if (currentCompany?.id === id) {
         setCurrentCompany(null)
         setIsCompanyConfirmed(false)
+        setSelectedMonth("")
+        setSelectedYear("")
       }
     }
   }
@@ -393,11 +401,33 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
     })
   }
 
-  // Removed local sidebar expand/select handlers – handled by global sidebar now
+  // Handle OK button to confirm company, month, and year
+  const handleConfirm = () => {
+    if (currentCompany && selectedMonth && selectedYear) {
+      setIsCompanyConfirmed(true)
+      // Here you can add logic to filter data based on currentCompany.id, selectedMonth, and selectedYear
+      console.log(`Confirmed: Company ${currentCompany.name}, Month ${selectedMonth}, Year ${selectedYear}`)
+    } else {
+      toast({
+        title: "Selection Incomplete",
+        description: "Please select a company, month, and year before confirming.",
+        variant: "destructive",
+        duration: 5000,
+      })
+    }
+  }
+
+  // Handle Clear button to reset all selections
+  const handleClear = () => {
+    setCurrentCompany(null)
+    setIsCompanyConfirmed(false)
+    setCompanySearchTerm("")
+    setSelectedMonth("")
+    setSelectedYear("")
+  }
 
   return (
     <div className="min-h-screen bg-background">
-
       <div className="flex flex-col sm:flex-row">
         <main className="flex-1 p-2 sm:p-4 overflow-auto">
           <div className="space-y-6">
@@ -408,172 +438,201 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4 mb-4">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm sm:text-base font-medium">Total Companies</CardTitle>
-                <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-xl sm:text-2xl font-bold">{stats.totalCompanies}</div>
-                <p className="text-xs sm:text-sm text-muted-foreground">{stats.activeCompanies} active, {stats.totalCompanies - stats.activeCompanies} inactive</p>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm sm:text-base font-medium">Current Company</CardTitle>
-                <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-1 sm:space-x-2">
-                    <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                    <span className="text-base sm:text-lg font-semibold">{currentCompany ? currentCompany.name : "No company selected"}</span>
-                  </div>
-                  <div className="relative">
-                    <Input
-                      placeholder="Search companies..."
-                      value={companySearchTerm}
-                      onChange={(e) => setCompanySearchTerm(e.target.value)}
-                      className="w-full text-xs sm:text-sm"
-                    />
-                    {companySearchTerm && filteredSearchCompanies.length > 0 && (
-                      <div className="absolute z-10 w-full bg-card border rounded-md mt-1 max-h-40 sm:max-h-60 overflow-auto">
-                        {filteredSearchCompanies.map((company) => (
-                          <div
-                            key={company.id}
-                            className="p-1 sm:p-2 hover:bg-primary/10 cursor-pointer text-xs sm:text-sm"
-                            onClick={() => { setCurrentCompany(company); setIsCompanyConfirmed(false); setCompanySearchTerm(""); }}
-                          >
-                            {company.name}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex flex-col space-y-2 sm:flex-row sm:space-x-2 sm:space-y-0">
-                    <Button size="sm" onClick={() => setIsCompanyConfirmed(true)} disabled={!currentCompany || isCompanyConfirmed} className="w-full sm:w-auto text-xs sm:text-sm">OK</Button>
-                    <Button size="sm" variant="outline" onClick={() => { setCurrentCompany(null); setIsCompanyConfirmed(false); setCompanySearchTerm(""); }} className="w-full sm:w-auto text-xs sm:text-sm">Clear</Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm sm:text-base font-medium">Total Employees</CardTitle>
-                <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-xl sm:text-2xl font-bold">{stats.totalEmployees}</div>
-                <p className="text-xs sm:text-sm text-muted-foreground">Across all companies</p>
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg sm:text-xl">Registered Companies</CardTitle>
-              <CardDescription className="text-sm sm:text-base">Manage all companies registered on the platform</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="flex flex-col sm:flex-row items-center py-1 sm:py-2 gap-2 sm:gap-4">
-                <Input
-                  placeholder="Search by name or admin..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-full sm:max-w-sm text-xs sm:text-sm"
-                />
-                <Button onClick={() => setIsCreateOpen(true)} className="w-full sm:w-auto text-xs sm:text-sm">Add New Company</Button>
-                <Button onClick={() => setIsCompanyMasterOpen(true)} className="w-full sm:w-auto text-xs sm:text-sm">Company Master</Button>
-              </div>
-              <div className="rounded-md border overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="min-w-[50px] sm:min-w-[80px]"><input type="checkbox" checked={selectedRows.size === filteredCompanies.length} onChange={handleSelectAll} /></TableHead>
-                      <TableHead className="min-w-[50px] sm:min-w-[80px]">Sr.No.</TableHead>
-                      <TableHead className="min-w-[80px] sm:min-w-[120px]">
-                        <Button variant="ghost" onClick={() => setSortConfig({ key: 'id', direction: sortConfig?.key === 'id' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
-                          Company ID <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
-                        </Button>
-                      </TableHead>
-                      <TableHead className="min-w-[100px] sm:min-w-[150px]">
-                        <Button variant="ghost" onClick={() => setSortConfig({ key: 'name', direction: sortConfig?.key === 'name' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
-                          Company Name <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
-                        </Button>
-                      </TableHead>
-                      <TableHead className="min-w-[100px] sm:min-w-[150px]">
-                        <Button variant="ghost" onClick={() => setSortConfig({ key: 'serviceName', direction: sortConfig?.key === 'serviceName' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
-                          Name of Services <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
-                        </Button>
-                      </TableHead>
-                      <TableHead className="min-w-[80px] sm:min-w-[100px]">Status</TableHead>
-                      <TableHead className="min-w-[100px] sm:min-w-[120px]">
-                        <Button variant="ghost" onClick={() => setSortConfig({ key: 'startDate', direction: sortConfig?.key === 'startDate' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
-                          Start Date <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
-                        </Button>
-                      </TableHead>
-                      <TableHead className="min-w-[100px] sm:min-w-[120px]">
-                        <Button variant="ghost" onClick={() => setSortConfig({ key: 'endDate', direction: sortConfig?.key === 'endDate' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
-                          End Date <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
-                        </Button>
-                      </TableHead>
-                      <TableHead colSpan={2} className="text-right min-w-[100px] sm:min-w-[150px]">
-                        <Button onClick={() => setIsCreateOpen(true)} className="ml-auto text-xs sm:text-sm">Add New Company</Button>
-                      </TableHead>
-                      <TableHead className="min-w-[80px] sm:min-w-[100px]">Backup</TableHead>
-                      <TableHead className="min-w-[80px] sm:min-w-[100px]">Restore</TableHead>
-                      <TableHead className="min-w-[80px] sm:min-w-[100px]">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredCompanies.length ? (
-                      filteredCompanies.map((company, index) => (
-                        <TableRow key={company.id}>
-                          <TableCell className="min-w-[50px] sm:min-w-[80px]"><input type="checkbox" checked={selectedRows.has(company.id)} onChange={(e) => handleSelectRow(company.id, e)} /></TableCell>
-                          <TableCell className="min-w-[50px] sm:min-w-[80px]">{index + 1}</TableCell>
-                          <TableCell className="min-w-[80px] sm:min-w-[120px]">{company.id}</TableCell>
-                          <TableCell className="min-w-[100px] sm:min-w-[150px]">
-                            <button className="text-blue-600 hover:underline font-medium text-xs sm:text-sm" onClick={() => { setCurrentCompany(company); setIsCompanyConfirmed(false); setCompanySearchTerm(""); }}>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm sm:text-base font-medium">Total Companies</CardTitle>
+                  <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-xl sm:text-2xl font-bold">{stats.totalCompanies}</div>
+                  <p className="text-xs sm:text-sm text-muted-foreground">{stats.activeCompanies} active, {stats.totalCompanies - stats.activeCompanies} inactive</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm sm:text-base font-medium">Current Company</CardTitle>
+                  <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-1 sm:space-x-2">
+                      <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
+                      <span className="text-base sm:text-lg font-semibold">{currentCompany ? currentCompany.name : "No company selected"}</span>
+                    </div>
+                    <div className="relative">
+                      <Input
+                        placeholder="Search companies..."
+                        value={companySearchTerm}
+                        onChange={(e) => setCompanySearchTerm(e.target.value)}
+                        className="w-full text-xs sm:text-sm"
+                      />
+                      {companySearchTerm && filteredSearchCompanies.length > 0 && (
+                        <div className="absolute z-10 w-full bg-card border rounded-md mt-1 max-h-40 sm:max-h-60 overflow-auto">
+                          {filteredSearchCompanies.map((company) => (
+                            <div
+                              key={company.id}
+                              className="p-1 sm:p-2 hover:bg-primary/10 cursor-pointer text-xs sm:text-sm"
+                              onClick={() => { setCurrentCompany(company); setIsCompanyConfirmed(false); setCompanySearchTerm(""); }}
+                            >
                               {company.name}
-                            </button>
-                          </TableCell>
-                          <TableCell className="min-w-[100px] sm:min-w-[150px]">{company.serviceName ?? '—'}</TableCell>
-                          <TableCell className="min-w-[80px] sm:min-w-[100px]">
-                            <Badge variant={company.status === "active" ? "default" : "secondary"} className="text-xs sm:text-sm">{company.status}</Badge>
-                          </TableCell>
-                          <TableCell className="min-w-[100px] sm:min-w-[120px]">{company.startDate ? new Date(company.startDate as any).toLocaleDateString() : '—'}</TableCell>
-                          <TableCell className="min-w-[100px] sm:min-w-[120px]">{company.endDate ? new Date(company.endDate as any).toLocaleDateString() : '—'}</TableCell>
-                          <TableCell className="min-w-[80px] sm:min-w-[100px]">
-                            <Button variant="outline" size="sm" onClick={() => backupCompany(company.id)} className="text-xs sm:text-sm">Backup</Button>
-                          </TableCell>
-                          <TableCell className="min-w-[80px] sm:min-w-[100px]">
-                            <Button variant="outline" size="sm" onClick={() => restoreCompany(company.id)} className="text-xs sm:text-sm">Restore</Button>
-                          </TableCell>
-                          <TableCell className="min-w-[80px] sm:min-w-[100px]">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-6 w-6 sm:h-8 sm:w-8 p-0"><MoreHorizontal className="h-3 w-3 sm:h-4 sm:w-4" /></Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem asChild><Link href={`/company/${company.id}`} className="text-xs sm:text-sm"><Building2 className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> View Details</Link></DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => { setSelectedCompany(company); setIsCompanyMasterOpen(true); }} className="text-xs sm:text-sm"><Pencil className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Edit</DropdownMenuItem>
-                                <DropdownMenuItem onClick={() => deleteCompany(company.id)} className="text-xs sm:text-sm"><Trash2 className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Delete</DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow><TableCell colSpan={13} className="h-16 sm:h-24 text-center text-xs sm:text-sm">No companies registered yet</TableCell></TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-              {selectedRows.size > 0 && <div className="mt-1 sm:mt-2"><Badge className="text-xs sm:text-sm">{selectedRows.size} row(s) selected</Badge></div>}
-            </CardContent>
-          </Card>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:space-x-2 space-y-2 sm:space-y-0">
+                      <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                        <SelectTrigger className="w-full sm:w-[180px] text-xs sm:text-sm">
+                          <SelectValue placeholder="Select month" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="01">January</SelectItem>
+                          <SelectItem value="02">February</SelectItem>
+                          <SelectItem value="03">March</SelectItem>
+                          <SelectItem value="04">April</SelectItem>
+                          <SelectItem value="05">May</SelectItem>
+                          <SelectItem value="06">June</SelectItem>
+                          <SelectItem value="07">July</SelectItem>
+                          <SelectItem value="08">August</SelectItem>
+                          <SelectItem value="09">September</SelectItem>
+                          <SelectItem value="10">October</SelectItem>
+                          <SelectItem value="11">November</SelectItem>
+                          <SelectItem value="12">December</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={selectedYear} onValueChange={setSelectedYear}>
+                        <SelectTrigger className="w-full sm:w-[120px] text-xs sm:text-sm">
+                          <SelectValue placeholder="Select year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {years.map((year) => (
+                            <SelectItem key={year} value={year}>{year}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex flex-col space-y-2 sm:flex-row sm:space-x-2 sm:space-y-0">
+                      <Button size="sm" onClick={handleConfirm} disabled={!currentCompany || !selectedMonth || !selectedYear || isCompanyConfirmed} className="w-full sm:w-auto text-xs sm:text-sm">OK</Button>
+                      <Button size="sm" variant="outline" onClick={handleClear} className="w-full sm:w-auto text-xs sm:text-sm">Clear</Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm sm:text-base font-medium">Total Employees</CardTitle>
+                  <Building2 className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-xl sm:text-2xl font-bold">{stats.totalEmployees}</div>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Across all companies</p>
+                </CardContent>
+              </Card>
+            </div>
 
-          {/* Removed local sidebar-driven detail card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg sm:text-xl">Registered Companies</CardTitle>
+                <CardDescription className="text-sm sm:text-base">Manage all companies registered on the platform</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col sm:flex-row items-center py-1 sm:py-2 gap-2 sm:gap-4">
+                  <Input
+                    placeholder="Search by name or admin..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="max-w-full sm:max-w-sm text-xs sm:text-sm"
+                  />
+                  <Button onClick={() => setIsCreateOpen(true)} className="w-full sm:w-auto text-xs sm:text-sm">Add New Company</Button>
+                  <Button onClick={() => setIsCompanyMasterOpen(true)} className="w-full sm:w-auto text-xs sm:text-sm">Company Master</Button>
+                </div>
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="min-w-[50px] sm:min-w-[80px]"><input type="checkbox" checked={selectedRows.size === filteredCompanies.length} onChange={handleSelectAll} /></TableHead>
+                        <TableHead className="min-w-[50px] sm:min-w-[80px]">Sr.No.</TableHead>
+                        <TableHead className="min-w-[80px] sm:min-w-[120px]">
+                          <Button variant="ghost" onClick={() => setSortConfig({ key: 'id', direction: sortConfig?.key === 'id' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
+                            Company ID <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
+                          </Button>
+                        </TableHead>
+                        <TableHead className="min-w-[100px] sm:min-w-[150px]">
+                          <Button variant="ghost" onClick={() => setSortConfig({ key: 'name', direction: sortConfig?.key === 'name' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
+                            Company Name <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
+                          </Button>
+                        </TableHead>
+                        <TableHead className="min-w-[100px] sm:min-w-[150px]">
+                          <Button variant="ghost" onClick={() => setSortConfig({ key: 'serviceName', direction: sortConfig?.key === 'serviceName' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
+                            Name of Services <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
+                          </Button>
+                        </TableHead>
+                        <TableHead className="min-w-[80px] sm:min-w-[100px]">Status</TableHead>
+                        <TableHead className="min-w-[100px] sm:min-w-[120px]">
+                          <Button variant="ghost" onClick={() => setSortConfig({ key: 'startDate', direction: sortConfig?.key === 'startDate' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
+                            Start Date <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
+                          </Button>
+                        </TableHead>
+                        <TableHead className="min-w-[100px] sm:min-w-[120px]">
+                          <Button variant="ghost" onClick={() => setSortConfig({ key: 'endDate', direction: sortConfig?.key === 'endDate' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
+                            End Date <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
+                          </Button>
+                        </TableHead>
+                        <TableHead colSpan={2} className="text-right min-w-[100px] sm:min-w-[150px]">
+                          <Button onClick={() => setIsCreateOpen(true)} className="ml-auto text-xs sm:text-sm">Add New Company</Button>
+                        </TableHead>
+                        <TableHead className="min-w-[80px] sm:min-w-[100px]">Backup</TableHead>
+                        <TableHead className="min-w-[80px] sm:min-w-[100px]">Restore</TableHead>
+                        <TableHead className="min-w-[80px] sm:min-w-[100px]">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredCompanies.length ? (
+                        filteredCompanies.map((company, index) => (
+                          <TableRow key={company.id}>
+                            <TableCell className="min-w-[50px] sm:min-w-[80px]"><input type="checkbox" checked={selectedRows.has(company.id)} onChange={(e) => handleSelectRow(company.id, e)} /></TableCell>
+                            <TableCell className="min-w-[50px] sm:min-w-[80px]">{index + 1}</TableCell>
+                            <TableCell className="min-w-[80px] sm:min-w-[120px]">{company.id}</TableCell>
+                            <TableCell className="min-w-[100px] sm:min-w-[150px]">
+                              <button className="text-blue-600 hover:underline font-medium text-xs sm:text-sm" onClick={() => { setCurrentCompany(company); setIsCompanyConfirmed(false); setCompanySearchTerm(""); }}>
+                                {company.name}
+                              </button>
+                            </TableCell>
+                            <TableCell className="min-w-[100px] sm:min-w-[150px]">{company.serviceName ?? '—'}</TableCell>
+                            <TableCell className="min-w-[80px] sm:min-w-[100px]">
+                              <Badge variant={company.status === "active" ? "default" : "secondary"} className="text-xs sm:text-sm">{company.status}</Badge>
+                            </TableCell>
+                            <TableCell className="min-w-[100px] sm:min-w-[120px]">{company.startDate ? new Date(company.startDate as any).toLocaleDateString() : '—'}</TableCell>
+                            <TableCell className="min-w-[100px] sm:min-w-[120px]">{company.endDate ? new Date(company.endDate as any).toLocaleDateString() : '—'}</TableCell>
+                            <TableCell className="min-w-[80px] sm:min-w-[100px]">
+                              <Button variant="outline" size="sm" onClick={() => backupCompany(company.id)} className="text-xs sm:text-sm">Backup</Button>
+                            </TableCell>
+                            <TableCell className="min-w-[80px] sm:min-w-[100px]">
+                              <Button variant="outline" size="sm" onClick={() => restoreCompany(company.id)} className="text-xs sm:text-sm">Restore</Button>
+                            </TableCell>
+                            <TableCell className="min-w-[80px] sm:min-w-[100px]">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" className="h-6 w-6 sm:h-8 sm:w-8 p-0"><MoreHorizontal className="h-3 w-3 sm:h-4 sm:w-4" /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuItem asChild><Link href={`/company/${company.id}`} className="text-xs sm:text-sm"><Building2 className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> View Details</Link></DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => { setSelectedCompany(company); setIsCompanyMasterOpen(true); }} className="text-xs sm:text-sm"><Pencil className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Edit</DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => deleteCompany(company.id)} className="text-xs sm:text-sm"><Trash2 className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Delete</DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow><TableCell colSpan={13} className="h-16 sm:h-24 text-center text-xs sm:text-sm">No companies registered yet</TableCell></TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+                {selectedRows.size > 0 && <div className="mt-1 sm:mt-2"><Badge className="text-xs sm:text-sm">{selectedRows.size} row(s) selected</Badge></div>}
+              </CardContent>
+            </Card>
           </div>
         </main>
       </div>

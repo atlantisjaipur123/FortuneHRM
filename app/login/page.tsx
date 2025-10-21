@@ -83,10 +83,7 @@ export default async function LoginPage({
             </div>
 
             {/* Demo credentials */}
-            <div className="mt-6 p-3 bg-muted rounded-md">
-              <p className="text-sm font-medium mb-2">Demo Credentials:</p>
-              <p className="text-xs text-muted-foreground">Super Admin: admin@hrpro.com / admin123</p>
-            </div>
+           
           </CardContent>
         </Card>
       </div>
