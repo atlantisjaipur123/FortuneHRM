@@ -1,7 +1,7 @@
-/*
+// app/attendance/page.tsx
 "use client"
 
-import React, { useState, useMemo, useEffect } from "react"
+import React, { useState, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,13 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { GlobalLayout } from "@/app/components/global-layout"
 import { toast } from "@/components/ui/use-toast"
 import { Calendar } from "lucide-react"
-import { useCompany } from "@/lib/context/CompanyContext"
-import type { CompanyExtended } from "@/app/lib/types"
+import { GlobalLayout } from "@/app/components/global-layout"
 
-// Mock employee data (replace with API fetch)
+// Mock employee data with status arrays (replace with API fetch in production)
 const mockEmployees = [
   {
     id: "EMP001",
@@ -30,7 +28,7 @@ const mockEmployees = [
     grade: "B2",
     attendanceType: "Biometric",
     shift: "Morning",
-    attendance: Array(31).fill(8),
+    attendance: Array(31).fill("P"), // Default to Present
   },
   {
     id: "EMP002",
@@ -44,22 +42,68 @@ const mockEmployees = [
     grade: "A1",
     attendanceType: "Manual",
     shift: "Afternoon",
-    attendance: Array(31).fill(4),
+    attendance: Array(31).fill("A"), // Default to Absent
   },
 ]
 
 export default function AttendancePage() {
-  const { currentCompany, selectedMonth, selectedYear } = useCompany()
-
-  // Initialize setups from localStorage
-  const [branches, setBranches] = useState<string[]>(() => JSON.parse(localStorage.getItem("branch-detail") || "[]"))
-  const [categories, setCategories] = useState<string[]>(() => JSON.parse(localStorage.getItem("category") || "[]"))
-  const [departments, setDepartments] = useState<string[]>(() => JSON.parse(localStorage.getItem("department") || "[]"))
-  const [designations, setDesignations] = useState<string[]>(() => JSON.parse(localStorage.getItem("designation") || "[]"))
-  const [levels, setLevels] = useState<string[]>(() => JSON.parse(localStorage.getItem("level") || "[]"))
-  const [grades, setGrades] = useState<string[]>(() => JSON.parse(localStorage.getItem("grade") || "[]"))
-  const [attendanceTypes, setAttendanceTypes] = useState<string[]>(() => JSON.parse(localStorage.getItem("attendance-type") || "[]"))
-  const [shifts, setShifts] = useState<string[]>(() => JSON.parse(localStorage.getItem("shift") || "[]"))
+  // Initialize setups from localStorage with error handling
+  const [branches, setBranches] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("branch-detail") || "[]")
+    } catch {
+      return []
+    }
+  })
+  const [categories, setCategories] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("category") || "[]")
+    } catch {
+      return []
+    }
+  })
+  const [departments, setDepartments] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("department") || "[]")
+    } catch {
+      return []
+    }
+  })
+  const [designations, setDesignations] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("designation") || "[]")
+    } catch {
+      return []
+    }
+  })
+  const [levels, setLevels] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("level") || "[]")
+    } catch {
+      return []
+    }
+  })
+  const [grades, setGrades] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("grade") || "[]")
+    } catch {
+      return []
+    }
+  })
+  const [attendanceTypes, setAttendanceTypes] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("attendance-type") || "[]")
+    } catch {
+      return []
+    }
+  })
+  const [shifts, setShifts] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("shift") || "[]")
+    } catch {
+      return []
+    }
+  })
 
   // Dropdown selections
   const [selectedBranch, setSelectedBranch] = useState<string>("")
@@ -74,38 +118,27 @@ export default function AttendancePage() {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
   const [bulkEditDialog, setBulkEditDialog] = useState<{ day: number; value: string } | null>(null)
 
-  // Generate years
-  const years = useMemo(() => {
-    const currentYear = new Date().getFullYear()
-    return Array.from({ length: 6 }, (_, i) => (currentYear - i).toString())
-  }, [])
-
-  // Calculate days in selected month
-  const daysInMonth = useMemo(() => {
-    if (!selectedMonth || !selectedYear) return 31
-    const date = new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, 1)
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate()
-  }, [selectedMonth, selectedYear])
+  // Default to 31 days (full month view)
+  const daysInMonth = 31
 
   // Filter employees
   const filteredEmployees = useMemo(() => {
-    if (!currentCompany) return []
     return employees.filter((employee) => {
       return (
-        employee.companyId === currentCompany.id &&
-        (!selectedBranch || employee.branch === selectedBranch) &&
-        (!selectedCategory || employee.category === selectedCategory) &&
-        (!selectedDepartment || employee.department === selectedDepartment) &&
-        (!selectedDesignation || employee.designation === selectedDesignation) &&
-        (!selectedLevel || employee.level === selectedLevel) &&
-        (!selectedGrade || employee.grade === selectedGrade) &&
-        (!selectedAttendanceType || employee.attendanceType === selectedAttendanceType) &&
-        (!selectedShift || employee.shift === selectedShift)
+        (!selectedBranch || selectedBranch === "all" || employee.branch === selectedBranch) &&
+        (!selectedCategory || selectedCategory === "all" || employee.category === selectedCategory) &&
+        (!selectedDepartment || selectedDepartment === "all" || employee.department === selectedDepartment) &&
+        (!selectedDesignation || selectedDesignation === "all" || employee.designation === selectedDesignation) &&
+        (!selectedLevel || selectedLevel === "all" || employee.level === selectedLevel) &&
+        (!selectedGrade || selectedGrade === "all" || employee.grade === selectedGrade) &&
+        (!selectedAttendanceType ||
+          selectedAttendanceType === "all" ||
+          employee.attendanceType === selectedAttendanceType) &&
+        (!selectedShift || selectedShift === "all" || employee.shift === selectedShift)
       )
     })
   }, [
     employees,
-    currentCompany,
     selectedBranch,
     selectedCategory,
     selectedDepartment,
@@ -116,13 +149,13 @@ export default function AttendancePage() {
     selectedShift,
   ])
 
-  // Handle attendance change
+  // Handle attendance status change
   const handleAttendanceChange = (employeeId: string, day: number, value: string) => {
-    const numValue = parseFloat(value)
-    if (isNaN(numValue) || numValue < 0) {
+    const validStatuses = ["P", "A", "Halfday", "CL", "PL", "SL", "LWP"]
+    if (!validStatuses.includes(value)) {
       toast({
-        title: "Invalid Input",
-        description: "Please enter a valid number of hours (0 or greater).",
+        title: "Invalid Status",
+        description: "Please select a valid attendance status (P, A, Halfday, CL, PL, SL, LWP).",
         variant: "destructive",
         duration: 3000,
       })
@@ -131,21 +164,22 @@ export default function AttendancePage() {
     setEmployees((prev) =>
       prev.map((emp) =>
         emp.id === employeeId
-          ? { ...emp, attendance: emp.attendance.map((h, i) => (i === day ? numValue : h)) }
+          ? { ...emp, attendance: emp.attendance.map((h, i) => (i === day ? value : h)) }
           : emp
       )
     )
     // TODO: Save to database
-    // await fetch("/api/attendance", { method: "POST", body: JSON.stringify({ employeeId, day, month: selectedMonth, year: selectedYear, hours: numValue }) })
+    // await fetch("/api/attendance", { method: "POST", body: JSON.stringify({ employeeId, day, status: value }) })
   }
 
   // Handle bulk edit
   const handleBulkEdit = (day: number, value: string) => {
-    const numValue = parseFloat(value)
-    if (isNaN(numValue) || numValue < 0) {
+    if (!bulkEditDialog) return
+    const validStatuses = ["P", "A", "Halfday", "CL", "PL", "SL", "LWP"]
+    if (!validStatuses.includes(value)) {
       toast({
-        title: "Invalid Input",
-        description: "Please enter a valid number of hours (0 or greater).",
+        title: "Invalid Status",
+        description: "Please select a valid attendance status (P, A, Halfday, CL, PL, SL, LWP).",
         variant: "destructive",
         duration: 3000,
       })
@@ -154,7 +188,7 @@ export default function AttendancePage() {
     setEmployees((prev) =>
       prev.map((emp) =>
         selectedRows.has(emp.id)
-          ? { ...emp, attendance: emp.attendance.map((h, i) => (i === day ? numValue : h)) }
+          ? { ...emp, attendance: emp.attendance.map((h, i) => (i === day ? value : h)) }
           : emp
       )
     )
@@ -203,7 +237,7 @@ export default function AttendancePage() {
                     <SelectValue placeholder="Select branch" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Branches</SelectItem>
+                    <SelectItem value="all">All Branches</SelectItem>
                     {branches.map((branch) => (
                       <SelectItem key={branch} value={branch}>{branch}</SelectItem>
                     ))}
@@ -217,7 +251,7 @@ export default function AttendancePage() {
                     <SelectValue placeholder="Select category" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Categories</SelectItem>
+                    <SelectItem value="all">All Categories</SelectItem>
                     {categories.map((category) => (
                       <SelectItem key={category} value={category}>{category}</SelectItem>
                     ))}
@@ -231,7 +265,7 @@ export default function AttendancePage() {
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Departments</SelectItem>
+                    <SelectItem value="all">All Departments</SelectItem>
                     {departments.map((dept) => (
                       <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                     ))}
@@ -245,7 +279,7 @@ export default function AttendancePage() {
                     <SelectValue placeholder="Select designation" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Designations</SelectItem>
+                    <SelectItem value="all">All Designations</SelectItem>
                     {designations.map((des) => (
                       <SelectItem key={des} value={des}>{des}</SelectItem>
                     ))}
@@ -259,7 +293,7 @@ export default function AttendancePage() {
                     <SelectValue placeholder="Select level" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Levels</SelectItem>
+                    <SelectItem value="all">All Levels</SelectItem>
                     {levels.map((level) => (
                       <SelectItem key={level} value={level}>{level}</SelectItem>
                     ))}
@@ -273,7 +307,7 @@ export default function AttendancePage() {
                     <SelectValue placeholder="Select grade" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Grades</SelectItem>
+                    <SelectItem value="all">All Grades</SelectItem>
                     {grades.map((grade) => (
                       <SelectItem key={grade} value={grade}>{grade}</SelectItem>
                     ))}
@@ -287,7 +321,7 @@ export default function AttendancePage() {
                     <SelectValue placeholder="Select attendance type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Attendance Types</SelectItem>
+                    <SelectItem value="all">All Attendance Types</SelectItem>
                     {attendanceTypes.map((type) => (
                       <SelectItem key={type} value={type}>{type}</SelectItem>
                     ))}
@@ -301,7 +335,7 @@ export default function AttendancePage() {
                     <SelectValue placeholder="Select shift" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Shifts</SelectItem>
+                    <SelectItem value="all">All Shifts</SelectItem>
                     {shifts.map((shift) => (
                       <SelectItem key={shift} value={shift}>{shift}</SelectItem>
                     ))}
@@ -317,15 +351,12 @@ export default function AttendancePage() {
             <CardTitle className="text-lg font-semibold text-gray-900">Attendance Records</CardTitle>
           </CardHeader>
           <CardContent className="p-4">
-            {!currentCompany && (
-              <p className="text-red-600 text-center py-3">Please select a company from the dashboard.</p>
-            )}
             {selectedRows.size > 0 && (
               <div className="mb-4">
                 <Button
                   variant="default"
                   size="sm"
-                  onClick={() => setBulkEditDialog({ day: 0, value: "" })}
+                  onClick={() => setBulkEditDialog({ day: 0, value: "P" })}
                   className="bg-blue-600 text-white hover:bg-blue-700 transition-colors"
                 >
                   <Calendar className="h-4 w-4 mr-2" /> Bulk Edit Attendance
@@ -380,15 +411,25 @@ export default function AttendancePage() {
                         <TableCell className="text-gray-800">{employee.grade}</TableCell>
                         <TableCell className="text-gray-800">{employee.attendanceType}</TableCell>
                         <TableCell className="text-gray-800">{employee.shift}</TableCell>
-                        {employee.attendance.slice(0, daysInMonth).map((hours, day) => (
+                        {employee.attendance.slice(0, daysInMonth).map((status, day) => (
                           <TableCell key={day}>
-                            <Input
-                              type="number"
-                              value={hours}
-                              onChange={(e) => handleAttendanceChange(employee.id, day, e.target.value)}
-                              className="w-16 text-xs sm:text-sm border-gray-300 bg-white focus:ring-2 focus:ring-blue-500"
-                              min="0"
-                            />
+                            <Select
+                              value={status}
+                              onValueChange={(value) => handleAttendanceChange(employee.id, day, value)}
+                            >
+                              <SelectTrigger id={`status-${employee.id}-${day}`} className="w-20 text-xs sm:text-sm">
+                                <SelectValue placeholder="Select status" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="P">P (Present)</SelectItem>
+                                <SelectItem value="A">A (Absent)</SelectItem>
+                                <SelectItem value="Halfday">Halfday</SelectItem>
+                                <SelectItem value="CL">CL (Casual Leave)</SelectItem>
+                                <SelectItem value="PL">PL (Paid Leave)</SelectItem>
+                                <SelectItem value="SL">SL (Sick Leave)</SelectItem>
+                                <SelectItem value="LWP">LWP (Leave Without Pay)</SelectItem>
+                              </SelectContent>
+                            </Select>
                           </TableCell>
                         ))}
                       </TableRow>
@@ -410,24 +451,34 @@ export default function AttendancePage() {
           <DialogContent className="bg-white border border-gray-300 rounded-lg shadow-lg">
             <DialogHeader>
               <DialogTitle className="text-xl font-semibold text-gray-900">
-                Bulk Edit Attendance for Day {bulkEditDialog?.day ? bulkEditDialog.day + 1 : ""}
+                Bulk Edit Attendance for Day {bulkEditDialog?.day !== undefined ? bulkEditDialog.day + 1 : ""}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-5 py-5">
               <div className="space-y-2">
-                <Label htmlFor="bulk-hours" className="text-gray-700">Hours</Label>
-                <Input
-                  id="bulk-hours"
-                  type="number"
-                  value={bulkEditDialog?.value || ""}
-                  onChange={(e) => setBulkEditDialog({ ...bulkEditDialog!, value: e.target.value })}
-                  placeholder="Enter hours"
-                  className="border-gray-300 bg-white focus:ring-2 focus:ring-blue-500"
-                  min="0"
-                />
+                <Label htmlFor="bulk-status" className="text-gray-700">Status</Label>
+                <Select
+                  value={bulkEditDialog?.value || "P"}
+                  onValueChange={(value) =>
+                    bulkEditDialog && setBulkEditDialog({ ...bulkEditDialog, value })
+                  }
+                >
+                  <SelectTrigger id="bulk-status" className="border-gray-300 bg-white focus:ring-2 focus:ring-blue-500">
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="P">P (Present)</SelectItem>
+                    <SelectItem value="A">A (Absent)</SelectItem>
+                    <SelectItem value="Halfday">Halfday</SelectItem>
+                    <SelectItem value="CL">CL (Casual Leave)</SelectItem>
+                    <SelectItem value="PL">PL (Paid Leave)</SelectItem>
+                    <SelectItem value="SL">SL (Sick Leave)</SelectItem>
+                    <SelectItem value="LWP">LWP (Leave Without Pay)</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <Button
-                onClick={() => handleBulkEdit(bulkEditDialog!.day, bulkEditDialog!.value)}
+                onClick={() => bulkEditDialog && handleBulkEdit(bulkEditDialog.day, bulkEditDialog.value)}
                 className="w-full bg-blue-600 text-white hover:bg-blue-700 transition-colors"
               >
                 Apply
@@ -438,4 +489,4 @@ export default function AttendancePage() {
       </div>
     </GlobalLayout>
   )
-}*/
+}
