@@ -31,21 +31,21 @@ export default async function LoginPage({
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo */}
-        <div className="flex items-center justify-center space-x-2 mb-8">
-          <Building2 className="h-8 w-8 text-primary" />
-          <span className="text-2xl font-bold text-foreground">HRPro</span>
+        <div className="flex items-center justify-center space-x-2 mb-6 sm:mb-8">
+          <Building2 className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+          <span className="text-xl sm:text-2xl font-bold text-foreground">HRPro</span>
         </div>
 
         <Card>
-          <CardHeader className="text-center">
-            <CardTitle className="text-2xl">Welcome back</CardTitle>
-            <CardDescription>Sign in to your account to continue</CardDescription>
+          <CardHeader className="text-center px-4 sm:px-6">
+            <CardTitle className="text-xl sm:text-2xl">Welcome back</CardTitle>
+            <CardDescription className="text-sm sm:text-base">Sign in to your account to continue</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-4 px-4 sm:px-6">
             {error && (
               <div className="flex items-center space-x-2 text-destructive text-sm bg-destructive/10 p-3 rounded-md">
-                <AlertCircle className="h-4 w-4" />
-                <span>{error}</span>
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <span className="break-words">{error}</span>
               </div>
             )}
 
@@ -58,24 +58,38 @@ export default async function LoginPage({
               }
             }} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input id="email" name="email" type="email" placeholder="Enter your email" required />
+                <Label htmlFor="email" className="text-sm font-medium">Email</Label>
+                <Input 
+                  id="email" 
+                  name="email" 
+                  type="email" 
+                  placeholder="Enter your email" 
+                  required 
+                  className="w-full"
+                />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input id="password" name="password" type="password" placeholder="Enter your password" required />
+                <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                <Input 
+                  id="password" 
+                  name="password" 
+                  type="password" 
+                  placeholder="Enter your password" 
+                  required 
+                  className="w-full"
+                />
               </div>
               <div className="flex items-center justify-between">
-                <Link href="/forgot-password" className="text-sm text-primary hover:underline">
+                <Link href="/forgot-password" className="text-xs sm:text-sm text-primary hover:underline">
                   Forgot password?
                 </Link>
               </div>
-              <Button type="submit" className="w-full" size="lg">
-                Sign In
+              <Button type="submit" className="w-full h-10 sm:h-11" size="lg">
+                <span className="text-sm sm:text-base">Sign In</span>
               </Button>
             </form>
 
-            <div className="text-center text-sm text-muted-foreground">
+            <div className="text-center text-xs sm:text-sm text-muted-foreground">
               Don't have an account?{" "}
               <Link href="/signup" className="text-primary hover:underline">
                 Sign up

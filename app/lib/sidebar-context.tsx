@@ -15,15 +15,25 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
 
   // Load sidebar state from localStorage on mount
   useEffect(() => {
-    const savedState = localStorage.getItem('sidebar-collapsed')
-    if (savedState !== null) {
-      setIsCollapsed(JSON.parse(savedState))
+    try {
+      const savedState = localStorage.getItem('sidebar-collapsed')
+      if (savedState !== null) {
+        setIsCollapsed(JSON.parse(savedState))
+      }
+    } catch (error) {
+      // Handle localStorage errors gracefully
+      console.warn('Failed to load sidebar state from localStorage:', error)
     }
   }, [])
 
   // Save sidebar state to localStorage when it changes
   useEffect(() => {
-    localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed))
+    try {
+      localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed))
+    } catch (error) {
+      // Handle localStorage errors gracefully
+      console.warn('Failed to save sidebar state to localStorage:', error)
+    }
   }, [isCollapsed])
 
   const toggleSidebar = () => {

@@ -82,23 +82,43 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
   const [mounted, setMounted] = React.useState(false);
   const [expandedSections, setExpandedSections] = React.useState<Set<string>>(new Set());
 
+  // Load expanded sections from localStorage on mount
+  React.useEffect(() => {
+    try {
+      const savedSections = localStorage.getItem('sidebar-expanded-sections');
+      if (savedSections) {
+        const sectionsArray = JSON.parse(savedSections);
+        setExpandedSections(new Set(sectionsArray));
+      }
+    } catch (error) {
+      console.warn('Failed to load expanded sections from localStorage:', error);
+    }
+  }, []);
+
+  // Save expanded sections to localStorage when they change
+  React.useEffect(() => {
+    try {
+      localStorage.setItem('sidebar-expanded-sections', JSON.stringify(Array.from(expandedSections)));
+    } catch (error) {
+      console.warn('Failed to save expanded sections to localStorage:', error);
+    }
+  }, [expandedSections]);
+
   // Handle hydration
   React.useEffect(() => {
     setMounted(true);
   }, []);
 
-  // Determine which navigation to show based on current route
-  const getCurrentNavigation = () => {
-    if (pathname.startsWith("/super-admin")) {
+  // Memoize navigation selection to prevent unnecessary re-renders
+  const currentNavigation = React.useMemo(() => {
+    if (pathname?.startsWith("/super-admin")) {
       return superAdminNavigation;
-    } else if (pathname.startsWith("/client")) {
+    } else if (pathname?.startsWith("/client")) {
       return clientNavigation;
     } else {
       return navigation;
     }
-  };
-
-  const currentNavigation = getCurrentNavigation();
+  }, [pathname]);
 
   // Full menu (with routes added where available)
   const employeeMasterOptions = [
@@ -109,7 +129,7 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
     { id: "pf-esi-rate", title: "PF/ESI Rate", icon: CreditCard, href: "/super-admin/PF-ESI" },
     { id: "pf-interest-loan", title: "PF (Interest Due & Loan Applicable)", icon: Banknote },
     { id: "professional-tax-rate", title: "Professional Tax Rate", icon: Calculator },
-    { id: "wage-gratuity-leave", title: "Wage, Gratuity, Leave & Retirement Age", icon: CalendarDays },
+    { id: "test", title: "test", icon: CalendarDays ,href: "/test"},
     { id: "payment-mode", title: "Payment Mode", icon: CreditCardIcon },
     { id: "increment-due-setup", title: "Increment Due SetUp", icon: TrendingUp },
     { id: "pt-group-master", title: "PT Group Master", icon: Users },
@@ -139,26 +159,45 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
     "Financial Management": employeeMasterOptions.slice(23, 27),
   };
 
-  const toggleSection = (id: string) => {
+  const toggleSection = React.useCallback((id: string) => {
     setExpandedSections((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
-  // Prevent hydration mismatch
+  // Debounced toggle function to prevent rapid state changes
+  const debouncedToggleSection = React.useCallback(
+    React.useMemo(() => {
+      let timeoutId: NodeJS.Timeout;
+      return (id: string) => {
+        clearTimeout(timeoutId);
+        timeoutId = setTimeout(() => toggleSection(id), 50);
+      };
+    }, [toggleSection]),
+    [toggleSection]
+  );
+
+  // Prevent hydration mismatch - show skeleton instead of empty content
   if (!mounted) {
     return (
       <>
-        {/* Desktop Sidebar */}
+        {/* Desktop Sidebar Skeleton */}
         <div className="hidden lg:flex lg:w-64 lg:flex-col lg:border-r lg:bg-card">
           <div className="flex h-full flex-col">
             <div className="flex h-16 items-center border-b px-6">
               <Building2 className="h-8 w-8 text-primary flex-shrink-0" />
               <div className="ml-3 min-w-0">
                 <p className="text-lg font-semibold">HRPro</p>
+              </div>
+            </div>
+            <div className="flex-1 p-4">
+              <div className="space-y-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="h-8 bg-muted rounded animate-pulse" />
+                ))}
               </div>
             </div>
           </div>
@@ -171,6 +210,13 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
                 <Building2 className="h-8 w-8 text-primary flex-shrink-0" />
                 <div className="ml-3 min-w-0">
                   <p className="text-lg font-semibold">HRPro</p>
+                </div>
+              </div>
+              <div className="flex-1 p-4">
+                <div className="space-y-2">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <div key={i} className="h-8 bg-muted rounded animate-pulse" />
+                  ))}
                 </div>
               </div>
             </div>
@@ -196,7 +242,7 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 px-4 py-4">
-        {pathname.startsWith("/super-admin") ? (
+        {pathname?.startsWith("/super-admin") ? (
           <div className="space-y-1">
             {/* Top-level links */}
             {/* Dashboard as heading (non-clickable) */}
@@ -210,28 +256,28 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
               {!isCollapsed && "Dashboard"}
             </div>
 
-            {/* Companies button now routes to dashboard */}
-            {(() => {
-              const href = "/super-admin";
-              const isActive = pathname === href || pathname.startsWith(href + "/");
-              return (
-                <Link
-                  href={href}
-                  className={cn(
-                    "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                    isCollapsed && "justify-center"
-                  )}
-                >
-                  <Building2 className={cn("h-4 w-4", !isCollapsed && "mr-3")} />
-                  {!isCollapsed && "Companies"}
-                </Link>
-              );
-            })()}
+             {/* Companies button now routes to dashboard */}
+             {(() => {
+               const href = "/super-admin";
+               const isActive = pathname === href;
+               return (
+                 <Link
+                   href={href}
+                   className={cn(
+                     "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                     isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                     isCollapsed && "justify-center"
+                   )}
+                 >
+                   <Building2 className={cn("h-4 w-4", !isCollapsed && "mr-3")} />
+                   {!isCollapsed && "Companies"}
+                 </Link>
+               );
+             })()}
 
             {/* Grouped Employee Master like in inner sidebar */}
             {!isCollapsed && (
-              <Collapsible open={expandedSections.has("employee-master")} onOpenChange={() => toggleSection("employee-master")}>
+              <Collapsible open={expandedSections.has("employee-master")} onOpenChange={() => debouncedToggleSection("employee-master")}>
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" className="w-full justify-between px-3 py-2 h-auto">
                     <div className="flex items-center">
@@ -243,7 +289,7 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
                 </CollapsibleTrigger>
                 <CollapsibleContent className="space-y-1 ml-2">
                   {Object.entries(groupedEmployeeMasterOptions).map(([groupName, options]) => (
-                    <Collapsible key={groupName} open={expandedSections.has(groupName)} onOpenChange={() => toggleSection(groupName)}>
+                    <Collapsible key={groupName} open={expandedSections.has(groupName)} onOpenChange={() => debouncedToggleSection(groupName)}>
                       <CollapsibleTrigger asChild>
                         <Button variant="ghost" className="w-full justify-between px-3 py-2 h-auto text-sm">
                           <span className="font-medium">{groupName}</span>
@@ -251,24 +297,25 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
                         </Button>
                       </CollapsibleTrigger>
                       <CollapsibleContent className="space-y-1 ml-3">
-                        {options.map((option) => {
-                          const Icon = option.icon as any;
-                          const href = option.href || "#";
-                          const isActive = pathname === href; // Exact match for nested items
-                          return (
-                            <Link
-                              key={option.id}
-                              href={href}
-                              className={cn(
-                                "flex items-center w-full rounded-md px-2 py-2 text-xs",
-                                isActive ? "bg-primary/10 text-primary" : "hover:bg-muted"
-                              )}
-                            >
-                              <Icon className="mr-2 h-3 w-3" />
-                              {option.title}
-                            </Link>
-                          );
-                        })}
+                         {options.map((option) => {
+                           const Icon = option.icon as any;
+                           const href = option.href || "#";
+                           // Fixed active state detection - only exact match
+                           const isActive = href !== "#" && pathname === href;
+                           return (
+                             <Link
+                               key={option.id}
+                               href={href}
+                               className={cn(
+                                 "flex items-center w-full rounded-md px-2 py-2 text-xs transition-colors",
+                                 isActive ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted"
+                               )}
+                             >
+                               <Icon className="mr-2 h-3 w-3" />
+                               {option.title}
+                             </Link>
+                           );
+                         })}
                       </CollapsibleContent>
                     </Collapsible>
                   ))}
@@ -277,25 +324,26 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
             )}
           </div>
         ) : (
-          currentNavigation.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                className={cn(
-                  "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                  isCollapsed && "justify-center"
-                )}
-              >
-                <item.icon className={cn("h-4 w-4", !isCollapsed && "mr-3")} />
-                {!isCollapsed && item.name}
-              </Link>
-            );
-          })
+           currentNavigation.map((item) => {
+             // Fixed active state detection for main navigation - exact match only
+             const isActive = pathname === item.href;
+             return (
+               <Link
+                 key={item.name}
+                 href={item.href}
+                 className={cn(
+                   "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                   isActive
+                     ? "bg-primary text-primary-foreground"
+                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                   isCollapsed && "justify-center"
+                 )}
+               >
+                 <item.icon className={cn("h-4 w-4", !isCollapsed && "mr-3")} />
+                 {!isCollapsed && item.name}
+               </Link>
+             );
+           })
         )}
       </nav>
 
@@ -318,9 +366,9 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
             <LogoutButton />
           </div>
         )}
-      </div>
-    </div>
-  );
+       </div>
+     </div>
+   );
 
   return (
     <>
@@ -367,6 +415,23 @@ export function MobileMenuButton() {
           <Menu className="h-5 w-5" />
         </Button>
       </SheetTrigger>
+      <SheetContent side="left" className="w-64 p-0">
+        <div className="flex h-full flex-col">
+          <div className="flex h-16 items-center border-b px-6">
+            <Building2 className="h-8 w-8 text-primary flex-shrink-0" />
+            <div className="ml-3 min-w-0">
+              <p className="text-lg font-semibold">HRPro</p>
+            </div>
+          </div>
+          <div className="flex-1 p-4">
+            <div className="space-y-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-8 bg-muted rounded animate-pulse" />
+              ))}
+            </div>
+          </div>
+        </div>
+      </SheetContent>
     </Sheet>
   );
 }

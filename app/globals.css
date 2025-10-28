@@ -123,3 +123,28 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  /* Performance optimizations */
+  .animate-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  
+  /* Reduce motion for users who prefer it */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-pulse {
+      animation: none;
+    }
+  }
+  
+  /* Optimize font loading */
+  .font-sans {
+    font-display: swap;
+  }
+  
+  /* Improve scrolling performance */
+  .overflow-y-auto {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+}
