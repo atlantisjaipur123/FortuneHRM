@@ -140,7 +140,7 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
     { id: "import-wkoff-attendance", title: "Import WkOff From Attendance Machine", icon: Clock3 },
     { id: "attendance", title: "Attendance", icon: Clock,href: "/super-admin/attendance" },
     { id: "payroll-cycle", title: "payroll cycle", icon: Clock, href: "/super-admin/payroll-cycle" },
-    { id: "holiday-assignment", title: "Holiday Assignment (Emp./Group Wise)", icon: CalendarDays },
+    { id: "leave", title: "Leave", icon: CalendarDays, href: "/super-admin/leave" },
     { id: "monthly-absent", title: "Monthly Absent (Emp./Group Wise)", icon: UserCheck },
     { id: "import-export-days-off", title: "Import/Export Days Off (UnPaid)", icon: FileText },
     { id: "setups", title: "Setups", icon: Settings, href: "/super-admin/setups" },

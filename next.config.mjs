@@ -12,7 +12,7 @@ const nextConfig = {
   output: 'standalone',
   experimental: {
     serverComponentsExternalPackages: ['@vercel/analytics'],
-    optimizeCss: true,
+    optimizeCss: false,
   },
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',
