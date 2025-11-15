@@ -1,487 +1,717 @@
 "use client";
 
-import { useState } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { useState, useEffect, useMemo } from "react";
+import {
+  Card,
+  CardHeader,
+  CardTitle,
+  CardContent,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { DragDropContext, Droppable, Draggable, DropResult } from "react-beautiful-dnd";
-import { GlobalLayout } from "@/app/components/global-layout";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Switch } from "@/components/ui/switch";
+import {
+  DragDropContext,
+  Droppable,
+  Draggable,
+  DropResult,
+} from "react-beautiful-dnd";
+import { GlobalLayout } from "@/app/components/global-layout"; // Fixed: Default import
+import { GripVertical, Plus, Trash2, Edit, Calculator } from "lucide-react";
 
 interface SalaryHead {
+  sno: number;
   id: number;
   description: string;
   shortName: string;
   form16Field: string;
+  group: string;
+  type: "Regular" | "Adhoc";
   fieldType: "Earnings" | "Deductions";
-  applicable: { ESI: boolean; Bonus: boolean; PT: boolean; LWF: boolean; Gratuity: boolean; LeaveEncashment: boolean; PF: boolean };
+  active: boolean;
+  amountType: "Fixed" | "Percentage";
+  percentBase: "Amount" | "Gross" | "TakeHome" | string;
+  value: number;
+  frequency: "Monthly" | "Annually";
+  applicable: {
+    ESI: boolean;
+    Bonus: boolean;
+    PT: boolean;
+    LWF: boolean;
+    Gratuity: boolean;
+    LeaveEncashment: boolean;
+    PF: boolean;
+  };
 }
 
-const initialSalaryHeads: SalaryHead[] = [
-  { id: 1, description: "BASIC SALARY", shortName: "", form16Field: "Salary u/s 17(1)", fieldType: "Earnings", applicable: { ESI: false, Bonus: false, PT: false, LWF: false, Gratuity: false, LeaveEncashment: false, PF: false } },
-  { id: 2, description: "DEARNESS ALLOWANCE", shortName: "WANCE", form16Field: "Salary u/s 17(1)", fieldType: "Earnings", applicable: { ESI: false, Bonus: false, PT: false, LWF: false, Gratuity: false, LeaveEncashment: false, PF: false } },
-  { id: 3, description: "BONUS", shortName: "", form16Field: "Bonus", fieldType: "Earnings", applicable: { ESI: false, Bonus: true, PT: false, LWF: false, Gratuity: false, LeaveEncashment: false, PF: false } },
-  { id: 4, description: "FEES & COMMISSION", shortName: "SION", form16Field: "Salary u/s 17(1)", fieldType: "Earnings", applicable: { ESI: false, Bonus: false, PT: false, LWF: false, Gratuity: false, LeaveEncashment: false, PF: false } },
-  { id: 5, description: "OVERTIME", shortName: "", form16Field: "Salary u/s 17(1)", fieldType: "Earnings", applicable: { ESI: false, Bonus: false, PT: false, LWF: false, Gratuity: false, LeaveEncashment: false, PF: false } },
-  { id: 6, description: "ADVANCE SALARY", shortName: "Y", form16Field: "Salary u/s 17(1)", fieldType: "Earnings", applicable: { ESI: false, Bonus: false, PT: false, LWF: false, Gratuity: false, LeaveEncashment: false, PF: false } },
-  { id: 7, description: "ACCOMMODATION", shortName: "N", form16Field: "Perquisites u/s 17(2)", fieldType: "Earnings", applicable: { ESI: false, Bonus: false, PT: false, LWF: false, Gratuity: false, LeaveEncashment: false, PF: false } },
-  { id: 8, description: "CAR/OTHER AUTOMOTIVE", shortName: "OMOTIVE", form16Field: "Perquisites u/s 17(2)", fieldType: "Earnings", applicable: { ESI: false, Bonus: false, PT: false, LWF: false, Gratuity: false, LeaveEncashment: false, PF: false } },
-  { id: 9, description: "SWEEPER, GARDENER, WATCHMAN OR", shortName: "ENER, WATCHMAN OR", form16Field: "Perquisites u/s 17(2)", fieldType: "Earnings", applicable: { ESI: false, Bonus: false, PT: false, LWF: false, Gratuity: false, LeaveEncashment: false, PF: false } },
-  { id: 10, description: "GAS, ELECTRICITY, WATER", shortName: "Y, WATER", form16Field: "Perquisites u/s 17(2)", fieldType: "Earnings", applicable: { ESI: false, Bonus: false, PT: false, LWF: false, Gratuity: false, LeaveEncashment: false, PF: false } },
-  { id: 11, description: "INTEREST FREE OR CONCESSIONAL LOANS", shortName: "OR CONCESSIONAL LOANS", form16Field: "Perquisites u/s 17(2)", fieldType: "Earnings", applicable: { ESI: false, Bonus: false, PT: false, LWF: false, Gratuity: false, LeaveEncashment: false, PF: false } },
-  { id: 12, description: "HOLIDAY EXPENSES", shortName: "SES", form16Field: "Perquisites u/s 17(2)", fieldType: "Earnings", applicable: { ESI: false, Bonus: false, PT: false, LWF: false, Gratuity: false, LeaveEncashment: false, PF: false } },
-];
-
-const initialForm16Fields = [
+const defaultForm16Fields = [
   "Salary u/s 17(1)",
   "Perquisites u/s 17(2)",
-  "Bonus"
+  "Bonus",
+  "Allowance",
+  "Deductions u/s 16",
+  "Other Income",
 ];
 
+const defaultGroups = ["Standard", "Allowances", "Reimbursements", "Deductions"];
+
+const defaultForm: SalaryHead = {
+  sno: 0,
+  id: 0,
+  description: "",
+  shortName: "",
+  form16Field: "Salary u/s 17(1)",
+  group: "Standard",
+  type: "Regular",
+  fieldType: "Earnings",
+  active: true,
+  amountType: "Percentage",
+  percentBase: "Amount",
+  value: 0,
+  frequency: "Monthly",
+  applicable: {
+    ESI: false,
+    Bonus: false,
+    PT: false,
+    LWF: false,
+    Gratuity: false,
+    LeaveEncashment: false,
+    PF: false,
+  },
+};
+
 export default function SalaryHeadPage() {
-  const [salaryHeads, setSalaryHeads] = useState<SalaryHead[]>(initialSalaryHeads);
-  const [form16Fields, setForm16Fields] = useState<string[]>(initialForm16Fields);
+  const [salaryHeads, setSalaryHeads] = useState<SalaryHead[]>([]);
+  const [form16Fields, setForm16Fields] = useState<string[]>(defaultForm16Fields);
+  const [groups, setGroups] = useState<string[]>(defaultGroups);
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState<Partial<SalaryHead>>({});
-  const [selectedSalaryHead, setSelectedSalaryHead] = useState<SalaryHead | null>(null);
-  const [showOnlySetupHeads, setShowOnlySetupHeads] = useState(false);
+  const [form, setForm] = useState<SalaryHead>(defaultForm);
   const [isEditing, setIsEditing] = useState(false);
   const [newForm16Field, setNewForm16Field] = useState("");
   const [showNewFieldInput, setShowNewFieldInput] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [fieldToDelete, setFieldToDelete] = useState<string | null>(null);
+  const [newGroup, setNewGroup] = useState("");
+  const [showNewGroupInput, setShowNewGroupInput] = useState(false);
 
-  const handleSubmit = () => {
-    if (!form.description || !form.form16Field || !form.fieldType || !form.applicable) {
-      alert("Please fill in all required fields and select applicable options");
-      return;
-    }
+  const [inputAmount, setInputAmount] = useState(100000);
+  const [baseType, setBaseType] = useState<"Amount" | "Gross" | "TakeHome">("Amount");
+  const [frequency, setFrequency] = useState<"Monthly" | "Annually">("Monthly");
 
-    if (isEditing && form.id) {
-      setSalaryHeads(
-        salaryHeads.map((head) =>
-          head.id === form.id ? { ...head, ...form } : head
-        )
-      );
+  // Load from localStorage
+  useEffect(() => {
+    const savedHeads = localStorage.getItem("salaryHeadsV3");
+    const savedFields = localStorage.getItem("form16Fields");
+    const savedGroups = localStorage.getItem("salaryGroups");
+
+    if (savedHeads) {
+      setSalaryHeads(JSON.parse(savedHeads));
     } else {
-      const newId = Math.max(...salaryHeads.map((h) => h.id)) + 1;
-      setSalaryHeads([...salaryHeads, { ...form, id: newId } as SalaryHead]);
+      const defaults: SalaryHead[] = [
+        {
+          sno: 1,
+          id: 1,
+          description: "BASIC SALARY",
+          shortName: "BASIC",
+          form16Field: "Salary u/s 17(1)",
+          group: "Standard",
+          type: "Regular",
+          fieldType: "Earnings",
+          active: true,
+          amountType: "Percentage",
+          percentBase: "Amount",
+          value: 40,
+          frequency: "Monthly",
+          applicable: { ESI: true, Bonus: true, PT: true, LWF: true, Gratuity: true, LeaveEncashment: true, PF: true },
+        },
+        {
+          sno: 2,
+          id: 2,
+          description: "DEARNESS ALLOWANCE",
+          shortName: "DA",
+          form16Field: "Salary u/s 17(1)",
+          group: "Standard",
+          type: "Regular",
+          fieldType: "Earnings",
+          active: true,
+          amountType: "Percentage",
+          percentBase: "BASIC",
+          value: 50,
+          frequency: "Monthly",
+          applicable: { ESI: true, Bonus: true, PT: true, LWF: true, Gratuity: false, LeaveEncashment: true, PF: true },
+        },
+        {
+          sno: 3,
+          id: 3,
+          description: "HOUSE RENT ALLOWANCE",
+          shortName: "HRA",
+          form16Field: "Salary u/s 17(1)",
+          group: "Allowances",
+          type: "Regular",
+          fieldType: "Earnings",
+          active: true,
+          amountType: "Percentage",
+          percentBase: "BASIC",
+          value: 50,
+          frequency: "Monthly",
+          applicable: { ESI: false, Bonus: false, PT: false, LWF: false, Gratuity: false, LeaveEncashment: false, PF: false },
+        },
+        {
+          sno: 4,
+          id: 4,
+          description: "ADDITIONAL HEAD",
+          shortName: "ADD",
+          form16Field: "Salary u/s 17(1)",
+          group: "Standard",
+          type: "Adhoc",
+          fieldType: "Earnings",
+          active: true,
+          amountType: "Percentage",
+          percentBase: "Amount",
+          value: 10,
+          frequency: "Monthly",
+          applicable: { ESI: false, Bonus: false, PT: false, LWF: false, Gratuity: false, LeaveEncashment: false, PF: false },
+        },
+      ];
+      setSalaryHeads(defaults);
+      localStorage.setItem("salaryHeadsV3", JSON.stringify(defaults));
     }
-    setForm({});
-    setIsEditing(false);
-    setSelectedSalaryHead(null);
-    setOpen(false);
-    setShowNewFieldInput(false);
-    setNewForm16Field("");
-  };
 
-  const handleEdit = (salaryHead: SalaryHead) => {
-    setForm(salaryHead);
-    setIsEditing(true);
-    setSelectedSalaryHead(salaryHead);
-  };
+    if (savedFields) setForm16Fields(JSON.parse(savedFields));
+    if (savedGroups) setGroups(JSON.parse(savedGroups));
+  }, []);
 
-  const handleAdd = () => {
-    if (!form.description || !form.shortName || !form.form16Field || !form.fieldType) {
-      alert("Please fill all fields before proceeding");
-      return;
+  // Save to localStorage
+  useEffect(() => {
+    if (salaryHeads.length > 0) {
+      localStorage.setItem("salaryHeadsV3", JSON.stringify(salaryHeads));
+    }
+    localStorage.setItem("form16Fields", JSON.stringify(form16Fields));
+    localStorage.setItem("salaryGroups", JSON.stringify(groups));
+  }, [salaryHeads, form16Fields, groups]);
+
+  // Calculation Engine
+  const { calculatedValues, grossSalary, takeHome, additionalAmount } = useMemo(() => {
+    const values: Record<string, number> = { Amount: inputAmount };
+    const visited = new Set<string>();
+
+    const calc = (shortName: string): number => {
+      if (values[shortName] !== undefined) return values[shortName];
+      if (visited.has(shortName)) return 0;
+      visited.add(shortName);
+
+      const head = salaryHeads.find(h => h.shortName === shortName && h.active);
+      if (!head) return 0;
+
+      let baseValue = 0;
+      if (head.percentBase === "Amount") baseValue = inputAmount;
+      else if (head.percentBase === "Gross") baseValue = grossSalary || 0;
+      else if (head.percentBase === "TakeHome") baseValue = takeHome || 0;
+      else baseValue = calc(head.percentBase) || 0;
+
+      let result = head.amountType === "Fixed" ? head.value : (baseValue * head.value) / 100;
+      if (head.frequency === "Annually") result /= 12;
+
+      values[shortName] = result;
+      return result;
+    };
+
+    salaryHeads.filter(h => h.active).forEach(h => calc(h.shortName));
+
+    const grossSalary = salaryHeads
+      .filter(h => h.active && h.fieldType === "Earnings")
+      .reduce((sum, h) => sum + (values[h.shortName] || 0), 0);
+
+    const totalDeductions = salaryHeads
+      .filter(h => h.active && h.fieldType === "Deductions")
+      .reduce((sum, h) => sum + (values[h.shortName] || 0), 0);
+
+    const takeHome = grossSalary - totalDeductions;
+
+    values["Gross"] = grossSalary;
+    values["TakeHome"] = takeHome;
+
+    salaryHeads.filter(h => h.active && (h.percentBase === "Gross" || h.percentBase === "TakeHome")).forEach(h => calc(h.shortName));
+
+    let target = baseType === "Gross" ? grossSalary : baseType === "TakeHome" ? takeHome : inputAmount;
+    const totalActiveEarnings = salaryHeads
+      .filter(h => h.active && h.fieldType === "Earnings" && h.shortName !== "ADD")
+      .reduce((sum, h) => sum + (values[h.shortName] || 0), 0);
+
+    const additionalAmount = Math.max(0, target - totalActiveEarnings);
+
+    const addHead = salaryHeads.find(h => h.shortName === "ADD");
+    if (addHead && addHead.active) {
+      values["ADD"] = additionalAmount;
+    }
+
+    return { calculatedValues: values, grossSalary, takeHome, additionalAmount };
+  }, [salaryHeads, inputAmount, baseType]);
+
+  const handleOpenDialog = (head?: SalaryHead) => {
+    if (head) {
+      setForm(head);
+      setIsEditing(true);
+    } else {
+      setForm({
+        ...defaultForm,
+        sno: Math.max(...salaryHeads.map(h => h.sno), 0) + 1,
+        frequency,
+      });
+      setIsEditing(false);
     }
     setOpen(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm("Are you sure you want to delete this salary head?")) {
-      setSalaryHeads(salaryHeads.filter((head) => head.id !== id));
-      if (selectedSalaryHead?.id === id) {
-        setSelectedSalaryHead(null);
-        setForm({});
-        setIsEditing(false);
-      }
-    }
-  };
-
-  const handleCancel = () => {
-    setForm({});
-    setIsEditing(false);
-    setSelectedSalaryHead(null);
-    setOpen(false);
-    setShowNewFieldInput(false);
-    setNewForm16Field("");
-    setDeleteDialogOpen(false);
-    setFieldToDelete(null);
-  };
-
-  const handleChange = (field: keyof SalaryHead, value: string) => {
-    setForm({ ...form, [field]: value });
-  };
-
-  const handleFieldTypeChange = (value: "Earnings" | "Deductions") => {
-    setForm({ ...form, fieldType: value });
-  };
-
-  const handleApplicableChange = (field: keyof SalaryHead["applicable"], value: boolean) => {
-    setForm({
-      ...form,
-      applicable: { ...(form.applicable || { ESI: false, Bonus: false, PT: false, LWF: false, Gratuity: false, LeaveEncashment: false, PF: false }), [field]: value },
-    });
-  };
-
-  const handleForm16FieldChange = (value: string) => {
-    if (value === "create_new") {
-      setShowNewFieldInput(true);
-    } else {
-      setForm({ ...form, form16Field: value });
-      setShowNewFieldInput(false);
-      setNewForm16Field("");
-    }
-  };
-
-  const handleNewForm16FieldSubmit = () => {
-    if (newForm16Field.trim() && !form16Fields.includes(newForm16Field.trim())) {
-      setForm16Fields([...form16Fields, newForm16Field.trim()]);
-      setForm({ ...form, form16Field: newForm16Field.trim() });
-      setShowNewFieldInput(false);
-      setNewForm16Field("");
-    } else if (form16Fields.includes(newForm16Field.trim())) {
-      alert("This Form 16 field already exists");
-    } else {
-      alert("Please enter a valid Form 16 field name");
-    }
-  };
-
-  const handleDeleteForm16Field = (field: string) => {
-    if (salaryHeads.some((head) => head.form16Field === field)) {
-      alert("Cannot delete this Form 16 field as it is used by existing salary heads.");
+  const handleSubmit = () => {
+    if (!form.description || !form.shortName || form.value === undefined || !form.group || !form.type) {
+      alert("Fill all required fields");
       return;
     }
-    setFieldToDelete(field);
-    setDeleteDialogOpen(true);
+
+    if (isEditing && form.id) {
+      setSalaryHeads(prev => prev.map(h => h.id === form.id ? form : h));
+    } else {
+      setSalaryHeads(prev => [...prev, { ...form, id: Date.now() }]);
+    }
+
+    setOpen(false);
+    setForm(defaultForm);
   };
 
-  const confirmDeleteForm16Field = () => {
-    if (fieldToDelete) {
-      setForm16Fields(form16Fields.filter((field) => field !== fieldToDelete));
-      if (form.form16Field === fieldToDelete) {
-        setForm({ ...form, form16Field: "" });
-      }
-      setDeleteDialogOpen(false);
-      setFieldToDelete(null);
+  const handleDelete = (id: number) => {
+    if (confirm("Delete permanently?")) {
+      setSalaryHeads(prev => prev.filter(h => h.id !== id));
     }
   };
 
   const handleDragEnd = (result: DropResult) => {
-    console.log("Drag end result:", result); // Debug output
     if (!result.destination) return;
+    const items = Array.from(salaryHeads);
+    const [moved] = items.splice(result.source.index, 1);
+    items.splice(result.destination.index, 0, moved);
+    setSalaryHeads(items);
+  };
 
-    const reorderedSalaryHeads = Array.from(salaryHeads);
-    const [movedItem] = reorderedSalaryHeads.splice(result.source.index, 1);
-    reorderedSalaryHeads.splice(result.destination.index, 0, movedItem);
+  const addForm16Field = () => {
+    if (newForm16Field.trim() && !form16Fields.includes(newForm16Field.trim())) {
+      setForm16Fields(prev => [...prev, newForm16Field.trim()]);
+      setForm({ ...form, form16Field: newForm16Field.trim() });
+      setNewForm16Field("");
+      setShowNewFieldInput(false);
+    }
+  };
 
-    setSalaryHeads(reorderedSalaryHeads);
-    if (selectedSalaryHead) {
-      const updatedSelected = reorderedSalaryHeads.find((head) => head.id === selectedSalaryHead.id);
-      setSelectedSalaryHead(updatedSelected || null);
+  const deleteForm16Field = (field: string) => {
+    if (confirm(`Delete "${field}" from Form 16 fields?`)) {
+      setForm16Fields(prev => prev.filter(f => f !== field));
+    }
+  };
+
+  const addGroup = () => {
+    if (newGroup.trim() && !groups.includes(newGroup.trim())) {
+      setGroups(prev => [...prev, newGroup.trim()]);
+      setForm({ ...form, group: newGroup.trim() });
+      setNewGroup("");
+      setShowNewGroupInput(false);
+    }
+  };
+
+  const deleteGroup = (group: string) => {
+    if (confirm(`Delete group "${group}"?`)) {
+      setGroups(prev => prev.filter(g => g !== group));
+      setSalaryHeads(prev => prev.map(h => h.group === group ? { ...h, group: "Standard" } : h));
     }
   };
 
   return (
     <GlobalLayout>
-      <div className="space-y-6">
-      <Card>
-        <CardHeader className="p-4">
-          <CardTitle className="text-xl font-semibold">Salary Heads Management</CardTitle>
-        </CardHeader>
-        <CardContent className="p-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <Label className="text-sm font-medium text-gray-700">Name of Salary Head *</Label>
-              <Input
-                value={form.description || ""}
-                onChange={(e) => handleChange("description", e.target.value)}
-                className="mt-1 h-12 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter salary head name"
-              />
+      <div className="space-y-6 p-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold">Salary Heads Configuration</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Input Controls */}
+            <div className="grid grid-cols-4 gap-4 p-4 bg-gray-50 rounded-lg">
+              <div>
+                <Label>Base Type</Label>
+                <Select value={baseType} onValueChange={(v: any) => setBaseType(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Amount">CTC</SelectItem>
+                    <SelectItem value="Gross">Gross Salary</SelectItem>
+                    <SelectItem value="TakeHome">Take Home (In Hand)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Amount ({frequency})</Label>
+                <Input
+                  type="number"
+                  value={inputAmount}
+                  onChange={(e) => setInputAmount(parseFloat(e.target.value) || 0)}
+                />
+              </div>
+              <div>
+                <Label>Frequency</Label>
+                <Select value={frequency} onValueChange={(v: any) => setFrequency(v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Monthly">Monthly</SelectItem>
+                    <SelectItem value="Annually">Annually</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex items-end">
+                <Button onClick={() => setInputAmount(prev => prev + 0)} className="w-full">
+                  <Calculator className="w-4 h-4 mr-2" /> Calculate
+                </Button>
+              </div>
             </div>
-            <div>
-              <Label className="text-sm font-medium text-gray-700">Display/Short Name *</Label>
-              <Input
-                value={form.shortName || ""}
-                onChange={(e) => handleChange("shortName", e.target.value)}
-                className="mt-1 h-12 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter short name"
-              />
+
+            {/* Summary */}
+            <div className="grid grid-cols-4 gap-4 text-center">
+              <div className="bg-blue-100 p-4 rounded">
+                <p className="text-sm text-gray-600">CTC</p>
+                <p className="text-2xl font-bold">₹{inputAmount.toLocaleString()}</p>
+              </div>
+              <div className="bg-green-100 p-4 rounded">
+                <p className="text-sm text-gray-600">Gross Salary</p>
+                <p className="text-2xl font-bold">₹{grossSalary.toLocaleString()}</p>
+              </div>
+              <div className="bg-purple-100 p-4 rounded">
+                <p className="text-sm text-gray-600">Take Home</p>
+                <p className="text-2xl font-bold">₹{takeHome.toLocaleString()}</p>
+              </div>
+              <div className="bg-yellow-100 p-4 rounded">
+                <p className="text-sm text-gray-600">Additional Head</p>
+                <p className="text-2xl font-bold text-green-600">₹{additionalAmount.toLocaleString()}</p>
+              </div>
             </div>
-            <div>
-              <Label className="text-sm font-medium text-gray-700">Under Form 16 Field *</Label>
-              <Select
-                value={form.form16Field || ""}
-                onValueChange={handleForm16FieldChange}
-              >
-                <SelectTrigger className="mt-1 h-12 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
-                  <SelectValue placeholder="Select Form 16 Field" />
-                </SelectTrigger>
-                <SelectContent>
-                  {form16Fields.map((field) => (
-                    <div key={field} className="flex items-center justify-between px-2 py-1">
-                      <SelectItem value={field} className="flex-1">{field}</SelectItem>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteForm16Field(field)}
-                        className="text-red-600 hover:text-red-800"
-                      >
-                        Delete
-                      </Button>
-                    </div>
-                  ))}
-                  <SelectItem value="create_new">Create New</SelectItem>
-                </SelectContent>
-              </Select>
-              {showNewFieldInput && (
-                <div className="mt-2">
-                  <Input
-                    value={newForm16Field}
-                    onChange={(e) => setNewForm16Field(e.target.value)}
-                    placeholder="Enter new Form 16 field"
-                    className="h-12 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-                  />
-                  <Button
-                    onClick={handleNewForm16FieldSubmit}
-                    className="mt-2 bg-blue-600 text-white hover:bg-blue-700 px-4 py-2 rounded-md text-sm font-medium transition duration-200"
-                  >
-                    Add New Field
+
+            <Button onClick={() => handleOpenDialog()}>
+              <Plus className="w-4 h-4 mr-2" /> Add Salary Head
+            </Button>
+
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <Droppable droppableId="heads">
+                {(provided) => (
+                  <div {...provided.droppableProps} ref={provided.innerRef} className="rounded-lg border overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="w-10"></TableHead>
+                          <TableHead>S.No</TableHead>
+                          <TableHead>Description</TableHead>
+                          <TableHead>Short</TableHead>
+                          <TableHead>Group</TableHead>
+                          <TableHead>Type</TableHead>
+                          <TableHead>Field Type</TableHead>
+                          <TableHead>Calc</TableHead>
+                          <TableHead>Value</TableHead>
+                          <TableHead>Amount</TableHead>
+                          <TableHead>Freq</TableHead>
+                          <TableHead>Active</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {salaryHeads.map((head, index) => (
+                          <Draggable key={head.id} draggableId={head.id.toString()} index={index}>
+                            {(provided, snapshot) => (
+                              <TableRow
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                className={`${snapshot.isDragging ? "bg-blue-50" : ""} ${!head.active ? "opacity-50" : ""} ${head.shortName === "ADD" ? "bg-green-50 font-medium" : ""}`}
+                              >
+                                <TableCell>
+                                  <div {...provided.dragHandleProps} className="cursor-grab">
+                                    <GripVertical className="w-5 h-5 text-gray-400" />
+                                  </div>
+                                </TableCell>
+                                <TableCell className="font-bold">{head.sno}</TableCell>
+                                <TableCell>{head.description}</TableCell>
+                                <TableCell>{head.shortName}</TableCell>
+                                <TableCell>{head.group}</TableCell>
+                                <TableCell>
+                                  <span className={`px-2 py-1 rounded text-xs font-medium ${head.type === "Regular" ? "bg-blue-100 text-blue-800" : "bg-orange-100 text-orange-800"}`}>
+                                    {head.type}
+                                  </span>
+                                </TableCell>
+                                <TableCell>{head.fieldType}</TableCell>
+                                <TableCell>
+                                  {head.amountType === "Fixed" ? "Fixed" : `${head.value}% of ${head.percentBase}`}
+                                </TableCell>
+                                <TableCell>₹{head.value.toLocaleString()}</TableCell>
+                                <TableCell className="font-semibold text-green-600">
+                                  ₹{(calculatedValues[head.shortName] || 0).toLocaleString()}
+                                  {head.shortName === "ADD" && " (Auto)"}
+                                </TableCell>
+                                <TableCell>{head.frequency}</TableCell>
+                                <TableCell>
+                                  <Switch
+                                    checked={head.active}
+                                    onCheckedChange={(v) => setSalaryHeads(prev => prev.map(h => h.id === head.id ? { ...h, active: v } : h))}
+                                  />
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex gap-2">
+                                    <Button size="sm" variant="ghost" onClick={() => handleOpenDialog(head)}>
+                                      <Edit className="w-4 h-4" />
+                                    </Button>
+                                    <Button size="sm" variant="ghost" onClick={() => handleDelete(head.id)}>
+                                      <Trash2 className="w-4 h-4 text-red-600" />
+                                    </Button>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )}
+              </Droppable>
+            </DragDropContext>
+          </CardContent>
+        </Card>
+
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>{isEditing ? "Edit" : "Add"} Salary Head</DialogTitle>
+            </DialogHeader>
+
+            <div className="grid grid-cols-2 gap-6 py-4">
+              <div>
+                <Label>Description *</Label>
+                <Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Basic Salary" />
+              </div>
+              <div>
+                <Label>Short Name *</Label>
+                <Input value={form.shortName} onChange={(e) => setForm({ ...form, shortName: e.target.value.toUpperCase() })} placeholder="BASIC" />
+              </div>
+
+              {/* Group Dropdown */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Group *</Label>
+                  <Button size="sm" variant="ghost" onClick={() => setShowNewGroupInput(!showNewGroupInput)}>
+                    <Plus className="w-4 h-4" />
                   </Button>
                 </div>
+                <Select value={form.group} onValueChange={(v) => setForm({ ...form, group: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {groups.map((group) => (
+                      <SelectItem key={group} value={group}>
+                        <div className="flex items-center justify-between w-full">
+                          <span>{group}</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="ml-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteGroup(group);
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3 text-red-500" />
+                          </Button>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {showNewGroupInput && (
+                  <div className="flex gap-2 mt-2">
+                    <Input
+                      placeholder="New group"
+                      value={newGroup}
+                      onChange={(e) => setNewGroup(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addGroup()}
+                    />
+                    <Button size="sm" onClick={addGroup}>Add</Button>
+                  </div>
+                )}
+              </div>
+
+              {/* Type Dropdown */}
+              <div>
+                <Label>Type *</Label>
+                <Select value={form.type} onValueChange={(v: "Regular" | "Adhoc") => setForm({ ...form, type: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Regular">Regular</SelectItem>
+                    <SelectItem value="Adhoc">Adhoc</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Form 16 Field */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>Form 16 Field *</Label>
+                  <Button size="sm" variant="ghost" onClick={() => setShowNewFieldInput(!showNewFieldInput)}>
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+                <Select value={form.form16Field} onValueChange={(v) => setForm({ ...form, form16Field: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {form16Fields.map((field) => (
+                      <SelectItem key={field} value={field}>
+                        <div className="flex items-center justify-between w-full">
+                          <span>{field}</span>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="ml-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteForm16Field(field);
+                            }}
+                          >
+                            <Trash2 className="w-3 h-3 text-red-500" />
+                          </Button>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {showNewFieldInput && (
+                  <div className="flex gap-2 mt-2">
+                    <Input
+                      placeholder="New Form 16 field"
+                      value={newForm16Field}
+                      onChange={(e) => setNewForm16Field(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && addForm16Field()}
+                    />
+                    <Button size="sm" onClick={addForm16Field}>Add</Button>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <Label>Field Type</Label>
+                <Select value={form.fieldType} onValueChange={(v: any) => setForm({ ...form, fieldType: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Earnings">Earnings</SelectItem>
+                    <SelectItem value="Deductions">Deductions</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label>Amount Type</Label>
+                <Select value={form.amountType} onValueChange={(v: any) => setForm({ ...form, amountType: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Fixed">Fixed</SelectItem>
+                    <SelectItem value="Percentage">Percentage</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {form.amountType === "Percentage" && (
+                <div>
+                  <Label>% of</Label>
+                  <Select value={form.percentBase} onValueChange={(v) => setForm({ ...form, percentBase: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Amount">CTC (Amount)</SelectItem>
+                      <SelectItem value="Gross">Gross Salary</SelectItem>
+                      <SelectItem value="TakeHome">Take Home</SelectItem>
+                      {salaryHeads
+                        .filter(h => h.shortName !== form.shortName)
+                        .map(h => (
+                          <SelectItem key={h.id} value={h.shortName}>
+                            {h.shortName} ({h.description})
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               )}
-            </div>
-            <div>
-              <Label className="text-sm font-medium text-gray-700">Field Type *</Label>
-              <Select
-                value={form.fieldType || ""}
-                onValueChange={handleFieldTypeChange}
-              >
-                <SelectTrigger className="mt-1 h-12 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500">
-                  <SelectValue placeholder="Select Field Type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Earnings">Earnings</SelectItem>
-                  <SelectItem value="Deductions">Deductions</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="flex space-x-4 mb-6">
-            <Button
-              onClick={handleAdd}
-              className="bg-blue-600 text-white hover:bg-blue-700 px-6 py-3 rounded-md text-sm font-medium transition duration-200"
-            >
-              Add
-            </Button>
-            <Button
-              onClick={() => selectedSalaryHead && handleEdit(selectedSalaryHead)}
-              disabled={!selectedSalaryHead}
-              className="bg-yellow-500 text-white hover:bg-yellow-600 px-6 py-3 rounded-md text-sm font-medium transition duration-200"
-            >
-              Modify
-            </Button>
-            <Button
-              onClick={handleSubmit}
-              className="bg-green-600 text-white hover:bg-green-700 px-6 py-3 rounded-md text-sm font-medium transition duration-200"
-            >
-              {isEditing ? "Update" : "Save"}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleCancel}
-              className="border-gray-300 text-gray-700 hover:bg-gray-100 px-6 py-3 rounded-md text-sm font-medium transition duration-200"
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={() => selectedSalaryHead && handleDelete(selectedSalaryHead.id)}
-              disabled={!selectedSalaryHead}
-              className="bg-red-600 text-white hover:bg-red-700 px-6 py-3 rounded-md text-sm font-medium transition duration-200"
-            >
-              Delete
-            </Button>
-          </div>
-          <div className="flex items-center space-x-2 mb-4">
-            <Checkbox
-              checked={showOnlySetupHeads}
-              onCheckedChange={(checked) => setShowOnlySetupHeads(checked as boolean)}
-              className="h-6 w-6 text-blue-600 border-2 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-            />
-            <Label className="text-sm font-medium text-gray-700">Show Only Salary Setup Heads</Label>
-          </div>
-          <DragDropContext onDragEnd={handleDragEnd}>
-            <div className="rounded-md border overflow-x-auto">
-              <Table className="w-full">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="p-3 text-sm font-semibold text-gray-700">S.N.</TableHead>
-                    <TableHead className="p-3 text-sm font-semibold text-gray-700">Description</TableHead>
-                    <TableHead className="p-3 text-sm font-semibold text-gray-700">Short Name</TableHead>
-                    <TableHead className="p-3 text-sm font-semibold text-gray-700">Form 16 Field</TableHead>
-                    <TableHead className="p-3 text-sm font-semibold text-gray-700">Field Type</TableHead>
-                    <TableHead className="p-3 text-sm font-semibold text-gray-700">ESI</TableHead>
-                    <TableHead className="p-3 text-sm font-semibold text-gray-700">Bonus</TableHead>
-                    <TableHead className="p-3 text-sm font-semibold text-gray-700">PT</TableHead>
-                    <TableHead className="p-3 text-sm font-semibold text-gray-700">LWF</TableHead>
-                    <TableHead className="p-3 text-sm font-semibold text-gray-700">Gratuity</TableHead>
-                    <TableHead className="p-3 text-sm font-semibold text-gray-700">Leave Encashment</TableHead>
-                    <TableHead className="p-3 text-sm font-semibold text-gray-700">PF</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <Droppable droppableId="salaryHeads">
-                  {(provided: any) => (
-                    <TableBody ref={provided.innerRef} {...provided.droppableProps}>
-                      {salaryHeads.map((head, index) => (
-                        <Draggable key={head.id.toString()} draggableId={head.id.toString()} index={index}>
-                          {(provided: any) => (
-                            <TableRow
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                              onClick={() => setSelectedSalaryHead(head)}
-                              className={`cursor-pointer hover:bg-muted ${selectedSalaryHead?.id === head.id ? "bg-primary/5" : ""}`}
-                            >
-                              <TableCell className="p-3 text-sm">{index + 1}</TableCell>
-                              <TableCell className="p-3 text-sm">{head.description}</TableCell>
-                              <TableCell className="p-3 text-sm">{head.shortName}</TableCell>
-                              <TableCell className="p-3 text-sm">{head.form16Field}</TableCell>
-                              <TableCell className="p-3 text-sm">{head.fieldType}</TableCell>
-                              <TableCell className="p-3 text-sm">{head.applicable.ESI ? "Yes" : "No"}</TableCell>
-                              <TableCell className="p-3 text-sm">{head.applicable.Bonus ? "Yes" : "No"}</TableCell>
-                              <TableCell className="p-3 text-sm">{head.applicable.PT ? "Yes" : "No"}</TableCell>
-                              <TableCell className="p-3 text-sm">{head.applicable.LWF ? "Yes" : "No"}</TableCell>
-                              <TableCell className="p-3 text-sm">{head.applicable.Gratuity ? "Yes" : "No"}</TableCell>
-                              <TableCell className="p-3 text-sm">{head.applicable.LeaveEncashment ? "Yes" : "No"}</TableCell>
-                              <TableCell className="p-3 text-sm">{head.applicable.PF ? "Yes" : "No"}</TableCell>
-                            </TableRow>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </TableBody>
-                  )}
-                </Droppable>
-              </Table>
-            </div>
-          </DragDropContext>
-        </CardContent>
-      </Card>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-md p-6">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-gray-800">Select Applicable Options</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 mt-4">
-            <div className="flex items-center space-x-3">
-              <Checkbox
-                checked={form.applicable?.ESI || false}
-                onCheckedChange={(checked) => handleApplicableChange("ESI", checked as boolean)}
-                className="h-6 w-6 text-blue-600 border-2 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-              />
-              <Label className="text-sm font-medium text-gray-700">ESI</Label>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Checkbox
-                checked={form.applicable?.Bonus || false}
-                onCheckedChange={(checked) => handleApplicableChange("Bonus", checked as boolean)}
-                className="h-6 w-6 text-blue-600 border-2 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-              />
-              <Label className="text-sm font-medium text-gray-700">Bonus</Label>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Checkbox
-                checked={form.applicable?.PT || false}
-                onCheckedChange={(checked) => handleApplicableChange("PT", checked as boolean)}
-                className="h-6 w-6 text-blue-600 border-2 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-              />
-              <Label className="text-sm font-medium text-gray-700">PT</Label>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Checkbox
-                checked={form.applicable?.LWF || false}
-                onCheckedChange={(checked) => handleApplicableChange("LWF", checked as boolean)}
-                className="h-6 w-6 text-blue-600 border-2 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-              />
-              <Label className="text-sm font-medium text-gray-700">LWF</Label>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Checkbox
-                checked={form.applicable?.Gratuity || false}
-                onCheckedChange={(checked) => handleApplicableChange("Gratuity", checked as boolean)}
-                className="h-6 w-6 text-blue-600 border-2 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-              />
-              <Label className="text-sm font-medium text-gray-700">Gratuity</Label>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Checkbox
-                checked={form.applicable?.LeaveEncashment || false}
-                onCheckedChange={(checked) => handleApplicableChange("LeaveEncashment", checked as boolean)}
-                className="h-6 w-6 text-blue-600 border-2 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-              />
-              <Label className="text-sm font-medium text-gray-700">Leave Encashment</Label>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Checkbox
-                checked={form.applicable?.PF || false}
-                onCheckedChange={(checked) => handleApplicableChange("PF", checked as boolean)}
-                className="h-6 w-6 text-blue-600 border-2 border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
-              />
-              <Label className="text-sm font-medium text-gray-700">PF</Label>
-            </div>
-          </div>
-          <DialogFooter className="mt-6">
-            <Button
-              onClick={handleSubmit}
-              className="bg-green-600 text-white hover:bg-green-700 px-6 py-3 rounded-md text-sm font-medium transition duration-200"
-            >
-              Confirm
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleCancel}
-              className="border-gray-300 text-gray-700 hover:bg-gray-100 px-6 py-3 rounded-md text-sm font-medium transition duration-200"
-            >
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <div>
+                <Label>Value *</Label>
+                <Input
+                  type="number"
+                  value={form.value}
+                  onChange={(e) => setForm({ ...form, value: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
 
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="max-w-md p-6">
-          <DialogHeader>
-            <DialogTitle className="text-xl font-semibold text-gray-800">Confirm Deletion</DialogTitle>
-          </DialogHeader>
-          <div className="mt-4">
-            <p className="text-sm text-gray-600">Are you sure you want to delete the Form 16 field "{fieldToDelete}"?</p>
-          </div>
-          <DialogFooter className="mt-6">
-            <Button
-              onClick={confirmDeleteForm16Field}
-              className="bg-red-600 text-white hover:bg-red-700 px-6 py-3 rounded-md text-sm font-medium transition duration-200"
-            >
-              Confirm
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleCancel}
-              className="border-gray-300 text-gray-700 hover:bg-gray-100 px-6 py-3 rounded-md text-sm font-medium transition duration-200"
-            >
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+              <div>
+                <Label>Frequency</Label>
+                <Select value={form.frequency} onValueChange={(v: any) => setForm({ ...form, frequency: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Monthly">Monthly</SelectItem>
+                    <SelectItem value="Annually">Annually</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="border-t pt-6 mt-6">
+              <Label className="text-lg font-semibold">Applicable For (Statutory Components)</Label>
+              <div className="grid grid-cols-3 gap-6 mt-4">
+                {Object.keys(form.applicable).map((key) => (
+                  <div key={key} className="flex items-center space-x-3 bg-gray-50 p-3 rounded-lg">
+                    <Checkbox
+                      id={key}
+                      checked={form.applicable[key as keyof typeof form.applicable]}
+                      onCheckedChange={(v) =>
+                        setForm({
+                          ...form,
+                          applicable: { ...form.applicable, [key]: v },
+                        })
+                      }
+                    />
+                    <Label htmlFor={key} className="text-sm font-medium cursor-pointer">
+                      {key}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <DialogFooter className="mt-8">
+              <Button onClick={handleSubmit} className="bg-green-600 hover:bg-green-700">
+                {isEditing ? "Update" : "Save"}
+              </Button>
+              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </GlobalLayout>
   );

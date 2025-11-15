@@ -29,9 +29,19 @@ declare module 'react-beautiful-dnd' {
     placeholder?: React.ReactElement | null
   }
 
+  export interface DraggableStateSnapshot {
+    isDragging: boolean
+    isDropAnimating: boolean
+    dropAnimation?: any
+    draggingOver?: string
+    combineWith?: string
+    combineTargetFor?: string
+    mode?: 'FLUID' | 'SNAP'
+  }
+
   export const DragDropContext: React.ComponentType<{ onDragEnd: (result: DropResult) => void; children?: React.ReactNode }>
   export const Droppable: React.ComponentType<{ droppableId: string; children: (provided: DroppableProvided) => React.ReactNode }>
-  export const Draggable: React.ComponentType<{ draggableId: string; index: number; children: (provided: DraggableProvided) => React.ReactNode }>
+  export const Draggable: React.ComponentType<{ draggableId: string; index: number; children: (provided: DraggableProvided, snapshot: DraggableStateSnapshot) => React.ReactNode }>
 }
 
 

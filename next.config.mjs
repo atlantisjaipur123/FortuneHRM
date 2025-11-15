@@ -19,6 +19,16 @@ const nextConfig = {
   },
   poweredByHeader: false,
   compress: true,
-}
 
-export default nextConfig
+  // ✅ Add this new section for backend proxy
+  async rewrites() {
+    return [
+      {
+        source: "/api/:path*",              // frontend request path
+        destination: "http://localhost:5000/api/:path*", // backend server
+      },
+    ];
+  },
+};
+
+export default nextConfig;

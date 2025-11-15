@@ -124,20 +124,8 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
   const employeeMasterOptions = [
     { id: "employee-details", title: "Employee Details", icon: Users, href: "/super-admin/employee-details" },
     { id: "salary-heads", title: "Salary Heads", icon: DollarSign, href: "/super-admin/salary-head" },
-    { id: "salary-setup", title: "Salary SetUp", icon: Calculator },
-    { id: "resign-date-setting", title: "Resign Date Setting", icon: Calendar },
     { id: "pf-esi-rate", title: "PF/ESI Rate", icon: CreditCard, href: "/super-admin/PF-ESI" },
-    { id: "pf-interest-loan", title: "PF (Interest Due & Loan Applicable)", icon: Banknote },
-    { id: "professional-tax-rate", title: "Professional Tax Rate", icon: Calculator },
     { id: "test", title: "test", icon: CalendarDays ,href: "/test"},
-    { id: "payment-mode", title: "Payment Mode", icon: CreditCardIcon },
-    { id: "increment-due-setup", title: "Increment Due SetUp", icon: TrendingUp },
-    { id: "pt-group-master", title: "PT Group Master", icon: Users },
-    { id: "reminder-setup", title: "Reminder SetUp", icon: Clock },
-    { id: "unpaid-leave-master", title: "Unpaid Leave Master", icon: Calendar },
-    { id: "leave-setup", title: "Leave SetUp", icon: CalendarDays },
-    { id: "monthly-variables", title: "Monthly Variables", icon: Calculator },
-    { id: "import-wkoff-attendance", title: "Import WkOff From Attendance Machine", icon: Clock3 },
     { id: "attendance", title: "Attendance", icon: Clock,href: "/super-admin/attendance" },
     { id: "payroll-cycle", title: "payroll cycle", icon: Clock, href: "/super-admin/payroll-cycle" },
     { id: "leave", title: "Leave", icon: CalendarDays, href: "/super-admin/leave" },
@@ -145,18 +133,13 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
     { id: "setups", title: "Setups", icon: Settings, href: "/super-admin/setups" },
     { id: "shift", title: "shift", icon: Clock3, href: "/super-admin/shift" },
     { id: "shift-rotation", title: "shift-rotation", icon: Clock3, href: "/super-admin/shift-rotation" },
-    { id: "loan-detail", title: "Loan Detail", icon: Banknote },
-    { id: "project-master", title: "Project Master", icon: Projector },
-    { id: "project-salary-definition", title: "Project Salary Definition", icon: Calculator },
-    { id: "reimbursement-type", title: "Reimbursement Type", icon: Receipt },
-  ];
 
-  const groupedEmployeeMasterOptions: Record<string, typeof employeeMasterOptions> = {
-    "Employee Management": employeeMasterOptions.slice(0, 8),
-    "Payroll Configuration": employeeMasterOptions.slice(8, 16),
-    "Leave & Attendance": employeeMasterOptions.slice(16, 20),
-    "Organizational Setup": employeeMasterOptions.slice(20, 23),
-    "Financial Management": employeeMasterOptions.slice(23, 27),
+  ];
+    const groupedEmployeeMasterOptions: Record<string, typeof employeeMasterOptions> = {
+    "Employee Management": employeeMasterOptions.slice(0, 4),
+    "Leave & Attendance": employeeMasterOptions.slice(4,7),
+    "Organizational Setup": employeeMasterOptions.slice(7,11),
+    
   };
 
   const toggleSection = React.useCallback((id: string) => {

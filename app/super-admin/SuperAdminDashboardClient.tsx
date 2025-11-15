@@ -89,49 +89,6 @@ interface SuperAdminDashboardClientProps {
   }
 }
 
-// Employee Master Options
-const employeeMasterOptions = [
-  { id: "employee-details", title: "Employee Details", icon: Users, description: "Manage employee personal and professional information", href: "/super-admin/employee-details" },
-  { id: "salary-heads", title: "Salary Heads", icon: DollarSign, description: "Configure salary components and allowances", href: "/super-admin/salary-head" },
-  { id: "salary-setup", title: "Salary SetUp", icon: Calculator, description: "Set up salary structures and calculations", shortcut: "F1" },
-  { id: "resign-date-setting", title: "Resign Date Setting", icon: Calendar, description: "Configure resignation date settings" },
-  { id: "pf-esi-rate", title: "PF/ESI Rate", icon: CreditCard, description: "Manage Provident Fund and ESI rates", href: "/super-admin/PF-ESI" },
-  { id: "pf-interest-loan", title: "PF (Interest Due & Loan Applicable)", icon: Banknote, description: "Configure PF interest and loan settings" },
-  { id: "professional-tax-rate", title: "Professional Tax Rate", icon: Calculator, description: "Set up professional tax rates" },
-  { id: "wage-gratuity-leave", title: "Wage, Gratuity, Leave Encashment & Retirement Age", icon: CalendarDays, description: "Configure wage, gratuity, and leave encashment policies" },
-  { id: "payment-mode", title: "Payment Mode", icon: CreditCardIcon, description: "Set up payment methods and modes" },
-  { id: "increment-due-setup", title: "Increment Due SetUp", icon: TrendingUp, description: "Configure increment schedules and policies" },
-  { id: "pt-group-master", title: "PT Group Master", icon: Users, description: "Manage Professional Tax groups" },
-  { id: "reminder-setup", title: "Reminder SetUp", icon: Clock, description: "Configure system reminders and notifications" },
-  { id: "unpaid-leave-master", title: "Unpaid Leave Master", icon: Calendar, description: "Manage unpaid leave policies" },
-  { id: "leave-setup", title: "Leave SetUp", icon: CalendarDays, description: "Configure leave types and policies" },
-  { id: "monthly-variables", title: "Monthly Variables", icon: Calculator, description: "Set up monthly variable components" },
-  { id: "import-wkoff-attendance", title: "Import WkOff From Attendance Machine", icon: Clock3, description: "Import weekly offs from attendance machines" },
-  { id: "monthly-calendar-emp", title: "Monthly Calendar (Emp. Wise)", icon: Calendar, description: "Create employee-wise monthly calendars" },
-  { id: "monthly-calendar-group", title: "Monthly Calendar (Group Wise)", icon: Calendar, description: "Create group-wise monthly calendars" },
-  { id: "holiday-assignment", title: "Holiday Assignment (Emp./Group Wise)", icon: CalendarDays, description: "Assign holidays to employees or groups" },
-  { id: "monthly-absent", title: "Monthly Absent (Emp./Group Wise)", icon: UserCheck, description: "Track monthly absences by employee or group" },
-  { id: "import-export-days-off", title: "Import/Export Days Off (UnPaid)", icon: FileText, description: "Import and export unpaid days off data" },
-  { id: "bank-detail", title: "Bank Detail", icon: CreditCard, description: "Manage bank account details" },
-  { id: "branch-detail", title: "Branch Detail", icon: Building2, description: "Configure branch information" },
-  { id: "category", title: "Category", icon: Briefcase, description: "Manage employee categories" },
-  { id: "designation", title: "Designation", icon: Briefcase, description: "Configure job designations" },
-  { id: "department", title: "Department", icon: Building2, description: "Manage organizational departments" },
-  { id: "scale", title: "Scale", icon: Scale, description: "Configure salary scales and grades" },
-  { id: "shift", title: "Shift", icon: Clock3, description: "Manage work shifts and timings" },
-  { id: "loan-detail", title: "Loan Detail", icon: Banknote, description: "Configure loan types and details" },
-  { id: "project-master", title: "Project Master", icon: Projector, description: "Manage project information" },
-  { id: "project-salary-definition", title: "Project Salary Definition", icon: Calculator, description: "Define salary structures for projects" },
-  { id: "reimbursement-type", title: "Reimbursement Type", icon: Receipt, description: "Configure reimbursement types and policies" }
-]
-
-const groupedEmployeeMasterOptions = {
-  "Employee Management": employeeMasterOptions.slice(0, 8),
-  "Payroll Configuration": employeeMasterOptions.slice(8, 16),
-  "Leave & Attendance": employeeMasterOptions.slice(16, 20),
-  "Organizational Setup": employeeMasterOptions.slice(20, 28),
-  "Financial Management": employeeMasterOptions.slice(28, 32)
-}
 
 export function SuperAdminDashboardClient({ companies: initialCompanies, stats }: SuperAdminDashboardClientProps) {
   const [companies, setCompanies] = useState<CompanyExtended[]>(initialCompanies as CompanyExtended[])
