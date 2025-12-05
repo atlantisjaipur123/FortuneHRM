@@ -5,8 +5,8 @@ import { GlobalLayout } from "@/app/components/global-layout"
 export default async function SuperAdminDashboard() {
   await requireSuperAdmin()
   
-  const companies = getCompanies()
-  const stats = getCompanyStats()
+  const companies = await getCompanies()
+  const stats = await getCompanyStats()
 
   return (
     <GlobalLayout>

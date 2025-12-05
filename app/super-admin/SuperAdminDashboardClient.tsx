@@ -108,6 +108,7 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
 
   // Search filtering for Current Company card
   const filteredSearchCompanies = useMemo(() => {
+    if (!Array.isArray(companies)) return [];
     return companies.filter(
       (company) =>
         company.name.toLowerCase().includes(companySearchTerm.toLowerCase()) ||

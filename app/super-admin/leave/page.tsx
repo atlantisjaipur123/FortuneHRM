@@ -467,7 +467,7 @@ export default function LeavePolicyPage() {
                                 onChange={e => updateLeaveType(lt.id, 'payConsume', e.target.checked)}
                                 className="h-4 w-4 text-green-600"
                               />
-                              <label className="text-xs">Pay Leave Consume For 1 day Leave</label>
+                              <label className="text-xs">1 Pay Leave Consume For 1 day Leave</label>
                             </div>
                             <div className="flex items-center gap-2">
                               <input
