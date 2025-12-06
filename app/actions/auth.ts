@@ -5,7 +5,8 @@
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000"
+const API_URL = "https://hr-backend-production-fc10.up.railway.app";
+
 
 export async function loginAction(formData: FormData) {
   const email = formData.get("email")?.toString().trim()
