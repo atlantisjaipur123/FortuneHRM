@@ -2,57 +2,56 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 
 export function middleware(request: NextRequest) {
-  const session = request.cookies.get("session")
+  // Accept both session cookie names (old & new)
+  const sessionCookie = request.cookies.get("session_user") || request.cookies.get("session")
+
   const { pathname } = request.nextUrl
 
-  // Public routes that don't require authentication
   const publicRoutes = ["/", "/login", "/signup", "/forgot-password"]
-
-  // Check if the current path is a public route
   const isPublicRoute = publicRoutes.includes(pathname)
 
-  // If no session and trying to access protected route
-  if (!session && !isPublicRoute) {
+  // If NOT logged in and NOT on public page → redirect to login
+  if (!sessionCookie && !isPublicRoute) {
     return NextResponse.redirect(new URL("/login", request.url))
   }
 
-  // If has session and trying to access auth pages
-  if (session && (pathname === "/login" || pathname === "/signup")) {
+  // If logged in and visiting login/signup → redirect based on role
+  if (sessionCookie && (pathname === "/login" || pathname === "/signup")) {
     try {
-      const user = JSON.parse(session.value)
+      const user = JSON.parse(sessionCookie.value)
+
+      // Super admin dashboard
       if (user.role === "super_admin") {
         return NextResponse.redirect(new URL("/super-admin", request.url))
-      } else if (user.companyId) {
-        return NextResponse.redirect(new URL("/dashboard", request.url))
-      } else {
-        return NextResponse.redirect(new URL("/onboarding", request.url))
       }
+
+      // Company admin dashboard
+      if (user.role === "company_admin") {
+        return NextResponse.redirect(new URL("/dashboard", request.url))
+      }
+
+      // Default for regular employee
+      return NextResponse.redirect(new URL("/employee", request.url))
     } catch {
-      // Invalid session, continue to login
+      return NextResponse.redirect(new URL("/login", request.url))
     }
   }
 
-  // Role-based route protection
-  if (session) {
+  // Role-based protection (only checks when logged in)
+  if (sessionCookie) {
     try {
-      const user = JSON.parse(session.value)
+      const user = JSON.parse(sessionCookie.value)
 
-      // Super admin routes
+      // Super admin only
       if (pathname.startsWith("/super-admin") && user.role !== "super_admin") {
         return NextResponse.redirect(new URL("/dashboard", request.url))
       }
 
-      // Company admin routes
+      // Company admin only
       if (pathname.startsWith("/dashboard") && user.role !== "company_admin") {
         return NextResponse.redirect(new URL("/super-admin", request.url))
       }
-
-      // Redirect company admin without company to onboarding
-      if (pathname.startsWith("/dashboard") && user.role === "company_admin" && !user.companyId) {
-        return NextResponse.redirect(new URL("/onboarding", request.url))
-      }
     } catch {
-      // Invalid session, redirect to login
       return NextResponse.redirect(new URL("/login", request.url))
     }
   }
@@ -62,13 +61,6 @@ export function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     */
     "/((?!api|_next/static|_next/image|favicon.ico).*)",
   ],
 }

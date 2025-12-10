@@ -21,7 +21,7 @@ export interface User {
 
 export async function getSession(): Promise<User | null> {
   try {
-    const cookie = cookies().get("session")
+    const cookie = cookies().get("session_user")
     if (!cookie) return null
     return JSON.parse(cookie.value) as User
   } catch {
@@ -30,7 +30,7 @@ export async function getSession(): Promise<User | null> {
 }
 
 export async function signOut() {
-  cookies().delete("session")
+  cookies().delete("session_user")
 }
 
 // =========================
