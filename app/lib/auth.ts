@@ -65,32 +65,80 @@ export interface Company {
   name: string
   employees: number
   status: "active" | "inactive"
+  code?: string
+  serviceName?: string
+  adminName?: string
+  startDate?: string
+  endDate?: string
+  createdAt?: string
 }
 
 export async function getCompanies(): Promise<Company[]> {
-  // Temporary mock data until backend is connected
-  return [
-    {
-      id: "1",
-      name: "Tech Corp",
-      employees: 120,
-      status: "active",
-    },
-    {
-      id: "2",
-      name: "Innova Solutions",
-      employees: 80,
-      status: "inactive",
-    }
-  ]
+  try {
+    const { prisma } = await import("./prisma")
+    const { CompanyStatus } = await import("@prisma/client")
+
+    const companies = await prisma.company.findMany({
+      where: { deletedAt: null },
+      include: {
+        authorizedPerson: true,
+        _count: {
+          select: { employees: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    })
+
+    return companies.map((company) => ({
+      id: company.id,
+      name: company.name,
+      employees: company._count.employees,
+      status: company.status === CompanyStatus.ACTIVE ? "active" : "inactive",
+      code: company.code,
+      serviceName: company.serviceName || undefined,
+      adminName: company.authorizedPerson?.name || undefined,
+      startDate: company.startDate?.toISOString(),
+      endDate: company.endDate?.toISOString(),
+      createdAt: company.createdAt.toISOString(),
+    }))
+  } catch (error) {
+    console.error("Error fetching companies:", error)
+    // Return empty array on error
+    return []
+  }
 }
 
 export async function getCompanyStats() {
-  const companies = await getCompanies()
+  try {
+    const { prisma } = await import("./prisma")
+    const { CompanyStatus } = await import("@prisma/client")
 
-  return {
-    totalCompanies: companies.length,
-    activeCompanies: companies.filter(c => c.status === "active").length,
-    inactiveCompanies: companies.filter(c => c.status === "inactive").length,
+    const [totalCompanies, activeCompanies, totalEmployees] = await Promise.all([
+      prisma.company.count({ where: { deletedAt: null } }),
+      prisma.company.count({
+        where: { deletedAt: null, status: CompanyStatus.ACTIVE },
+      }),
+      prisma.employee.count({
+        where: {
+          deletedAt: null,
+          company: { deletedAt: null },
+        },
+      }),
+    ])
+
+    return {
+      totalCompanies,
+      activeCompanies,
+      inactiveCompanies: totalCompanies - activeCompanies,
+      totalEmployees,
+    }
+  } catch (error) {
+    console.error("Error fetching company stats:", error)
+    return {
+      totalCompanies: 0,
+      activeCompanies: 0,
+      inactiveCompanies: 0,
+      totalEmployees: 0,
+    }
   }
 }
