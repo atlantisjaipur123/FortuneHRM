@@ -126,7 +126,7 @@ export async function getCompanyStats() {
       }),
     ])
 
-    return {
+  return {
       totalCompanies,
       activeCompanies,
       inactiveCompanies: totalCompanies - activeCompanies,

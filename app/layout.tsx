@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import './globals.css'
-import { SidebarProvider } from '@/app/lib/sidebar-context'
+import { Providers } from './providers'
 // import { Providers } from '@/redux/provider'
 
 export const metadata: Metadata = {
@@ -22,9 +22,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        <SidebarProvider>
+        <Providers>
           {children}
-        </SidebarProvider>
+        </Providers>
       </body>
     </html>
   )

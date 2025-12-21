@@ -1,31 +1,17 @@
 "use client"
-import React from "react"
-import { CompanyInformationForm } from "./CompanyInformationForm"
 import type { CompanyExtended } from "@/app/lib/types"
+import { CompanyInformationForm } from "./CompanyInformationForm"
 
 interface CompanyMasterDialogProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
-  selectedCompany: CompanyExtended | null
-  onUpdate: (formData: FormData) => void
-  error: string | null
+  company: CompanyExtended | null
+  onSubmit: (formData: FormData) => void
 }
 
-export function CompanyMasterDialog({ isOpen, onOpenChange, selectedCompany, onUpdate, error }: CompanyMasterDialogProps) {
+export function CompanyMasterDialog({ isOpen, onOpenChange, company, onSubmit }: CompanyMasterDialogProps) {
   const handleUpdate = async (formData: FormData) => {
-    onUpdate(formData)
-  }
-
-  if (!selectedCompany) {
-    return (
-      <CompanyInformationForm
-        isOpen={isOpen}
-        onOpenChange={onOpenChange}
-        onSubmit={handleUpdate}
-        error={error}
-        title="Company Master"
-      />
-    )
+    await onSubmit(formData)
   }
 
   return (
@@ -33,7 +19,7 @@ export function CompanyMasterDialog({ isOpen, onOpenChange, selectedCompany, onU
       isOpen={isOpen}
       onOpenChange={onOpenChange}
       onSubmit={handleUpdate}
-      error={error}
+      error={null}
       title="Company Master"
     />
   )

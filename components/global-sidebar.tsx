@@ -39,6 +39,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Briefcase } from "lucide-react";
+import { SidebarCompanyBadge } from "@/components/sidebar-company-badge";
 
 // Note: These imports are commented out as they might not be available in all contexts
 // import { useAuth } from "@/app/lib/auth"
@@ -222,7 +223,14 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
           </div>
         )}
       </div>
-
+      
+      {/* Company Badge - shown below logo when not collapsed */}
+      {!isCollapsed && (
+        <div className="px-6 pb-2">
+          <SidebarCompanyBadge />
+        </div>
+      )}
+      
       {/* Navigation */}
       <nav className="flex-1 space-y-1 px-4 py-4">
         {pathname?.startsWith("/super-admin") ? (
@@ -365,12 +373,10 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
         <SidebarContent />
       </div>
 
-      {/* Mobile Sidebar */}
-      <Sheet>
-        <SheetContent side="left" className="w-64 p-0">
-          <SidebarContent />
-        </SheetContent>
-      </Sheet>
+      {/* Mobile Sidebar - trigger is in MobileMenuButton */}
+      <div className="lg:hidden">
+        {/* Mobile sidebar content is handled by MobileMenuButton */}
+      </div>
     </>
   );
 }

@@ -54,3 +54,8 @@ export async function loginAction(formData: FormData) {
     redirect("/employee")
   }
 }
+
+export async function logoutAction() {
+  cookies().delete("session_user")
+  redirect("/login")
+}

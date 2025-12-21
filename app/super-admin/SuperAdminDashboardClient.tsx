@@ -26,6 +26,7 @@ import type { Company } from "@/app/lib/auth"
 import { CreateCompanyDialog } from "../../components/dialogs/CreateCompanyDialog"
 import { CompanyMasterDialog } from "../../components/dialogs/CompanyMasterDialog"
 import { toast } from "@/components/ui/use-toast"
+import { useCompany } from "@/app/context/company-context"   
 
 // Extend base Company with optional fields
 type CompanyExtended = Company & {
@@ -105,6 +106,8 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
   const [selectedMonth, setSelectedMonth] = useState<string>("")
   const [selectedYear, setSelectedYear] = useState<string>("")
   const router = useRouter()
+  const { setCompany } = useCompany()
+  const [isCompanyDropdownOpen, setIsCompanyDropdownOpen] = useState(false)
 
   // Search filtering for Current Company card
   const filteredSearchCompanies = useMemo(() => {
@@ -553,29 +556,39 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
     })
   }
 
-  // Handle OK button to confirm company, month, and year
-  const handleConfirm = () => {
-    if (currentCompany && selectedMonth && selectedYear) {
-      setIsCompanyConfirmed(true)
-      // Here you can add logic to filter data based on currentCompany.id, selectedMonth, and selectedYear
-      console.log(`Confirmed: Company ${currentCompany.name}, Month ${selectedMonth}, Year ${selectedYear}`)
-    } else {
-      toast({
-        title: "Selection Incomplete",
-        description: "Please select a company, month, and year before confirming.",
-        variant: "destructive",
-        duration: 5000,
-      })
-    }
+ // Handle OK button to confirm ONLY company
+const handleConfirm = () => {
+  if (!currentCompany) {
+    toast({
+      title: "No company selected",
+      description: "Please select a company before continuing.",
+      variant: "destructive",
+      duration: 4000,
+    })
+    return
   }
+
+  // 🔐 Set globally
+  setCompany({
+    id: currentCompany.id,
+    name: currentCompany.name,
+  })
+
+  setIsCompanyConfirmed(true)
+
+  toast({
+    title: "Company selected",
+    description: currentCompany.name,
+    duration: 3000,
+  })
+}
+
 
   // Handle Clear button to reset all selections
   const handleClear = () => {
+    setCompany(null)
     setCurrentCompany(null)
     setIsCompanyConfirmed(false)
-    setCompanySearchTerm("")
-    setSelectedMonth("")
-    setSelectedYear("")
   }
 
   return (
@@ -616,15 +629,22 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
                         placeholder="Search companies..."
                         value={companySearchTerm}
                         onChange={(e) => setCompanySearchTerm(e.target.value)}
+                        onFocus={() => setIsCompanyDropdownOpen(true)}
                         className="w-full text-xs sm:text-sm"
                       />
-                      {companySearchTerm && filteredSearchCompanies.length > 0 && (
-                        <div className="absolute z-10 w-full bg-card border rounded-md mt-1 max-h-40 sm:max-h-60 overflow-auto">
+
+                      {isCompanyDropdownOpen && filteredSearchCompanies.length > 0 && (
+                        <div className="absolute z-50 w-full bg-card border rounded-md mt-1 max-h-60 overflow-auto shadow-md">
                           {filteredSearchCompanies.map((company) => (
                             <div
                               key={company.id}
-                              className="p-1 sm:p-2 hover:bg-primary/10 cursor-pointer text-xs sm:text-sm"
-                              onClick={() => { setCurrentCompany(company); setIsCompanyConfirmed(false); setCompanySearchTerm(""); }}
+                              className="p-2 text-sm hover:bg-primary/10 cursor-pointer"
+                              onClick={() => {
+                                setCurrentCompany(company)
+                                setIsCompanyConfirmed(false)
+                                setCompanySearchTerm("")
+                                setIsCompanyDropdownOpen(false) // ✅ CLOSE DROPDOWN
+                              }}
                             >
                               {company.name}
                             </div>
@@ -632,6 +652,8 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
                         </div>
                       )}
                     </div>
+
+
                     <div className="flex flex-col sm:flex-row sm:space-x-2 space-y-2 sm:space-y-0">
                       <Select value={selectedMonth} onValueChange={setSelectedMonth}>
                         <SelectTrigger className="w-full sm:w-[180px] text-xs sm:text-sm">
@@ -664,7 +686,7 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
                       </Select>
                     </div>
                     <div className="flex flex-col space-y-2 sm:flex-row sm:space-x-2 sm:space-y-0">
-                      <Button size="sm" onClick={handleConfirm} disabled={!currentCompany || !selectedMonth || !selectedYear || isCompanyConfirmed} className="w-full sm:w-auto text-xs sm:text-sm">OK</Button>
+                      <Button size="sm" onClick={handleConfirm} disabled={!currentCompany || isCompanyConfirmed} className="w-full sm:w-auto text-xs sm:text-sm">OK</Button>
                       <Button size="sm" variant="outline" onClick={handleClear} className="w-full sm:w-auto text-xs sm:text-sm">Clear</Button>
                     </div>
                   </div>
@@ -687,7 +709,7 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
                 <CardTitle className="text-lg sm:text-xl">Registered Companies</CardTitle>
                 <CardDescription className="text-sm sm:text-base">Manage all companies registered on the platform</CardDescription>
               </CardHeader>
-              <CardContent>
+              <CardContent className="overflow-visible">
                 <div className="flex flex-col sm:flex-row items-center py-1 sm:py-2 gap-2 sm:gap-4">
                   <Input
                     placeholder="Search by name or admin..."
@@ -698,7 +720,7 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
                   <Button onClick={() => setIsCreateOpen(true)} className="w-full sm:w-auto text-xs sm:text-sm">Add New Company</Button>
                   <Button onClick={() => setIsCompanyMasterOpen(true)} className="w-full sm:w-auto text-xs sm:text-sm">Company Master</Button>
                 </div>
-                <div className="rounded-md border overflow-x-auto">
+                <div className="rounded-md border overflow-x-auto overflow-y-visible">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -730,9 +752,7 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
                             End Date <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
                           </Button>
                         </TableHead>
-                        <TableHead colSpan={2} className="text-right min-w-[100px] sm:min-w-[150px]">
-                          <Button onClick={() => setIsCreateOpen(true)} className="ml-auto text-xs sm:text-sm">Add New Company</Button>
-                        </TableHead>
+                        
                         <TableHead className="min-w-[80px] sm:min-w-[100px]">Backup</TableHead>
                         <TableHead className="min-w-[80px] sm:min-w-[100px]">Restore</TableHead>
                         <TableHead className="min-w-[80px] sm:min-w-[100px]">Actions</TableHead>
@@ -765,12 +785,39 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
                             <TableCell className="min-w-[80px] sm:min-w-[100px]">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" className="h-6 w-6 sm:h-8 sm:w-8 p-0"><MoreHorizontal className="h-3 w-3 sm:h-4 sm:w-4" /></Button>
+                                  <Button 
+                                    variant="ghost" 
+                                    className="h-6 w-6 sm:h-8 sm:w-8 p-0" 
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
+                                    <MoreHorizontal className="h-3 w-3 sm:h-4 sm:w-4" />
+                                  </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end">
-                                  <DropdownMenuItem asChild><Link href={`/company/${company.id}`} className="text-xs sm:text-sm"><Building2 className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> View Details</Link></DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => { setSelectedCompany(company); setIsCompanyMasterOpen(true); }} className="text-xs sm:text-sm"><Pencil className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Edit</DropdownMenuItem>
-                                  <DropdownMenuItem onClick={() => deleteCompany(company.id)} className="text-xs sm:text-sm"><Trash2 className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Delete</DropdownMenuItem>
+                                <DropdownMenuContent align="end" sideOffset={5}>
+                                  <DropdownMenuItem asChild>
+                                    <Link href={`/company/${company.id}`} className="text-xs sm:text-sm">
+                                      <Building2 className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> View Details
+                                    </Link>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedCompany(company);
+                                      setIsCompanyMasterOpen(true);
+                                    }} 
+                                    className="text-xs sm:text-sm"
+                                  >
+                                    <Pencil className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Edit
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deleteCompany(company.id);
+                                    }} 
+                                    className="text-xs sm:text-sm"
+                                  >
+                                    <Trash2 className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Delete
+                                  </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </TableCell>

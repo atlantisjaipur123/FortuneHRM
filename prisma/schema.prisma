@@ -269,6 +269,11 @@ model Company {
   branches           Branch[]
   departments        Department[]
   designations       Designation[]
+  employeeCategories EmployeeCategory[]
+  levels             Level[]
+  grades             Grade[]
+  attendanceTypes    AttendanceTypeConfig[]
+
   salaryHeads        SalaryHead[]
   employees          Employee[]
   backups            Backup[]
@@ -409,6 +414,74 @@ model Designation {
   @@index([companyId])
   @@index([companyId, name])
   @@map("designations")
+}
+
+model EmployeeCategory {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("employee_categories")
+}
+
+model Level {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("levels")
+}
+
+model Grade {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("grades")
+}
+
+model AttendanceTypeConfig {
+  id        String  @id @default(cuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("attendance_type_configs")
 }
 
 model SalaryHead {
@@ -1141,5 +1214,3 @@ model Backup {
   @@index([companyId, createdAt])
   @@map("backups")
 }
-
-
