@@ -569,6 +569,7 @@ const handleConfirm = () => {
   }
 
   // 🔐 Set globally
+  console.log("Selected company ID:", currentCompany.id)
   setCompany({
     id: currentCompany.id,
     name: currentCompany.name,

@@ -126,7 +126,6 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
     { id: "employee-details", title: "Employee Details", icon: Users, href: "/super-admin/employee-details" },
     { id: "salary-heads", title: "Salary Heads", icon: DollarSign, href: "/super-admin/salary-head" },
     { id: "pf-esi-rate", title: "PF/ESI Rate", icon: CreditCard, href: "/super-admin/PF-ESI" },
-    { id: "test", title: "test", icon: CalendarDays ,href: "/test"},
     { id: "attendance", title: "Attendance", icon: Clock,href: "/super-admin/attendance" },
     { id: "payroll-cycle", title: "payroll cycle", icon: Clock, href: "/super-admin/payroll-cycle" },
     { id: "leave", title: "Leave", icon: CalendarDays, href: "/super-admin/leave" },
@@ -137,9 +136,9 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
 
   ];
     const groupedEmployeeMasterOptions: Record<string, typeof employeeMasterOptions> = {
-    "Employee Management": employeeMasterOptions.slice(0, 4),
-    "Leave & Attendance": employeeMasterOptions.slice(4,7),
-    "Organizational Setup": employeeMasterOptions.slice(7,11),
+    "Employee Management": employeeMasterOptions.slice(0, 3),
+    "Leave & Attendance": employeeMasterOptions.slice(3,7),
+    "Organizational Setup": employeeMasterOptions.slice(7,10),
     
   };
 
