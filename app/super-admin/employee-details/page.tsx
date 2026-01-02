@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import * as XLSX from "xlsx";
 import * as FileSaver from "file-saver";
+import { api } from "@/app/lib/api";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -316,7 +317,8 @@ const initialEmployees: Employee[] = [
 // COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 export default function EmployeeDetailsPage() {
-  const [employees, setEmployees] = useState<Employee[]>(initialEmployees);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Employee>>({});
   const [showAllEmployees, setShowAllEmployees] = useState(true);
@@ -368,6 +370,159 @@ export default function EmployeeDetailsPage() {
   const [selectedPtGroup, setSelectedPtGroup] = useState<string>("all");
   const [selectedShift, setSelectedShift] = useState<string>("all");
 
+  // ── Load employees from API ──
+  async function loadEmployees() {
+    try {
+      setLoading(true);
+      const params = new URLSearchParams();
+      if (selectedBranch !== "all") params.append("branch", selectedBranch);
+      if (selectedCategory !== "all") params.append("category", selectedCategory);
+      if (selectedDepartment !== "all") params.append("department", selectedDepartment);
+      if (selectedDesignation !== "all") params.append("designation", selectedDesignation);
+      if (selectedLevel !== "all") params.append("level", selectedLevel);
+      if (selectedGrade !== "all") params.append("grade", selectedGrade);
+      if (selectedPtGroup !== "all") params.append("ptGroup", selectedPtGroup);
+      if (selectedShift !== "all") params.append("shift", selectedShift);
+      params.append("includeResigned", includeResigned.toString());
+
+      const response = await api.get(`/api/employee-details?${params.toString()}`);
+      const backendEmployees = response.employees || [];
+
+      // Transform backend data to frontend format
+      const transformedEmployees: Employee[] = backendEmployees.map((emp: any) => ({
+        id: parseInt(emp.id) || 0,
+        code: emp.code,
+        name: emp.name,
+        fatherHusbandName: emp.fatherHusbandName || "",
+        pan: emp.pan || "",
+        dob: emp.dob ? new Date(emp.dob).toISOString().split("T")[0] : "",
+        doj: emp.doj ? new Date(emp.doj).toISOString().split("T")[0] : "",
+        dor: emp.dor ? new Date(emp.dor).toISOString().split("T")[0] : "",
+        uan: emp.uan || "",
+        pfAcNo: emp.pfAcNo || "",
+        email: emp.email || "",
+        nasscomRegNo: emp.nasscomRegNo || "",
+        gender: emp.gender || "Male",
+        maritalStatus: emp.maritalStatus || "UnMarried",
+        fathersName: emp.fathersName || "",
+        mothersName: emp.mothersName || "",
+        caste: emp.caste || "GEN",
+        bloodGroup: emp.bloodGroup || "",
+        nationality: emp.nationality || "Resident",
+        religion: emp.religion || "Hindu",
+        dateOfMarriage: emp.dateOfMarriage ? new Date(emp.dateOfMarriage).toISOString().split("T")[0] : "",
+        noOfDependent: emp.noOfDependent?.toString() || "",
+        spouse: emp.spouse || "",
+        stdCode: emp.stdCode || "",
+        phone: emp.phone || "",
+        mobile: emp.mobile || "",
+        internalId: emp.internalId || "",
+        noticePeriodMonths: emp.noticePeriodMonths?.toString() || "",
+        probationPeriodMonths: emp.probationPeriodMonths?.toString() || "",
+        confirmationDate: emp.confirmationDate ? new Date(emp.confirmationDate).toISOString().split("T")[0] : "",
+        resigLetterDate: emp.resigLetterDate ? new Date(emp.resigLetterDate).toISOString().split("T")[0] : "",
+        resigDateLwd: emp.resigDateLwd ? new Date(emp.resigDateLwd).toISOString().split("T")[0] : "",
+        resignationReason: emp.resignationReason || "",
+        appraisalDate: emp.appraisalDate ? new Date(emp.appraisalDate).toISOString().split("T")[0] : "",
+        dateOfDeath: emp.dateOfDeath ? new Date(emp.dateOfDeath).toISOString().split("T")[0] : "",
+        commitmentCompletionDate: emp.commitmentCompletionDate ? new Date(emp.commitmentCompletionDate).toISOString().split("T")[0] : "",
+        identityMark: emp.identityMark || "",
+        reimbursementApplicable: emp.reimbursementApplicable || false,
+        permanentAddress: emp.permanentAddress || {},
+        correspondenceAddress: emp.correspondenceAddress || {},
+        bankName: emp.bankName || "",
+        bankBranch: emp.bankBranch || "",
+        bankIfsc: emp.bankIfsc || "",
+        bankAddress: emp.bankAddress || "",
+        nameAsPerAc: emp.nameAsPerAc || "",
+        salaryAcNumber: emp.salaryAcNumber || "",
+        paymentMode: emp.paymentMode || "TRANSFER",
+        acType: emp.acType || "ECS",
+        bankRefNo: emp.bankRefNo || "",
+        wardCircleRange: emp.wardCircleRange || "",
+        licPolicyNo: emp.licPolicyNo || "",
+        policyTerm: emp.policyTerm || "",
+        licId: emp.licId || "",
+        annualRenewableDate: emp.annualRenewableDate ? new Date(emp.annualRenewableDate).toISOString().split("T")[0] : "",
+        hraApplicable: emp.hraApplicable || false,
+        bonusApplicable: emp.bonusApplicable || false,
+        gratuityApplicable: emp.gratuityApplicable || false,
+        lwfApplicable: emp.lwfApplicable || false,
+        pfApplicable: emp.pfApplicable || false,
+        physicallyHandicap: emp.physicallyHandicap || "NO",
+        educationalQual: emp.educationalQual || "",
+        registeredInPmrpy: emp.registeredInPmrpy || false,
+        previousPfNo: emp.previousPfNo || "",
+        pfJoiningDate: emp.pfJoiningDate ? new Date(emp.pfJoiningDate).toISOString().split("T")[0] : "",
+        pfLastDate: emp.pfLastDate ? new Date(emp.pfLastDate).toISOString().split("T")[0] : "",
+        salaryForPfOption: emp.salaryForPfOption || "",
+        salaryForPf: emp.salaryForPf?.toString() || "",
+        minAmtPf: emp.minAmtPf?.toString() || "",
+        pensionAppl: emp.pensionAppl || false,
+        pensionJoiningDate: emp.pensionJoiningDate ? new Date(emp.pensionJoiningDate).toISOString().split("T")[0] : "",
+        pensionOnHigherWages: emp.pensionOnHigherWages || false,
+        noLimit: emp.noLimit || false,
+        esiApplicable: emp.esiApplicable || false,
+        esiJoiningDate: emp.esiJoiningDate ? new Date(emp.esiJoiningDate).toISOString().split("T")[0] : "",
+        esiNo: emp.esiNo || "",
+        esiLastDate: emp.esiLastDate ? new Date(emp.esiLastDate).toISOString().split("T")[0] : "",
+        salaryForEsiOption: emp.salaryForEsiOption || "",
+        salaryForEsi: emp.salaryForEsi?.toString() || "",
+        minAmtEsiContribution: emp.minAmtEsiContribution?.toString() || "",
+        dispensaryOrPanel: emp.dispensaryOrPanel || "",
+        recruitmentAgency: emp.recruitmentAgency || "",
+        bankMandate: emp.bankMandate || "",
+        employmentStatus: emp.employmentStatus || "",
+        lapTops: emp.lapTops || "",
+        companyVehicle: emp.companyVehicle || "",
+        corpCreditCardNo: emp.corpCreditCardNo || "",
+        transportRoute: emp.transportRoute || "",
+        workLocation: emp.workLocation || "",
+        companyAssets: [],
+        educationalQualifications: [],
+        reasonForLeaving: emp.reasonForLeaving || "",
+        service: emp.service || "",
+        remarks: emp.remarks || "",
+        family: [],
+        nominees: [],
+        witnesses: [],
+        previousYears: "",
+        previousMonths: "",
+        experiences: [],
+        branch: emp.branch || "",
+        category: emp.category || "",
+        designation: emp.designation || "",
+        department: emp.department || "",
+        scale: emp.scale || emp.level || "",
+        ptGroup: emp.ptGroup || "",
+        shift: emp.shiftId || "",
+      }));
+
+      setEmployees(transformedEmployees as unknown as Employee[]);
+    } catch (error: any) {
+      console.error("Failed to load employees:", error);
+      alert(error.message || "Failed to load employees");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Load employees from API when filters change ──
+  useEffect(() => {
+    loadEmployees();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    selectedBranch,
+    selectedCategory,
+    selectedDepartment,
+    selectedDesignation,
+    selectedLevel,
+    selectedGrade,
+    selectedPtGroup,
+    selectedShift,
+    includeResigned,
+  ]);
+
   // ── Filtered employees (real-time) ──
   const filteredEmployees = useMemo(() => {
     return employees.filter((emp) => {
@@ -400,17 +555,36 @@ export default function EmployeeDetailsPage() {
   ]);
 
   // ── CRUD ──
-  const handleSubmit = (updatedEmployee: Partial<Employee>) => {
-    if (updatedEmployee.id) {
-      setEmployees((prev) =>
-        prev.map((emp) => (emp.id === updatedEmployee.id ? { ...emp, ...updatedEmployee } : emp))
-      );
-    } else {
-      const newId = Math.max(...employees.map((e) => e.id), 0) + 1;
-      setEmployees((prev) => [...prev, { ...updatedEmployee, id: newId } as Employee]);
+  const handleSubmit = async (updatedEmployee: any) => {
+    try {
+      // Extract salary if present (salary is not part of Employee interface)
+      const salary = (updatedEmployee as any).salary;
+      const employeeData = { ...updatedEmployee };
+      delete (employeeData as any).salary;
+      
+      if (updatedEmployee.id) {
+        // Update existing employee
+        await api.put("/api/employee-details", {
+          id: updatedEmployee.id.toString(),
+          employee: employeeData,
+          salary: salary, // Include salary if provided
+        });
+        alert("Employee updated successfully");
+      } else {
+        // Create new employee
+        await api.post("/api/employee-details", {
+          employee: employeeData,
+          salary: salary, // Include salary if provided
+        });
+        alert("Employee created successfully");
+      }
+      setOpen(false);
+      setForm({});
+      loadEmployees(); // Reload employees
+    } catch (error: any) {
+      console.error("Failed to save employee:", error);
+      alert(error.message || "Failed to save employee");
     }
-    setOpen(false);
-    setForm({});
   };
 
   const handleEdit = (employee: Employee) => {
@@ -418,9 +592,18 @@ export default function EmployeeDetailsPage() {
     setOpen(true);
   };
 
-  const handleDelete = (id: number) => {
-    if (confirm("Delete this employee?")) {
-      setEmployees((prev) => prev.filter((emp) => emp.id !== id));
+  const handleDelete = async (id: number) => {
+    if (!confirm("Delete this employee?")) return;
+
+    try {
+      await api.delete("/api/employee-details", {
+        body: { id: id.toString() },
+      });
+      alert("Employee deleted successfully");
+      loadEmployees(); // Reload employees
+    } catch (error: any) {
+      console.error("Failed to delete employee:", error);
+      alert(error.message || "Failed to delete employee");
     }
   };
 
@@ -573,7 +756,10 @@ export default function EmployeeDetailsPage() {
       const newEmployees = importedEmployees.map((e, i) => ({
         ...e,
         id: lastId + i + 1,
-      })) as Employee[];
+        photo: (e as any).photo || "",
+        previousYears: (e as any).previousYears || "",
+        previousMonths: (e as any).previousMonths || "",
+      })) as unknown as Employee[];
 
       setEmployees((prev) => [...prev, ...newEmployees]);
       setShowImportModal(false);
@@ -876,59 +1062,63 @@ export default function EmployeeDetailsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>S.N.</TableHead>
-                    <TableHead>Code</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Father's/Husband's</TableHead>
-                    <TableHead>PAN</TableHead>
-                    <TableHead>DOB</TableHead>
-                    <TableHead>DOJ</TableHead>
-                    <TableHead>DOR</TableHead>
-                    <TableHead>UAN</TableHead>
-                    <TableHead>PF A/c No.</TableHead>
-                    <TableHead>Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredEmployees.length > 0 ? (
-                    filteredEmployees.map((emp, i) => (
-                      <TableRow key={emp.id}>
-                        <TableCell>{i + 1}</TableCell>
-                        <TableCell>{emp.code}</TableCell>
-                        <TableCell>{emp.name}</TableCell>
-                        <TableCell>{emp.fatherHusbandName}</TableCell>
-                        <TableCell>{emp.pan}</TableCell>
-                        <TableCell>{emp.dob}</TableCell>
-                        <TableCell>{emp.doj}</TableCell>
-                        <TableCell>{emp.dor}</TableCell>
-                        <TableCell>{emp.uan}</TableCell>
-                        <TableCell>{emp.pfAcNo}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button size="sm" variant="outline" onClick={() => handleEdit(emp)}>
-                              Modify
-                            </Button>
-                            <Button size="sm" variant="destructive" onClick={() => handleDelete(emp.id)}>
-                              Delete
-                            </Button>
-                          </div>
+            {loading ? (
+              <div className="text-center py-8 text-gray-500">Loading employees...</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>S.N.</TableHead>
+                      <TableHead>Code</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Father's/Husband's</TableHead>
+                      <TableHead>PAN</TableHead>
+                      <TableHead>DOB</TableHead>
+                      <TableHead>DOJ</TableHead>
+                      <TableHead>DOR</TableHead>
+                      <TableHead>UAN</TableHead>
+                      <TableHead>PF A/c No.</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredEmployees.length > 0 ? (
+                      filteredEmployees.map((emp, i) => (
+                        <TableRow key={emp.id}>
+                          <TableCell>{i + 1}</TableCell>
+                          <TableCell>{emp.code}</TableCell>
+                          <TableCell>{emp.name}</TableCell>
+                          <TableCell>{emp.fatherHusbandName}</TableCell>
+                          <TableCell>{emp.pan}</TableCell>
+                          <TableCell>{emp.dob}</TableCell>
+                          <TableCell>{emp.doj}</TableCell>
+                          <TableCell>{emp.dor}</TableCell>
+                          <TableCell>{emp.uan}</TableCell>
+                          <TableCell>{emp.pfAcNo}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-2">
+                              <Button size="sm" variant="outline" onClick={() => handleEdit(emp)}>
+                                Modify
+                              </Button>
+                              <Button size="sm" variant="destructive" onClick={() => handleDelete(emp.id)}>
+                                Delete
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={11} className="text-center py-8 text-gray-500">
+                          No employees match the selected filters.
                         </TableCell>
                       </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={11} className="text-center py-8 text-gray-500">
-                        No employees match the selected filters.
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
           </CardContent>
         </Card>
 

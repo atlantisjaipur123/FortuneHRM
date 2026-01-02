@@ -15,6 +15,11 @@ datasource db {
 // ============================================================================
 // ENUMS
 // ============================================================================
+enum StatutoryType {
+  PF
+  ESI
+  GRATUITY
+}
 
 enum StateCode {
   ANDHRA_PRADESH
@@ -491,10 +496,13 @@ model SalaryHead {
   name          String
   shortName     String?
   form16Field   String?
-  fieldType     String?
+  fieldType     String // "EARNING" | "DEDUCTION"
+  calcBase      String? // "CTC" | "GROSS" | "BASIC"
   isPercentage  Boolean  @default(false)
-  percentageOf  String?
+  value         Float?
   applicableFor Json?
+  isSystem      Boolean  @default(false)
+  systemCode    String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
   createdBy     String?
@@ -639,13 +647,15 @@ model Employee {
   remarks          String?
 
   // Relations
-  qualifications    Qualification[]
-  experiences       Experience[]
-  familyMembers     FamilyMember[]
-  nominees          Nominee[]
-  witnesses         Witness[]
-  assets            CompanyAsset[]
-  salaryBreakdown   EmployeeSalaryHead[]
+  qualifications  Qualification[]
+  experiences     Experience[]
+  familyMembers   FamilyMember[]
+  nominees        Nominee[]
+  witnesses       Witness[]
+  assets          CompanyAsset[]
+  salaryBreakdown EmployeeSalaryHead[]
+  salaryConfig    EmployeeSalaryConfig?
+
   attendanceRecords Attendance[]
   leaveApplications LeaveApplication[]
   payrollRecords    PayrollRecord[]
@@ -688,6 +698,34 @@ model Employee {
   @@index([companyId, doj])
   @@index([companyId, shiftId])
   @@map("employees")
+}
+
+model EmployeeSalaryConfig {
+  id         String @id @default(cuid())
+  companyId  String
+  employeeId String @unique
+
+  // Salary input
+  salaryMode  String // "CTC" | "GROSS"
+  inputAmount Float // monthly amount entered by HR
+
+  // Final computed amounts (monthly unless specified)
+  grossSalary Float
+  netSalary   Float
+  annualCtc   Float
+
+  // Statutory rule snapshots (JSON)
+  pfRuleSnapshot       Json
+  esiRuleSnapshot      Json
+  gratuityRuleSnapshot Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("employee_salary_configs")
 }
 
 model Address {
@@ -834,22 +872,32 @@ model CompanyAsset {
 
 model EmployeeSalaryHead {
   id           String     @id @default(cuid())
+  companyId    String
   employeeId   String
-  employee     Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
   salaryHeadId String
-  salaryHead   SalaryHead @relation(fields: [salaryHeadId], references: [id], onDelete: Cascade)
-  amount       Float
-  isPercentage Boolean    @default(false)
-  percentage   Float?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  createdBy    String?
-  updatedBy    String?
+  salaryHead   SalaryHead @relation(fields: [salaryHeadId], references: [id], onDelete: Restrict)
 
-  @@unique([employeeId, salaryHeadId])
-  @@index([employeeId])
+  headName String
+  headType String // "EARNING" | "DEDUCTION"
+
+  baseAmount Float
+  netAmount  Float
+
+  pfEmployee Float @default(0)
+  pfEmployer Float @default(0)
+
+  esiEmployee Float @default(0)
+  esiEmployer Float @default(0)
+
+  gratuityEmployer Float @default(0)
+
+  createdAt DateTime @default(now())
+
+  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
   @@index([salaryHeadId])
-  @@index([employeeId, salaryHeadId])
+  @@index([employeeId])
+  @@index([companyId])
   @@map("employee_salary_heads")
 }
 
@@ -1106,10 +1154,14 @@ model PayrollRecord {
 }
 
 model PFESIRate {
-  id        String  @id @default(cuid())
+  id        String        @id @default(cuid())
   companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  rateType  String // 'PF' or 'ESI'
+  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rateType  StatutoryType
+
+  // Gratuity Fields
+  gratuityPercent Float? // e.g. 4.81
+  gratuityBase    String? // BASIC | GROSS
 
   // ESI Fields
   empShare       Float? // Employee share (e.g., 0.75 for 0.75%)

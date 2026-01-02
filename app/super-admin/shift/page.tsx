@@ -11,11 +11,21 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { GlobalLayout } from "@/app/components/global-layout"
+import { api, API } from "@/app/lib/api"
 
 // Chart.js integration for Review preview
-const ReviewChart = () => {
+const ReviewChart = ({
+  workingMinutes,
+  checkInMinutes,
+  checkOutMinutes,
+}: {
+  workingMinutes: number;
+  checkInMinutes: number;
+  checkOutMinutes: number;
+}) => {
   const chartRef = useRef<HTMLCanvasElement | null>(null);
   const chartInstanceRef = useRef<any>(null);
+
 
   useEffect(() => {
     const canvas = chartRef.current;
@@ -38,7 +48,12 @@ const ReviewChart = () => {
       data: {
         labels: ["Shift time", "Check in allowed from", "Check out allowed from"],
         datasets: [{
-          data: [480, 40, 10],
+          data: [
+            Number.isFinite(workingMinutes) ? workingMinutes : 0,
+            Number.isFinite(checkInMinutes) ? checkInMinutes : 0,
+            Number.isFinite(checkOutMinutes) ? checkOutMinutes : 0,
+          ],
+          
           backgroundColor: ["#a855f7", "#06b6d4", "#fbbf24"]
         }]
       },
@@ -60,16 +75,16 @@ const ReviewChart = () => {
         chartInstanceRef.current = null;
       }
     };
-  }, []); // empty deps to initialize once per mount
+  }, [workingMinutes, checkInMinutes, checkOutMinutes]); // empty deps to initialize once per mount
 
   return <canvas ref={chartRef} className="p-4 bg-gray-50 rounded-lg w-full" />;
 };
 
 export default function ShiftPage() {
-  const [shifts, setShifts] = useState([
-    { id: 1, code: "MOR", color: "#28a745", name: "Morning", startTime: "09:00", endTime: "17:30", breakTime: "00:30", totalHours: "8", active: true },
-    { id: 2, code: "EVE", color: "#ff6347", name: "Evening", startTime: "17:00", endTime: "01:00", breakTime: "00:30", totalHours: "7.5", active: false },
-  ]);
+  const [shifts, setShifts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+
   const [selectedShift, setSelectedShift] = useState<any>(null);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [step, setStep] = useState(1);
@@ -85,32 +100,47 @@ export default function ShiftPage() {
   });
 
   const reservedCodes = ["P", "A", "VO", "FL", "SW"];
+  const fetchShifts = async () => {
+    setLoading(true);
+    try {
+      const data = await api.get("/api/shift");
+      setShifts(data.shifts || []);
+    } catch (err) {
+      console.error("Fetch shifts failed:", err);
+      setShifts([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+  useEffect(() => {
+    fetchShifts();
+  }, []);
+  
+  
 
   useEffect(() => {
-    if (selectedShift) {
-      setFormData({
-        ...selectedShift,
-        firstHalfHours: "4", firstHalfMinutes: "0", secondHalfHours: "4", secondHalfMinutes: "15",
-        checkInGrace: "30", lateGrace: "10", earlyGrace: "10",
-        halfDayHours: "4", halfDayMinutes: "0", fullDayHours: "8", fullDayMinutes: "0",
-        noAttendanceHours: "2", noAttendanceMinutes: "0", noAttendanceCheckOutHours: "1", noAttendanceCheckOutMinutes: "0",
-        shiftAllowance: true, restrictManagerBackdate: false, restrictHRBackdate: false, restrictManagerFuture: true,
-        defineWeeklyOff: true, weeklyOffPattern: [{ week: 1, day: "Sun", type: "Full day", time: "" }],
-        errors: {},
-      });
-    } else {
-      setFormData({
-        code: "", color: "#28a745", name: "", startTime: "09:00", endTime: "17:30", breakTime: "00:30", totalHours: "8",
-        firstHalfHours: "4", firstHalfMinutes: "0", secondHalfHours: "4", secondHalfMinutes: "15",
-        checkInGrace: "30", lateGrace: "10", earlyGrace: "10",
-        halfDayHours: "4", halfDayMinutes: "0", fullDayHours: "8", fullDayMinutes: "0",
-        noAttendanceHours: "2", noAttendanceMinutes: "0", noAttendanceCheckOutHours: "1", noAttendanceCheckOutMinutes: "0",
-        shiftAllowance: true, restrictManagerBackdate: false, restrictHRBackdate: false, restrictManagerFuture: true,
-        defineWeeklyOff: true, weeklyOffPattern: [{ week: 1, day: "Sun", type: "Full day", time: "" }],
-        errors: {},
-      });
-    }
+    if (!selectedShift) return;
+  
+    const breakMinutes = selectedShift.breakDuration ?? 0;
+    const bh = Math.floor(breakMinutes / 60);
+    const bm = breakMinutes % 60;
+  
+    setFormData({
+      ...selectedShift,
+  
+      // UI-derived fields
+      breakTime: `${String(bh).padStart(2, "0")}:${String(bm).padStart(2, "0")}`,
+  
+      checkInGrace: String(selectedShift.checkInAllowedFrom ?? 0),
+      earlyGrace: String(selectedShift.checkOutAllowedFrom ?? 0),
+  
+      startTime: selectedShift.startTime ?? "00:00",
+      endTime: selectedShift.endTime ?? "00:00",
+  
+      errors: {},
+    });
   }, [selectedShift]);
+  
 
   // Auto-calculate total hours based on start, end, and break times
   useEffect(() => {
@@ -133,20 +163,85 @@ export default function ShiftPage() {
     if (!formData.name) errors.name = "Shift name is required";
     return errors;
   };
+  const mapFormToApiPayload = () => {
+    const [bh, bm] = formData.breakTime.split(":").map(Number);
+  
+    return {
+      name: formData.name,
+      code: formData.code || null,
+      startTime: formData.startTime,
+      endTime: formData.endTime,
+      breakDuration: bh * 60 + bm,
+      workingHours: Number(formData.totalHours),
+      checkInAllowedFrom: Number(formData.checkInGrace),
+      checkOutAllowedFrom: Number(formData.earlyGrace),
+      isActive: true,
+    };
+  };
+  
 
-  const handleSave = () => {
+
+  const handleSave = async () => {
     const errors = validateForm();
     if (Object.keys(errors).length > 0) {
       setFormData({ ...formData, errors });
       return;
     }
-    if (selectedShift) {
-      setShifts(shifts.map((s: any) => s.id === selectedShift.id ? { ...formData, id: s.id, active: s.active } : s));
-    } else {
-      setShifts([...shifts, { ...formData, id: shifts.length + 1, active: true }]);
+  
+    setLoading(true);
+  
+    try {
+      const payload = selectedShift
+        ? { id: selectedShift.id, ...mapFormToApiPayload() }
+        : mapFormToApiPayload();
+
+      if (selectedShift) {
+        await api.patch("/api/shift", payload);
+      } else {
+        await api.post("/api/shift", payload);
+      }
+    
+      // ✅ SUCCESS PATH
+      setIsPopupOpen(false);
+      setSelectedShift(null);
+      setStep(1);
+      await fetchShifts();
+    
+    } catch (err: any) {
+      console.error("Save shift failed:", err);
+      alert(err.message || "Failed to save shift");
+    } finally {
+      setLoading(false);
     }
-    setIsPopupOpen(false);
+    
   };
+  const handleAddShift = () => {
+    setSelectedShift(null);
+  
+    setFormData({
+      code: "",
+      name: "",
+      color: "#28a745",
+  
+      startTime: "00:00",
+      endTime: "00:00",
+      breakTime: "00:00",
+  
+      checkInGrace: "0",
+      earlyGrace: "0",
+  
+      totalHours: "0",
+  
+      weeklyOffPattern: [{ week: 1, day: "Sun", type: "Full day", time: "" }],
+  
+      errors: {},
+    });
+  
+    setStep(1);
+    setIsPopupOpen(true);
+  };
+  
+  
 
   const updateWeeklyPattern = (index: number, field: string, value: any) => {
     const newPattern = formData.weeklyOffPattern.map((p: any, i: number) =>
@@ -164,9 +259,14 @@ export default function ShiftPage() {
     <GlobalLayout>
       <div className="min-h-screen bg-white p-6 text-gray-900">
         <h1 className="text-3xl font-bold text-gray-800 mb-6">Shift</h1>
+        {loading && (
+            <p className="text-sm text-gray-500 mb-4">
+              Loading shifts…
+            </p>
+          )}
         <Button
           variant="default"
-          onClick={() => { setSelectedShift(null); setIsPopupOpen(true); }}
+          onClick={() => { handleAddShift(); }}
           className="bg-green-600 text-white hover:bg-green-700 mb-6"
         >
           <Plus className="h-4 w-4 mr-2" /> Add Shift
@@ -181,15 +281,40 @@ export default function ShiftPage() {
                 <p className="text-sm text-gray-500">Active: {shift.active ? "Yes" : "No"}</p>
               </CardHeader>
               <CardContent>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => { setSelectedShift(shift); setIsPopupOpen(true); }}
-                  className="w-full bg-blue-600 text-white hover:bg-blue-700"
-                >
-                  Edit
-                </Button>
+                <div className="flex gap-2">
+                  {/* EDIT */}
+                  <Button
+                    size="sm"
+                    className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
+                    onClick={() => {
+                      setSelectedShift(shift);
+                      setIsPopupOpen(true);
+                    }}
+                  >
+                    Edit
+                  </Button>
+
+                  {/* DELETE */}
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={async () => {
+                      if (!confirm("Delete this shift?")) return;
+
+                      try {
+                        await API("/api/shift", { method: "DELETE", body: { id: shift.id } });
+                        fetchShifts();
+                      } catch (err: any) {
+                        console.error("Delete shift failed:", err);
+                        alert(err.message || "Failed to delete shift");
+                      }
+                    }}
+                  >
+                    Delete
+                  </Button>
+                </div>
               </CardContent>
+
             </Card>
           ))}
         </div>
@@ -363,7 +488,9 @@ export default function ShiftPage() {
                       </div>
                     </div>
                     <p className="text-gray-700">Total Hours: {formData.totalHours || "0.0"}</p>
-                    <ReviewChart />
+                    <ReviewChart workingMinutes={Number(formData.totalHours) * 60}
+                    checkInMinutes={Number(formData.checkInGrace)}
+                    checkOutMinutes={Number(formData.earlyGrace)}/>
                   </div>
                 )}
                 {step === 3 && (
@@ -512,9 +639,11 @@ export default function ShiftPage() {
                 )}
                 {step === 6 && (
                   <div>
-                    <ReviewChart />
+                    <ReviewChart workingMinutes={Number(formData.totalHours) * 60}
+                    checkInMinutes={Number(formData.checkInGrace) }
+                    checkOutMinutes={Number(formData.earlyGrace)}/>
                     <div className="flex justify-between mt-6">
-                      <Button variant="outline" onClick={() => handleNavigation("prev")} disabled={step === 1}>Previous</Button>
+                      <Button variant="outline" onClick={() => handleNavigation("prev")} disabled={false}>Previous</Button>
                       <Button className="bg-green-600 text-white hover:bg-green-700" onClick={handleSave}>Save</Button>
                     </div>
                   </div>

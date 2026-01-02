@@ -4,6 +4,19 @@ import { getSession } from "./auth"
 import { prisma } from "./prisma"
 
 /**
+ * Helper to create Prisma where clause with company isolation
+ * 
+ * @param companyId - Company ID to filter by
+ * @returns Prisma where clause object
+ */
+export function withCompanyFilter(companyId: string) {
+  return {
+    companyId,
+    deletedAt: null, // Also filter out soft-deleted records
+  }
+}
+
+/**
  * Standard API route wrapper (ERROR-FREE VERSION)
  */
 export async function withCompany(

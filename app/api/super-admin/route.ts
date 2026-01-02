@@ -218,7 +218,7 @@ export async function POST(request: NextRequest) {
       const newCompany = await tx.company.create({
         data: companyData,
       })
-
+    
       if (authorizedPersonData) {
         await tx.authorizedPerson.create({
           data: {
@@ -227,9 +227,35 @@ export async function POST(request: NextRequest) {
           },
         })
       }
-
+    
+      // 🔒 CREATE DEFAULT SYSTEM SALARY HEAD → SPECIAL ALLOWANCE
+      await tx.salaryHead.create({
+        data: {
+          companyId: newCompany.id,
+          name: "Special Allowance",
+          shortName: "SA",
+          fieldType: "Earnings",
+          isPercentage: false,
+          value: 0,
+          isSystem: true,
+          systemCode: "SPECIAL_ALLOWANCE",
+          form16Field: "Allowance",
+          applicableFor: {
+            ESI: false,
+            Bonus: false,
+            PT: false,
+            LWF: false,
+            Gratuity: false,
+            LeaveEncashment: false,
+            PF: false,
+          },
+          createdBy: session.id,
+        },
+      })
+    
       return newCompany
     })
+    
 
     // Fetch the created company with relations
     const createdCompany = await prisma.company.findUnique({

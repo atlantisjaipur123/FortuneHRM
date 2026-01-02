@@ -1,34 +1,7 @@
 "use client";
 
-import { useState } from "react";
-const handleSubmit = async (e: React.FormEvent) => {
-  e.preventDefault();
-
-  const payload = {
-    ...employee,
-    salary_heads: selectedSalaryHeads,
-    // Add other arrays later
-  };
-
-  try {
-    const res = await fetch('http://localhost:5000/api/employees', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    const result = await res.json();
-
-    if (res.ok) {
-      alert('Employee saved successfully!');
-      console.log('Saved:', result.employee);
-    } else {
-      alert('Error: ' + result.error);
-    }
-  } catch (err) {
-    alert('Network error');
-  }
-};
+import { useState, useEffect } from "react";
+import { calculateSalary } from "@/app/lib/calculateSalary";
 
 type AddEmployeeProps = {
   employee?: any;
@@ -36,7 +9,7 @@ type AddEmployeeProps = {
   onCancel?: () => void;
 };
 
-const AddEmployee = ({ onSubmit, onCancel }: AddEmployeeProps) => {
+const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployeeProps) => {
   const [activeTab, setActiveTab] = useState("Personal");
 
   const tabs = [
@@ -52,23 +25,7 @@ const AddEmployee = ({ onSubmit, onCancel }: AddEmployeeProps) => {
     "Experience",
   ];
   // DEMO SALARY HEADS (No DB, No API)
-const salaryHeads = [
-  "Basic Pay",
-  "House Rent Allowance (HRA)",
-  "Dearness Allowance (DA)",
-  "Conveyance Allowance",
-  "Medical Allowance",
-  "Special Allowance",
-  "Performance Bonus",
-  "Fuel Allowance",
-  "Mobile Reimbursement",
-  "Laptop Allowance"
-];
-const [selectedSalaryHeads, setSelectedSalaryHeads] = useState<string[]>([
-  "Basic Pay",
-  "House Rent Allowance (HRA)",
-  "Dearness Allowance (DA)"
-]);
+
 // DEMO OFFICE SETUP DATA (No DB, No API)
 const officeSetups = {
   branches: ["Head Office", "Delhi Branch", "Mumbai Branch", "Bangalore Branch"],
@@ -82,10 +39,239 @@ const officeSetups = {
 
 const [employee, setEmployee] = useState<any>({});
 
+// Load employee data when prop changes (for editing)
+useEffect(() => {
+  if (employeeProp) {
+    setEmployee(employeeProp);
+  }
+}, [employeeProp]);
+
+
+type SalaryMode = "CTC" | "GROSS";
+const [salaryMode, setSalaryMode] = useState<SalaryMode>("CTC");
+const [salaryAmount, setSalaryAmount] = useState<number>(0);
+
+
+const [salaryHeads, setSalaryHeads] = useState<any[]>([]);
+useEffect(() => {
+  async function loadSalaryHeads() {
+    try {
+      // Get company ID from localStorage
+      const selectedCompany = localStorage.getItem("selectedCompany");
+      if (!selectedCompany) {
+        console.warn("No company selected");
+        setSalaryHeads([]);
+        setSelectedHeadIds([]);
+        return;
+      }
+
+      const company = JSON.parse(selectedCompany);
+      const companyId = company?.id;
+
+      if (!companyId) {
+        console.warn("Invalid company data");
+        setSalaryHeads([]);
+        setSelectedHeadIds([]);
+        return;
+      }
+
+      // Fetch salary heads with company ID in header
+      const res = await fetch("/api/salary-head", {
+        headers: {
+          "x-company-id": companyId,
+        },
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Failed to fetch salary heads: ${res.status} ${res.statusText}`);
+      }
+      
+      const data = await res.json();
+      const heads = data.salaryHeads || [];
+
+      if (heads.length > 0) {
+        console.log("Loaded salary heads:", heads.length);
+      }
+
+      setSalaryHeads(heads);
+      // Only auto-select all heads if there are heads available
+      if (heads.length > 0) {
+        setSelectedHeadIds(heads.map((h: any) => h.id));
+      }
+    } catch (err) {
+      console.error("Failed to load salary heads", err);
+      // Set empty array on error to prevent UI issues
+      setSalaryHeads([]);
+      setSelectedHeadIds([]);
+    }
+  }
+
+  loadSalaryHeads();
+}, []);
+
+// Fetch PF and ESI rules
+useEffect(() => {
+  async function loadPFEsiRules() {
+    try {
+      const selectedCompany = localStorage.getItem("selectedCompany");
+      if (!selectedCompany) {
+        return;
+      }
+
+      const company = JSON.parse(selectedCompany);
+      const companyId = company?.id;
+
+      if (!companyId) {
+        return;
+      }
+
+      // Fetch PF rule
+      const pfRes = await fetch(`/api/Pf-Esi?rateType=PF`, {
+        headers: {
+          "x-company-id": companyId,
+        },
+      });
+      if (pfRes.ok) {
+        const pfData = await pfRes.json();
+        if (pfData.data && pfData.data.length > 0) {
+          // Get the most recent active rule
+          setPfRule(pfData.data[0]);
+        }
+      }
+
+      // Fetch ESI rule
+      const esiRes = await fetch(`/api/Pf-Esi?rateType=ESI`, {
+        headers: {
+          "x-company-id": companyId,
+        },
+      });
+      if (esiRes.ok) {
+        const esiData = await esiRes.json();
+        if (esiData.data && esiData.data.length > 0) {
+          // Get the most recent active rule
+          setEsiRule(esiData.data[0]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load PF/ESI rules", err);
+    }
+  }
+
+  loadPFEsiRules();
+}, []);
+
+
+
+const [selectedHeadIds, setSelectedHeadIds] = useState<string[]>([]);
+
+
+const [pfRule, setPfRule] = useState<any>(null);
+const [esiRule, setEsiRule] = useState<any>(null);
+const [calculationTotals, setCalculationTotals] = useState<any>(null);
+
+const [calculatedRows, setCalculatedRows] = useState<any[]>([]);
+
+
+const num = (v: any) => (v === null || v === undefined ? 0 : Number(v));
+
+
+
 
 const handleFieldChange = (field: string, value: any) => {
   setEmployee((prev: any) => ({ ...prev, [field]: value }));
 };
+
+// ---------------- SALARY CALCULATION ENGINE ----------------
+useEffect(() => {
+  if (!salaryAmount || salaryAmount <= 0 || salaryHeads.length === 0 || selectedHeadIds.length === 0) {
+    setCalculatedRows([]);
+    setCalculationTotals(null);
+    return;
+  }
+
+  try {
+    const result = calculateSalary({
+      mode: salaryMode,
+      inputAmount: salaryAmount,
+      heads: salaryHeads,
+      selectedHeadIds: selectedHeadIds,
+      pfRule: pfRule,
+      esiRule: esiRule,
+    });
+
+    setCalculatedRows(result.rows);
+    setCalculationTotals(result.totals);
+  } catch (error) {
+    console.error("Salary calculation error:", error);
+    setCalculatedRows([]);
+    setCalculationTotals(null);
+  }
+}, [
+  salaryAmount,
+  salaryMode,
+  selectedHeadIds,
+  salaryHeads,
+  pfRule,
+  esiRule,
+]);
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+
+  // Validate required fields
+  if (!employee.code || employee.code.trim() === "") {
+    alert("Employee Code is required");
+    return;
+  }
+
+  const payload = {
+    employee,
+    salary: {
+      mode: salaryMode,
+      inputAmount: salaryAmount,
+      selectedHeadIds,
+    },
+  };
+
+  try {
+    // Get company ID from localStorage for header
+    const selectedCompany = localStorage.getItem("selectedCompany");
+    if (!selectedCompany) {
+      alert("Please select a company first");
+      return;
+    }
+
+    const company = JSON.parse(selectedCompany);
+    const companyId = company?.id;
+
+    if (!companyId) {
+      alert("Invalid company selection");
+      return;
+    }
+
+    const res = await fetch("/api/employee-details", {
+      method: employeeProp?.id ? "PUT" : "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-company-id": companyId,
+      },
+      body: JSON.stringify(employeeProp?.id ? { id: employeeProp.id, ...payload } : payload),
+    });
+
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.error || error.message || "Failed to save employee");
+    }
+
+    const result = await res.json();
+    alert(employeeProp?.id ? "Employee updated successfully" : "Employee created successfully");
+    onSubmit?.(result);
+  } catch (err: any) {
+    alert(err.message || "Failed to save employee");
+  }
+};
+
+
 
   return (
     <div className="w-full max-w-6xl mx-auto p-6 bg-beige-100 border border-gray-300 rounded-lg shadow-md">
@@ -105,15 +291,26 @@ const handleFieldChange = (field: string, value: any) => {
         ))}
       </div>
 
-      <form className="bg-white p-6 rounded-md" onSubmit={(e) => { e.preventDefault(); onSubmit?.({}); }}>
+      <form className="bg-white p-6 rounded-md" onSubmit={handleSubmit}>
         {activeTab === "Personal" && (
           <div className="grid grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-bold">Code *</label>
-              <input type="text" className="w-full p-2 border border-gray-300 rounded" defaultValue="AJS43" />
+              <label className="block text-sm font-bold">Code <span className="text-red-500">*</span></label>
+              <input 
+                type="text" 
+                className="w-full p-2 border border-gray-300 rounded" 
+                value={employee.code || ""}
+                onChange={(e) => handleFieldChange("code", e.target.value)}
+                required
+              />
               
-              <label className="block text-sm font-bold mt-4">Name *</label>
-              <input type="text" className="w-full p-2 border border-gray-300 rounded" />
+              <label className="block text-sm font-bold mt-4">Name</label>
+              <input 
+                type="text" 
+                className="w-full p-2 border border-gray-300 rounded"
+                value={employee.name || ""}
+                onChange={(e) => handleFieldChange("name", e.target.value)}
+              />
               
               <label className="block text-sm font-bold mt-4">Permanent Address Details : -</label>
               <input type="text" placeholder="Flat" className="w-full p-2 border border-gray-300 rounded mt-1" />
@@ -128,16 +325,36 @@ const handleFieldChange = (field: string, value: any) => {
               </select>
               
               <label className="block text-sm font-bold mt-4">E-Mail</label>
-              <input type="email" className="w-full p-2 border border-gray-300 rounded" />
+              <input 
+                type="email" 
+                className="w-full p-2 border border-gray-300 rounded"
+                value={employee.email || ""}
+                onChange={(e) => handleFieldChange("email", e.target.value)}
+              />
               
-              <label className="block text-sm font-bold mt-4">DOB *</label>
-              <input type="date" className="w-full p-2 border border-gray-300 rounded" />
+              <label className="block text-sm font-bold mt-4">DOB</label>
+              <input 
+                type="date" 
+                className="w-full p-2 border border-gray-300 rounded"
+                value={employee.dob || ""}
+                onChange={(e) => handleFieldChange("dob", e.target.value)}
+              />
               
               <label className="block text-sm font-bold mt-4">PAN</label>
-              <input type="text" className="w-full p-2 border border-gray-300 rounded" />
+              <input 
+                type="text" 
+                className="w-full p-2 border border-gray-300 rounded"
+                value={employee.pan || ""}
+                onChange={(e) => handleFieldChange("pan", e.target.value)}
+              />
               
               <label className="block text-sm font-bold mt-4">NASSCOM Reg No.</label>
-              <input type="text" className="w-full p-2 border border-gray-300 rounded" />
+              <input 
+                type="text" 
+                className="w-full p-2 border border-gray-300 rounded"
+                value={employee.nasscomRegNo || ""}
+                onChange={(e) => handleFieldChange("nasscomRegNo", e.target.value)}
+              />
             </div>
             
             <div>
@@ -159,11 +376,21 @@ const handleFieldChange = (field: string, value: any) => {
               <label className="block text-sm font-bold mt-4">Internal ID</label>
               <input type="text" className="w-full p-2 border border-gray-300 rounded" />
               
-              <label className="block text-sm font-bold mt-4">Notice Period *</label>
-              <input type="text" className="w-full p-2 border border-gray-300 rounded" />
+              <label className="block text-sm font-bold mt-4">Notice Period</label>
+              <input 
+                type="text" 
+                className="w-full p-2 border border-gray-300 rounded"
+                value={employee.noticePeriodMonths || ""}
+                onChange={(e) => handleFieldChange("noticePeriodMonths", e.target.value)}
+              />
               
               <label className="block text-sm font-bold mt-4">Joining Date</label>
-              <input type="date" className="w-full p-2 border border-gray-300 rounded" />
+              <input 
+                type="date" 
+                className="w-full p-2 border border-gray-300 rounded"
+                value={employee.doj || ""}
+                onChange={(e) => handleFieldChange("doj", e.target.value)}
+              />
               
               <label className="block text-sm font-bold mt-4">Probation Period</label>
               <input type="text" className="w-full p-2 border border-gray-300 rounded" placeholder="Months" />
@@ -441,55 +668,223 @@ const handleFieldChange = (field: string, value: any) => {
           )}
           {activeTab === "Salary" && (
             <div className="p-6 space-y-5">
-            <h3 className="text-xl font-bold text-gray-800">Salary Components</h3>
-        
-            {/* Select All */}
-            <div className="flex justify-end">
-              <label className="flex items-center text-sm font-medium text-blue-600 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={selectedSalaryHeads.length === salaryHeads.length}
-                  onChange={(e) => {
-                    setSelectedSalaryHeads(e.target.checked ? salaryHeads : []);
-                  }}
-                  className="mr-2 h-4 w-4 accent-blue-600"
-                />
-                {selectedSalaryHeads.length === salaryHeads.length ? "Deselect All" : "Select All"}
-              </label>
-            </div>
-        
-            {/* Heads List */}
-            <div className="space-y-3 max-h-80 overflow-y-auto border border-gray-200 p-4 rounded-lg bg-gray-50">
-              {salaryHeads.map((head) => (
-                <label
-                  key={head}
-                  className="flex items-center gap-3 p-3 bg-white rounded-md shadow-sm hover:shadow transition-shadow cursor-pointer border border-gray-200"
-                >
+              <h3 className="text-xl font-bold text-gray-800">Salary Components</h3>
+
+              {/* Top controls */}
+              <div className="flex gap-4 items-end mb-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Salary Base</label>
+                  <select
+                    value={salaryMode}
+                    onChange={(e) => setSalaryMode(e.target.value as any)}
+                    className="w-40 p-2 border rounded"
+                  >
+                    <option value="CTC">CTC</option>
+                    <option value="GROSS">Gross</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">Amount (Monthly)</label>
                   <input
-                    type="checkbox"
-                    checked={selectedSalaryHeads.includes(head)}
-                    onChange={() => {
-                      setSelectedSalaryHeads(prev =>
-                        prev.includes(head)
-                          ? prev.filter(h => h !== head)
-                          : [...prev, head]
-                      );
-                    }}
-                    className="mr-3 h-5 w-5 text-blue-600 focus:ring-blue-500"
+                    type="number"
+                    value={salaryAmount}
+                    onChange={(e) => setSalaryAmount(Number(e.target.value))}
+                    className="w-48 p-2 border rounded"
+                    placeholder="Enter amount"
                   />
-                  <span className="text-gray-700 font-medium">{head}</span>
-                </label>
-              ))}
+                </div>
+
+                <div className="ml-auto text-sm text-gray-600">
+                  Selected: <strong>{selectedHeadIds.length}</strong> / <strong>{salaryHeads.length}</strong>
+                </div>
+              </div>
+
+              {/* Main content: Left (Heads list) + Right (Calculation preview) */}
+              <div className="grid grid-cols-3 gap-4">
+                {/* Left: Vertical heads list with checkboxes on right */}
+                <div className="col-span-2 border rounded-lg bg-gray-50 p-4">
+                  <h4 className="font-semibold mb-3 text-gray-700">Select Salary Heads</h4>
+                  {salaryHeads.length === 0 ? (
+                    <div className="text-center text-gray-500 py-8">
+                      No salary heads found. Please create salary heads in the Salary Head configuration page.
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {salaryHeads.map((h: any) => (
+                        <label
+                          key={h.id}
+                          className="flex items-center justify-between p-3 bg-white rounded border hover:bg-gray-50 cursor-pointer transition-colors"
+                        >
+                          <div className="flex-1">
+                            <div className="font-medium text-sm">
+                              {h.name || "Unnamed Head"}
+                              {h.shortName && <span className="text-xs text-gray-500 ml-1">({h.shortName})</span>}
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {h.isPercentage 
+                                ? `${h.value || 0}% of ${h.percentageOf || "Amount"}` 
+                                : `Fixed ₹${h.value || 0}`}
+                            </div>
+                            <div className="text-xs text-gray-400 mt-0.5">
+                              {h.fieldType || "Earnings"}
+                            </div>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={selectedHeadIds.includes(h.id)}
+                            onChange={() =>
+                              setSelectedHeadIds(prev => 
+                                prev.includes(h.id) 
+                                  ? prev.filter(id => id !== h.id) 
+                                  : [...prev, h.id]
+                              )
+                            }
+                            className="h-4 w-4 ml-3 cursor-pointer"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: Calculation preview box */}
+                <div className="col-span-1 border rounded-lg bg-blue-50 p-4">
+                  <h4 className="font-semibold mb-3 text-gray-700">Calculation Preview</h4>
+                  {calculationTotals ? (
+                    <div className="space-y-3 text-sm">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Total Monthly:</span>
+                        <span className="font-semibold">
+                          ₹{calculationTotals.totalMonthly.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Total Annual:</span>
+                        <span className="font-semibold">
+                          ₹{calculationTotals.totalAnnual.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="border-t pt-2 mt-2">
+                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                          <span>PF (Employee):</span>
+                          <span>₹{calculationTotals.totalPfEmployee.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                          <span>PF (Employer):</span>
+                          <span>₹{calculationTotals.totalPfEmployer.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                          <span>ESI (Employee):</span>
+                          <span>₹{calculationTotals.totalEsiEmployee.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                          <span>ESI (Employer):</span>
+                          <span>₹{calculationTotals.totalEsiEmployer.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between text-xs text-gray-500">
+                          <span>Gratuity (Employer):</span>
+                          <span>₹{calculationTotals.totalGratuityEmployer.toFixed(2)}</span>
+                        </div>
+                      </div>
+                      <div className="border-t pt-2 mt-2">
+                        <div className="flex justify-between font-semibold text-gray-700">
+                          <span>Net In Hand:</span>
+                          <span>₹{calculationTotals.netInHand.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between font-semibold text-gray-700 mt-1">
+                          <span>CTC:</span>
+                          <span>₹{calculationTotals.ctc.toFixed(2)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 text-center py-4">
+                      Enter salary amount and select heads to see calculation
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Detailed breakdown table */}
+              {calculatedRows.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="font-semibold mb-3 text-gray-700">Detailed Breakdown</h4>
+                  <div className="overflow-auto border rounded-lg">
+                    <table className="w-full border-collapse">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="border p-2 text-left text-sm font-semibold">Salary Head</th>
+                          <th className="border p-2 text-center text-sm font-semibold">Type</th>
+                          <th className="border p-2 text-center text-sm font-semibold">Formula</th>
+                          <th className="border p-2 text-right text-sm font-semibold">Base Amount</th>
+                          <th className="border p-2 text-right text-sm font-semibold">Monthly (Rs.)</th>
+                          <th className="border p-2 text-right text-sm font-semibold">Annual (Rs.)</th>
+                          <th className="border p-2 text-right text-sm font-semibold">PF(E)</th>
+                          <th className="border p-2 text-right text-sm font-semibold">PF(ER)</th>
+                          <th className="border p-2 text-right text-sm font-semibold">ESI(E)</th>
+                          <th className="border p-2 text-right text-sm font-semibold">ESI(ER)</th>
+                          <th className="border p-2 text-right text-sm font-semibold">Gratuity(ER)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {calculatedRows.map((r, i) => (
+                          <tr key={r.id ?? i} className={`hover:bg-gray-50 ${r.isSpecialAllowance ? 'bg-yellow-50' : ''}`}>
+                            <td className="border p-2 text-sm">
+                              {r.name}
+                              {r.isSpecialAllowance && <span className="text-xs text-gray-500 ml-1">(Balance)</span>}
+                            </td>
+                            <td className="border p-2 text-center text-sm">{r.type}</td>
+                            <td className="border p-2 text-center text-xs text-gray-600">{r.formula}</td>
+                            <td className="border p-2 text-right text-sm">{Number(r.baseAmount || 0).toFixed(2)}</td>
+                            <td className="border p-2 text-right text-sm">{Number(r.monthly || 0).toFixed(2)}</td>
+                            <td className="border p-2 text-right text-sm">{Number(r.annual || 0).toFixed(2)}</td>
+                            <td className="border p-2 text-right text-sm">{Number(r.pfEmployee || 0).toFixed(2)}</td>
+                            <td className="border p-2 text-right text-sm">{Number(r.pfEmployer || 0).toFixed(2)}</td>
+                            <td className="border p-2 text-right text-sm">{Number(r.esiEmployee || 0).toFixed(2)}</td>
+                            <td className="border p-2 text-right text-sm">{Number(r.esiEmployer || 0).toFixed(2)}</td>
+                            <td className="border p-2 text-right text-sm">{Number(r.gratuityEmployer || 0).toFixed(2)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-gray-100 font-semibold">
+                        <tr>
+                          <td className="border p-2 text-sm">Totals</td>
+                          <td className="border p-2"></td>
+                          <td className="border p-2"></td>
+                          <td className="border p-2 text-right text-sm">
+                            {calculatedRows.reduce((s, r) => s + Number(r.baseAmount || 0), 0).toFixed(2)}
+                          </td>
+                          <td className="border p-2 text-right text-sm">
+                            {calculationTotals ? calculationTotals.totalMonthly.toFixed(2) : '0.00'}
+                          </td>
+                          <td className="border p-2 text-right text-sm">
+                            {calculationTotals ? calculationTotals.totalAnnual.toFixed(2) : '0.00'}
+                          </td>
+                          <td className="border p-2 text-right text-sm">
+                            {calculationTotals ? calculationTotals.totalPfEmployee.toFixed(2) : '0.00'}
+                          </td>
+                          <td className="border p-2 text-right text-sm">
+                            {calculationTotals ? calculationTotals.totalPfEmployer.toFixed(2) : '0.00'}
+                          </td>
+                          <td className="border p-2 text-right text-sm">
+                            {calculationTotals ? calculationTotals.totalEsiEmployee.toFixed(2) : '0.00'}
+                          </td>
+                          <td className="border p-2 text-right text-sm">
+                            {calculationTotals ? calculationTotals.totalEsiEmployer.toFixed(2) : '0.00'}
+                          </td>
+                          <td className="border p-2 text-right text-sm">
+                            {calculationTotals ? calculationTotals.totalGratuityEmployer.toFixed(2) : '0.00'}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
             </div>
-        
-            {/* Count */}
-            <div className="text-right">
-              <p className="text-sm text-gray-600">
-                <strong>{selectedSalaryHeads.length}</strong> of <strong>{salaryHeads.length}</strong> components selected
-              </p>
-            </div>
-          </div>
-        )}
+          )}
+
   
 
         {activeTab === "Financial" && (

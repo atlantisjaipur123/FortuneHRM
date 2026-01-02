@@ -102,6 +102,7 @@ export async function API(
     // Handle non-JSON responses
     const contentType = res.headers.get("content-type")
     if (!contentType?.includes("application/json")) {
+      const text = await res.text()
       if (!res.ok) {
         throw new Error(`Request failed with status ${res.status}`)
       }

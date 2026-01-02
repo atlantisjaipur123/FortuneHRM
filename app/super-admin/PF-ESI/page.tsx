@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -11,6 +12,60 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import { GlobalLayout } from "@/app/components/global-layout";
+import { api } from "@/app/lib/api";
+
+async function createPfEsiRuleClient(payload: any) {
+  return await api.post("/api/Pf-Esi", payload);
+}
+
+async function getPfEsiRulesClient(rateType: "PF" | "ESI" | "GRATUITY") {
+  const res = await api.get(`/api/Pf-Esi?rateType=${rateType}`);
+
+  return res.data.map((r: any) => {
+    // Normalize effective dates
+    const effectiveFromDate =
+      r.effectiveFrom
+        ? typeof r.effectiveFrom === "string"
+          ? r.effectiveFrom
+          : r.effectiveFrom.toISOString()
+        : null;
+  
+    const effectiveToDate =
+      r.effectiveTo
+        ? typeof r.effectiveTo === "string"
+          ? r.effectiveTo
+          : r.effectiveTo.toISOString()
+        : null;
+  
+    // ✅ Determine wage ceiling only for PF / ESI
+    const wageCeiling =
+      r.rateType === "ESI"
+        ? r.esiWageCeiling ?? null
+        : r.rateType === "PF"
+        ? r.pfWageCeiling ?? null
+        : null;
+  
+    return {
+      ...r,
+  
+      // Always normalized dates for UI
+      effectiveDate: effectiveFromDate
+        ? effectiveFromDate.split("T")[0]
+        : "",
+  
+      endDate: effectiveToDate
+        ? effectiveToDate.split("T")[0]
+        : "",
+  
+      // Include wageCeiling only if applicable
+      ...(wageCeiling !== null ? { wageCeiling } : {}),
+    };
+  });
+  
+
+}
+
+
 
 interface ColumnConfig {
   key: string;
@@ -21,7 +76,7 @@ interface ColumnConfig {
 }
 
 interface ESIRate {
-  id: number;
+  id: string;
   [key: string]: number | string;
   empShare: number;
   employerShare: number;
@@ -32,7 +87,7 @@ interface ESIRate {
 }
 
 interface PFRate {
-  id: number;
+  id: string;
   [key: string]: number | string;
   empShareAc1: number;
   erShareAc2: number;
@@ -48,6 +103,15 @@ interface PFRate {
   endDate: string;
   remarks: string;
 }
+interface GratuityRate {
+  id: string;
+  employerShare: number;
+  effectiveDate: string;
+  endDate: string;
+  remarks: string;
+  [key: string]: number | string;
+}
+
 
 const initialESIColumns: ColumnConfig[] = [
   { key: "empShare", label: "Emp. Share", type: "percentage", defaultValue: 0.75, required: true },
@@ -67,40 +131,21 @@ const initialPFColumns: ColumnConfig[] = [
   { key: "epsWageCeiling", label: "EPS Wage Ceiling", type: "value", defaultValue: 15000, required: true },
   { key: "minEpsContribution", label: "Min EPS Contrib", type: "value", defaultValue: 75, required: true },
 ];
-
-const initialESIRates: ESIRate[] = [
+const initialGratuityColumns: ColumnConfig[] = [
   {
-    id: 1,
-    empShare: 0.75,
-    employerShare: 3.25,
-    wageCeiling: 21000,
-    effectiveDate: "2025-09-01",
-    endDate: "",
-    remarks: "",
+    key: "employerShare",
+    label: "Employer Share",
+    type: "percentage",
+    defaultValue: 4.81,
+    required: true,
   },
 ];
 
-const initialPFRates: PFRate[] = [
-  {
-    id: 1,
-    empShareAc1: 12,
-    erShareAc2: 3.67,
-    adminChargesAc10: 0.50,
-    epsAc21: 8.33,
-    edliChargesAc21: 0.50,
-    adminChargesAc22: 0.00,
-    calcType: "Fixed",
-    wageCeiling: 15000,
-    epsWageCeiling: 15000,
-    minEpsContribution: 75,
-    effectiveDate: "2025-09-01",
-    endDate: "",
-    remarks: "",
-  },
-];
+
+
 
 export default function PFESIRatesSetupPage() {
-  const [esiRates, setESIRates] = useState<ESIRate[]>(initialESIRates);
+  const [esiRates, setESIRates] = useState<ESIRate[]>([]);
   const [esiForm, setESIForm] = useState<Partial<ESIRate>>({});
   const [selectedESIRate, setSelectedESIRate] = useState<ESIRate | null>(null);
   const [isEditingESI, setIsEditingESI] = useState(false);
@@ -108,7 +153,7 @@ export default function PFESIRatesSetupPage() {
   const [isAddESIColumnModalOpen, setIsAddESIColumnModalOpen] = useState(false);
   const [newESIColumn, setNewESIColumn] = useState<{ label: string; type: "percentage" | "value" }>({ label: "", type: "percentage" });
 
-  const [pfRates, setPFRates] = useState<PFRate[]>(initialPFRates);
+  const [pfRates, setPFRates] = useState<PFRate[]>([]);
   const [pfForm, setPFForm] = useState<Partial<PFRate>>({});
   const [selectedPFRate, setSelectedPFRate] = useState<PFRate | null>(null);
   const [isEditingPF, setIsEditingPF] = useState(false);
@@ -116,6 +161,61 @@ export default function PFESIRatesSetupPage() {
   const [isAddPFColumnModalOpen, setIsAddPFColumnModalOpen] = useState(false);
   const [newPFColumn, setNewPFColumn] = useState<{ label: string; type: "percentage" | "value" }>({ label: "", type: "percentage" });
 
+  const [gratuityRates, setGratuityRates] = useState<GratuityRate[]>([]);
+  const [gratuityForm, setGratuityForm] = useState<Partial<GratuityRate>>({});
+  const [selectedGratuityRate, setSelectedGratuityRate] = useState<GratuityRate | null>(null);
+  const [isEditingGratuity, setIsEditingGratuity] = useState(false);
+
+  const [gratuityColumns, setGratuityColumns] =
+    useState<ColumnConfig[]>(initialGratuityColumns);
+
+  const [isAddGratuityColumnModalOpen, setIsAddGratuityColumnModalOpen] =
+    useState(false);
+
+  const [newGratuityColumn, setNewGratuityColumn] = useState<{
+    label: string;
+    type: "percentage" | "value";
+  }>({ label: "", type: "percentage" });
+
+
+  useEffect(() => {
+    getPfEsiRulesClient("ESI").then(setESIRates);
+    getPfEsiRulesClient("PF").then(setPFRates);
+    getPfEsiRulesClient("GRATUITY").then(setGratuityRates);
+  }, []);
+  const handleGratuityChange = (field: string, value: string | Date) => {
+    setGratuityForm({
+      ...gratuityForm,
+      [field]: typeof value === "string" ? value : formatDate(value),
+    });
+  };
+  const handleGratuitySubmit = async () => {
+    const payload = {
+      rateType: "GRATUITY",
+      employerShare: gratuityForm.employerShare,
+      effectiveFrom: gratuityForm.effectiveDate,
+      effectiveTo: gratuityForm.endDate || null,
+      remarks: gratuityForm.remarks,
+    };
+  
+    if (isEditingGratuity && selectedGratuityRate) {
+      await api.patch("/api/Pf-Esi", { id: selectedGratuityRate.id, ...payload });
+    } else {
+      await createPfEsiRuleClient(payload);
+    }
+  
+    alert(`Gratuity rule ${isEditingGratuity ? "updated" : "saved"} successfully`);
+  
+    setGratuityForm({});
+    setIsEditingGratuity(false);
+    setSelectedGratuityRate(null);
+  
+    const updated = await getPfEsiRulesClient("GRATUITY");
+    setGratuityRates(updated);
+  };
+  
+  
+  
   // Format date to YYYY-MM-DD
   const formatDate = (date: Date | null) => {
     if (!date) return "";
@@ -154,30 +254,36 @@ export default function PFESIRatesSetupPage() {
     setNewPFColumn({ ...newPFColumn, [field]: value });
   };
 
-  const handleESISubmit = () => {
-    // Validate required fields
-    const requiredFields = esiColumns.filter(col => col.required).map(col => col.key).concat(["effectiveDate"]);
-    const missingFields = requiredFields.filter(field => !esiForm[field] || esiForm[field] === "");
-    if (missingFields.length > 0) {
-      alert(`Please fill in all required fields for ESI: ${missingFields.join(", ")}`);
-      return;
-    }
+  const handleESISubmit = async () => {
+    try {
+      const payload = {
+        rateType: "ESI",
+        empShare: esiForm.empShare,
+        employerShare: esiForm.employerShare,
+        esiWageCeiling: esiForm.wageCeiling,
+        effectiveFrom: esiForm.effectiveDate,
+        effectiveTo: esiForm.endDate || null,
+        remarks: esiForm.remarks,
+      };
 
-    if (isEditingESI && esiForm.id) {
-      setESIRates(
-        esiRates.map((rate) =>
-          rate.id === esiForm.id ? { ...rate, ...esiForm } : rate
-        )
-      );
-    } else {
-      const newId = Math.max(...esiRates.map((r) => r.id), 0) + 1;
-      const newRate = { id: newId, ...esiForm } as ESIRate;
-      setESIRates([newRate, ...esiRates]);
+      if (isEditingESI && selectedESIRate) {
+        await api.patch("/api/Pf-Esi", { id: selectedESIRate.id, ...payload });
+      } else {
+        await createPfEsiRuleClient(payload);
+      }
+  
+      alert(`ESI rule ${isEditingESI ? "updated" : "saved"} successfully`);
+      setESIForm({});
+      setIsEditingESI(false);
+      setSelectedESIRate(null);
+      // Refresh data
+      const updatedRates = await getPfEsiRulesClient("ESI");
+      setESIRates(updatedRates);
+    } catch (err: any) {
+      alert(err.message || "Failed to save ESI rule");
     }
-    setESIForm({});
-    setIsEditingESI(false);
-    setSelectedESIRate(null);
   };
+  
 
   const handleESIEdit = (rate: ESIRate) => {
     setESIForm({ ...rate, effectiveDate: rate.effectiveDate || "", endDate: rate.endDate || "" });
@@ -185,14 +291,24 @@ export default function PFESIRatesSetupPage() {
     setSelectedESIRate(rate);
   };
 
-  const handleESIDelete = (id: number) => {
-    if (confirm("Are you sure you want to delete this ESI rate?")) {
-      setESIRates(esiRates.filter((rate) => rate.id !== id));
+  const handleESIDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this ESI rate?")) {
+      return;
+    }
+
+    try {
+      await api.delete(`/api/Pf-Esi?id=${id}`);
+      // Refresh data
+      const updatedRates = await getPfEsiRulesClient("ESI");
+      setESIRates(updatedRates);
       if (selectedESIRate?.id === id) {
         setSelectedESIRate(null);
         setESIForm({});
         setIsEditingESI(false);
       }
+      alert("ESI rate deleted successfully");
+    } catch (err: any) {
+      alert(err.message || "Failed to delete ESI rate");
     }
   };
 
@@ -206,30 +322,43 @@ export default function PFESIRatesSetupPage() {
     setESIForm({ ...esiForm, [field]: typeof value === "string" ? value : formatDate(value) });
   };
 
-  const handlePFSubmit = () => {
-    // Validate required fields
-    const requiredFields = pfColumns.filter(col => col.required).map(col => col.key).concat(["effectiveDate"]);
-    const missingFields = requiredFields.filter(field => !pfForm[field] || pfForm[field] === "");
-    if (missingFields.length > 0) {
-      alert(`Please fill in all required fields for PF: ${missingFields.join(", ")}`);
-      return;
-    }
+  const handlePFSubmit = async () => {
+    try {
+      const payload = {
+        rateType: "PF",
+        empShareAc1: pfForm.empShareAc1,
+        erShareAc2: pfForm.erShareAc2,
+        adminChargesAc10: pfForm.adminChargesAc10,
+        epsAc21: pfForm.epsAc21,
+        edliChargesAc21: pfForm.edliChargesAc21,
+        adminChargesAc22: pfForm.adminChargesAc22,
+        calcType: pfForm.calcType,
+        pfWageCeiling: pfForm.wageCeiling,
+        epsWageCeiling: pfForm.epsWageCeiling,
+        minEpsContribution: pfForm.minEpsContribution,
+        effectiveFrom: pfForm.effectiveDate,
+        effectiveTo: pfForm.endDate || null,
+        remarks: pfForm.remarks,
+      };
 
-    if (isEditingPF && pfForm.id) {
-      setPFRates(
-        pfRates.map((rate) =>
-          rate.id === pfForm.id ? { ...rate, ...pfForm } : rate
-        )
-      );
-    } else {
-      const newId = Math.max(...pfRates.map((r) => r.id), 0) + 1;
-      const newRate = { id: newId, ...pfForm } as PFRate;
-      setPFRates([newRate, ...pfRates]);
+      if (isEditingPF && selectedPFRate) {
+        await api.patch("/api/Pf-Esi", { id: selectedPFRate.id, ...payload });
+      } else {
+        await createPfEsiRuleClient(payload);
+      }
+  
+      alert(`PF rule ${isEditingPF ? "updated" : "saved"} successfully`);
+      setPFForm({});
+      setIsEditingPF(false);
+      setSelectedPFRate(null);
+      // Refresh data
+      const updatedRates = await getPfEsiRulesClient("PF");
+      setPFRates(updatedRates);
+    } catch (err: any) {
+      alert(err.message || "Failed to save PF rule");
     }
-    setPFForm({});
-    setIsEditingPF(false);
-    setSelectedPFRate(null);
   };
+  
 
   const handlePFEdit = (rate: PFRate) => {
     setPFForm({ ...rate, effectiveDate: rate.effectiveDate || "", endDate: rate.endDate || "" });
@@ -237,14 +366,24 @@ export default function PFESIRatesSetupPage() {
     setSelectedPFRate(rate);
   };
 
-  const handlePFDelete = (id: number) => {
-    if (confirm("Are you sure you want to delete this PF rate?")) {
-      setPFRates(pfRates.filter((rate) => rate.id !== id));
+  const handlePFDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this PF rate?")) {
+      return;
+    }
+
+    try {
+      await api.delete(`/api/Pf-Esi?id=${id}`);
+      // Refresh data
+      const updatedRates = await getPfEsiRulesClient("PF");
+      setPFRates(updatedRates);
       if (selectedPFRate?.id === id) {
         setSelectedPFRate(null);
         setPFForm({});
         setIsEditingPF(false);
       }
+      alert("PF rate deleted successfully");
+    } catch (err: any) {
+      alert(err.message || "Failed to delete PF rate");
     }
   };
 
@@ -261,6 +400,35 @@ export default function PFESIRatesSetupPage() {
   const handlePFCalcTypeChange = (value: "Fixed" | "On Actual") => {
     setPFForm({ ...pfForm, calcType: value });
   };
+  const handleGratuityEdit = (rate: GratuityRate) => {
+    setGratuityForm({
+      ...rate,
+      effectiveDate: rate.effectiveDate || "",
+      endDate: rate.endDate || "",
+    });
+    setSelectedGratuityRate(rate);
+    setIsEditingGratuity(true);
+  };
+  
+  const handleGratuityDelete = async (id: string) => {
+    if (!confirm("Delete gratuity rule?")) return;
+  
+    await api.delete(`/api/Pf-Esi?id=${id}`);
+  
+    const updated = await getPfEsiRulesClient("GRATUITY");
+    setGratuityRates(updated);
+  
+    setGratuityForm({});
+    setSelectedGratuityRate(null);
+    setIsEditingGratuity(false);
+  };
+  
+  const handleGratuityCancel = () => {
+    setGratuityForm({});
+    setSelectedGratuityRate(null);
+    setIsEditingGratuity(false);
+  };
+  
 
   return (
     <GlobalLayout>
@@ -371,15 +539,24 @@ export default function PFESIRatesSetupPage() {
                   onClick={() => setSelectedESIRate(rate)}
                   className={`cursor-pointer hover:bg-gray-50 ${selectedESIRate?.id === rate.id ? "bg-blue-50" : ""}`}
                 >
-                  <TableCell className="p-3 text-sm text-gray-600">{rate.id}</TableCell>
-                  {esiColumns.map((col) => (
-                    <TableCell key={col.key} className="p-3 text-sm text-gray-600">
-                      {col.type === "percentage" ? `${(Number(rate[col.key]) || 0).toFixed(2)}%` : rate[col.key]}
-                    </TableCell>
-                  ))}
-                  <TableCell className="p-3 text-sm text-gray-600">{rate.effectiveDate}</TableCell>
-                  <TableCell className="p-3 text-sm text-gray-600">{rate.endDate}</TableCell>
-                  <TableCell className="p-3 text-sm text-gray-600">{rate.remarks}</TableCell>
+                  <TableCell className="p-3 text-sm text-gray-600">{esiRates.indexOf(rate) + 1}</TableCell>
+                  {esiColumns.map((col) => {
+                    const value = rate[col.key];
+                    return (
+                      <TableCell key={col.key} className="p-3 text-sm text-gray-600">
+                        {col.type === "percentage" 
+                          ? `${(Number(value) || 0).toFixed(2)}%` 
+                          : value !== undefined && value !== null ? String(value) : "-"}
+                      </TableCell>
+                    );
+                  })}
+                  <TableCell className="p-3 text-sm text-gray-600">
+                    {rate.effectiveDate || rate.effectiveFrom ? (rate.effectiveDate || (rate.effectiveFrom ? new Date(rate.effectiveFrom).toISOString().split("T")[0] : "")) : "-"}
+                  </TableCell>
+                  <TableCell className="p-3 text-sm text-gray-600">
+                    {rate.endDate || rate.effectiveTo ? (rate.endDate || (rate.effectiveTo ? new Date(rate.effectiveTo).toISOString().split("T")[0] : "")) : "-"}
+                  </TableCell>
+                  <TableCell className="p-3 text-sm text-gray-600">{rate.remarks || "-"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -559,15 +736,24 @@ export default function PFESIRatesSetupPage() {
                   onClick={() => setSelectedPFRate(rate)}
                   className={`cursor-pointer hover:bg-gray-50 ${selectedPFRate?.id === rate.id ? "bg-blue-50" : ""}`}
                 >
-                  <TableCell className="p-3 text-sm text-gray-600">{rate.id}</TableCell>
-                  {pfColumns.map((col) => (
-                    <TableCell key={col.key} className="p-3 text-sm text-gray-600">
-                      {col.type === "percentage" ? `${(Number(rate[col.key]) || 0).toFixed(2)}%` : rate[col.key]}
-                    </TableCell>
-                  ))}
-                  <TableCell className="p-3 text-sm text-gray-600">{rate.effectiveDate}</TableCell>
-                  <TableCell className="p-3 text-sm text-gray-600">{rate.endDate}</TableCell>
-                  <TableCell className="p-3 text-sm text-gray-600">{rate.remarks}</TableCell>
+                  <TableCell className="p-3 text-sm text-gray-600">{pfRates.indexOf(rate) + 1}</TableCell>
+                  {pfColumns.map((col) => {
+                    const value = rate[col.key];
+                    return (
+                      <TableCell key={col.key} className="p-3 text-sm text-gray-600">
+                        {col.type === "percentage" 
+                          ? `${(Number(value) || 0).toFixed(2)}%` 
+                          : value !== undefined && value !== null ? String(value) : "-"}
+                      </TableCell>
+                    );
+                  })}
+                  <TableCell className="p-3 text-sm text-gray-600">
+                    {rate.effectiveDate || rate.effectiveFrom ? (rate.effectiveDate || (rate.effectiveFrom ? new Date(rate.effectiveFrom).toISOString().split("T")[0] : "")) : "-"}
+                  </TableCell>
+                  <TableCell className="p-3 text-sm text-gray-600">
+                    {rate.endDate || rate.effectiveTo ? (rate.endDate || (rate.effectiveTo ? new Date(rate.effectiveTo).toISOString().split("T")[0] : "")) : "-"}
+                  </TableCell>
+                  <TableCell className="p-3 text-sm text-gray-600">{rate.remarks || "-"}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -625,6 +811,142 @@ export default function PFESIRatesSetupPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Card className="shadow-lg border border-gray-200 rounded-lg">
+        <CardHeader className="bg-gradient-to-r from-blue-100 to-white p-6 border-b border-gray-200 flex justify-between items-center">
+          <CardTitle className="text-2xl font-semibold text-gray-800">
+            Gratuity Calculation Setup
+          </CardTitle>
+          <Button
+            onClick={() => setIsAddGratuityColumnModalOpen(true)}
+            className="bg-blue-600 text-white hover:bg-blue-700"
+          >
+            Add Column
+          </Button>
+        </CardHeader>
+
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            {gratuityColumns.map((col) => (
+              <div key={col.key}>
+                <Label>{col.label} (%)</Label>
+                <Input
+                  type="number"
+                  value={gratuityForm.employerShare ?? ""}
+                  onChange={(e) =>
+                    setGratuityForm({
+                      ...gratuityForm,
+                      employerShare: Number(e.target.value),
+                    })
+                  }
+                />
+
+              </div>
+            ))}
+
+            <div>
+              <Label>Effective Date*</Label>
+              <DatePicker
+                selected={gratuityForm.effectiveDate ? new Date(gratuityForm.effectiveDate) : null}
+                onChange={(d) => handleGratuityChange("effectiveDate", d ?? "")}
+                dateFormat="yyyy-MM-dd"
+                className="w-full h-12"
+              />
+            </div>
+
+            <div>
+              <Label>End Date</Label>
+              <DatePicker
+                selected={gratuityForm.endDate ? new Date(gratuityForm.endDate) : null}
+                onChange={(d) => handleGratuityChange("endDate", d ?? "")}
+                dateFormat="yyyy-MM-dd"
+                className="w-full h-12"
+              />
+            </div>
+
+            <div>
+              <Label>Remarks</Label>
+              <Input
+                value={gratuityForm.remarks || ""}
+                onChange={(e) => handleGratuityChange("remarks", e.target.value)}
+              />
+            </div>
+          </div>
+
+          <Button onClick={handleGratuitySubmit} className="bg-green-600 text-white">
+            {isEditingGratuity ? "Update" : "Add"}
+          </Button>
+          <div className="flex space-x-4 mt-4 mb-6">
+            <Button
+              onClick={() =>
+                selectedGratuityRate && handleGratuityEdit(selectedGratuityRate)
+              }
+              disabled={!selectedGratuityRate}
+              className="bg-yellow-500 text-white"
+            >
+              Modify
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={handleGratuityCancel}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              variant="destructive"
+              disabled={!selectedGratuityRate}
+              onClick={() =>
+                selectedGratuityRate && handleGratuityDelete(selectedGratuityRate.id)
+              }
+            >
+              Delete
+            </Button>
+          </div>
+
+
+          {/* Table identical to PF/ESI */}
+          <Table className="w-full bg-white border rounded-md mt-6">
+            <TableHeader>
+              <TableRow>
+                <TableHead>S.N.</TableHead>
+                {gratuityColumns.map((col) => (
+                  <TableHead key={col.key}>{col.label}</TableHead>
+                ))}
+                <TableHead>Effective Date</TableHead>
+                <TableHead>End Date</TableHead>
+                <TableHead>Remarks</TableHead>
+              </TableRow>
+            </TableHeader>
+
+            <TableBody>
+              {gratuityRates.map((rate, index) => (
+                <TableRow
+                  key={rate.id}
+                  onClick={() => setSelectedGratuityRate(rate)}
+                  className={`cursor-pointer ${
+                    selectedGratuityRate?.id === rate.id ? "bg-blue-50" : ""
+                  }`}
+                >
+                  <TableCell>{index + 1}</TableCell>
+
+                  {gratuityColumns.map((col) => (
+                    <TableCell key={col.key}>
+                      {(Number(rate[col.key]) || 0).toFixed(2)}%
+                    </TableCell>
+                  ))}
+
+                  <TableCell>{rate.effectiveDate || "-"}</TableCell>
+                  <TableCell>{rate.endDate || "-"}</TableCell>
+                  <TableCell>{rate.remarks || "-"}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+
+        </CardContent>
+      </Card>
+
       </div>
     </GlobalLayout>
   );
