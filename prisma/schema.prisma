@@ -501,6 +501,7 @@ model SalaryHead {
   isPercentage  Boolean  @default(false)
   value         Float?
   applicableFor Json?
+  percentageOf  String?
   isSystem      Boolean  @default(false)
   systemCode    String?
   createdAt     DateTime @default(now())
