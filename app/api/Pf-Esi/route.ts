@@ -1,12 +1,9 @@
-// app/api/statutory-rates/route.ts
-// (or wherever your API route file is located)
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/app/lib/prisma";
 import { getSession } from "@/app/lib/auth";
 import { getCompanyId } from "@/app/lib/getCompanyid";
 
-// Helper: Ensure valid date or null
 function parseDate(dateInput: any): Date | null {
   if (!dateInput) return null;
   const date = new Date(dateInput);
@@ -289,7 +286,6 @@ export async function PATCH(req: NextRequest) {
 }
 
 // ---------------------------------------------
-// DELETE → Soft delete (deactivate) rule
 // ---------------------------------------------
 export async function DELETE(req: NextRequest) {
   const user = await getSession();
