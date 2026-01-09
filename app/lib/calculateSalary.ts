@@ -93,6 +93,7 @@ export function calculateSalary({
   pfRule: PFRule | null;
   esiRule: ESIRule | null;
 }): CalculationResult {
+  const ctc = inputAmount;
   // Step 1: Filter selected heads (excluding Special Allowance for now)
   const selectedHeads = heads.filter(
     (h) => selectedHeadIds.includes(h.id) && h.systemCode !== "SPECIAL_ALLOWANCE"
@@ -108,7 +109,9 @@ export function calculateSalary({
   const rows: CalculatedRow[] = [];
   
   // Track total allocated amount (excluding Special Allowance)
-  let totalAllocated = 0;
+  let salaryHeadsTotal = 0;   // Gross (without SA initially)
+  let employerContributionTotal = 0; // Total employer contributions (PF, ESI, Gratuity)
+
 
   // Step 3: Process each head sequentially
   for (const head of selectedHeads) {
@@ -183,14 +186,10 @@ export function calculateSalary({
       
       // ESI is applicable only if total gross is within ceiling
       // We'll validate this in the final step, but calculate per head for now
-      if (inputAmount <= esiWageCeiling) {
-        if (esiRule.empShare) {
-          esiEmployee = (baseAmount * esiRule.empShare) / 100;
-        }
-        if (esiRule.employerShare) {
-          esiEmployer = (baseAmount * esiRule.employerShare) / 100;
-        }
-      }
+      // Temporarily calculate, final eligibility decided after gross known
+    esiEmployee = (baseAmount * (esiRule.empShare || 0)) / 100;
+    esiEmployer = (baseAmount * (esiRule.employerShare || 0)) / 100;
+
     }
 
     // Gratuity Calculation (Employer only)
@@ -205,7 +204,9 @@ export function calculateSalary({
     const netAmount = baseAmount - pfEmployee - esiEmployee;
 
     // Add to total allocated
-    totalAllocated += baseAmount;
+    salaryHeadsTotal += baseAmount;
+    employerContributionTotal += pfEmployer + esiEmployer + gratuityEmployer;
+
 
     // Create row
     rows.push({
@@ -227,61 +228,17 @@ export function calculateSalary({
   }
 
   // Step 5: Calculate Special Allowance (balancing head)
-  const balance = inputAmount - totalAllocated;
+  const specialAllowanceAmount =
+  ctc - (salaryHeadsTotal + employerContributionTotal);
+  if (specialAllowanceAmount < 0) {
+    throw new Error(
+      `Invalid salary structure: Special Allowance became negative (${specialAllowanceAmount})`
+    );
+  }
+  
+
   
   if (specialAllowanceHead && selectedHeadIds.includes(specialAllowanceHead.id)) {
-    // Special Allowance is the balancing amount
-    const specialAllowanceAmount = balance;
-    headAmounts.set(specialAllowanceHead.id, specialAllowanceAmount);
-
-    // Calculate PF/ESI/Gratuity for Special Allowance
-    const applicableFor = specialAllowanceHead.applicableFor || {};
-    let pfEmployee = 0;
-    let pfEmployer = 0;
-    let esiEmployee = 0;
-    let esiEmployer = 0;
-    let gratuityEmployer = 0;
-
-    if (applicableFor.PF && pfRule?.isActive) {
-      const pfWageCeiling = pfRule.pfWageCeiling || Infinity;
-      const pfBase = Math.min(specialAllowanceAmount, pfWageCeiling);
-      
-      if (pfRule.empShareAc1) {
-        pfEmployee = (pfBase * pfRule.empShareAc1) / 100;
-      }
-      
-      if (pfRule.erShareAc2) {
-        pfEmployer += (pfBase * pfRule.erShareAc2) / 100;
-      }
-      if (pfRule.epsAc21) {
-        pfEmployer += (pfBase * pfRule.epsAc21) / 100;
-      }
-      if (pfRule.edliChargesAc21) {
-        pfEmployer += (pfBase * pfRule.edliChargesAc21) / 100;
-      }
-      if (pfRule.adminChargesAc10) {
-        pfEmployer += (pfBase * pfRule.adminChargesAc10) / 100;
-      }
-    }
-
-    if (applicableFor.ESI && esiRule?.isActive) {
-      const esiWageCeiling = esiRule.esiWageCeiling || Infinity;
-      if (inputAmount <= esiWageCeiling) {
-        if (esiRule.empShare) {
-          esiEmployee = (specialAllowanceAmount * esiRule.empShare) / 100;
-        }
-        if (esiRule.employerShare) {
-          esiEmployer = (specialAllowanceAmount * esiRule.employerShare) / 100;
-        }
-      }
-    }
-
-    if (applicableFor.Gratuity) {
-      gratuityEmployer = (specialAllowanceAmount * 15) / 26 / 12;
-    }
-
-    const netAmount = specialAllowanceAmount - pfEmployee - esiEmployee;
-
     // Add Special Allowance row (insert at the end)
     rows.push({
       id: specialAllowanceHead.id,
@@ -289,15 +246,16 @@ export function calculateSalary({
       type: specialAllowanceHead.fieldType,
       formula: "Balance",
       baseAmount: specialAllowanceAmount,
-      monthly: netAmount,
-      annual: netAmount * 12,
-      pfEmployee,
-      pfEmployer,
-      esiEmployee,
-      esiEmployer,
-      gratuityEmployer,
+      monthly: specialAllowanceAmount,
+      annual: specialAllowanceAmount * 12,
+      pfEmployee: 0,
+      pfEmployer: 0,
+      esiEmployee: 0,
+      esiEmployer: 0,
+      gratuityEmployer: 0,
       isSpecialAllowance: true,
     });
+    
   }
 
   // Step 6: Calculate totals and validate ESI
@@ -306,33 +264,42 @@ export function calculateSalary({
   // Recalculate ESI if total gross exceeds ceiling
   if (esiRule?.isActive && esiRule.esiWageCeiling) {
     if (totalGross > esiRule.esiWageCeiling) {
-      // ESI not applicable - zero out all ESI calculations
       rows.forEach((row) => {
         row.esiEmployee = 0;
         row.esiEmployer = 0;
+    
+        // 🔒 recompute net
+        row.monthly = row.baseAmount - row.pfEmployee;
+        row.annual = row.monthly * 12;
       });
     }
+    
   }
 
-  const totals = {
-    totalMonthly: rows.reduce((sum, r) => sum + r.monthly, 0),
-    totalAnnual: rows.reduce((sum, r) => sum + r.annual, 0),
-    totalPfEmployee: rows.reduce((sum, r) => sum + r.pfEmployee, 0),
-    totalPfEmployer: rows.reduce((sum, r) => sum + r.pfEmployer, 0),
-    totalEsiEmployee: rows.reduce((sum, r) => sum + r.esiEmployee, 0),
-    totalEsiEmployer: rows.reduce((sum, r) => sum + r.esiEmployer, 0),
-    totalGratuityEmployer: rows.reduce((sum, r) => sum + r.gratuityEmployer, 0),
-    netInHand: rows.reduce((sum, r) => sum + r.monthly, 0), // Already net after deductions
-    ctc: totalGross + 
-         rows.reduce((sum, r) => sum + r.pfEmployer, 0) + 
-         rows.reduce((sum, r) => sum + r.esiEmployer, 0) + 
-         rows.reduce((sum, r) => sum + r.gratuityEmployer, 0),
-  };
+  const gross = rows.reduce((sum, r) => sum + r.baseAmount, 0);
 
-  return {
-    rows,
-    totals,
-  };
+const totals = {
+  totalMonthly: gross,               // 🔒 Gross salary
+  totalAnnual: gross * 12,
+
+  totalPfEmployee: rows.reduce((s, r) => s + r.pfEmployee, 0),
+  totalPfEmployer: rows.reduce((s, r) => s + r.pfEmployer, 0),
+
+  totalEsiEmployee: rows.reduce((s, r) => s + r.esiEmployee, 0),
+  totalEsiEmployer: rows.reduce((s, r) => s + r.esiEmployer, 0),
+
+  totalGratuityEmployer: rows.reduce((s, r) => s + r.gratuityEmployer, 0),
+
+  netInHand: rows.reduce((s, r) => s + r.monthly, 0),
+
+  ctc: ctc, // 🔒 INPUT = CTC
+  
+};
+
+return {
+  rows,
+  totals,
+};
 }
 
 /* ------------------------------------------------------------------
@@ -440,7 +407,8 @@ export async function calculateEmployeeSalary({
       employeeId,
       salaryMode: salary.mode,
       inputAmount: salary.inputAmount,
-      grossSalary: calculationResult.totals.totalMonthly + calculationResult.totals.totalPfEmployee + calculationResult.totals.totalEsiEmployee,
+      grossSalary: calculationResult.totals.totalMonthly,
+
       netSalary: calculationResult.totals.netInHand,
       annualCtc: calculationResult.totals.ctc * 12,
       pfRuleSnapshot: pfRule || {},

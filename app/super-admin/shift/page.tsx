@@ -13,6 +13,22 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { GlobalLayout } from "@/app/components/global-layout"
 import { api, API } from "@/app/lib/api"
 
+const timeToMinutes = (time: string) => {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+};
+
+const addMinutesToTime = (time: string, minutesToAdd: number) => {
+  const total = timeToMinutes(time) + minutesToAdd;
+  const h = Math.floor((total % (24 * 60)) / 60);
+  const m = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+};
+
+
+
+
+
 // Chart.js integration for Review preview
 const ReviewChart = ({
   workingMinutes,
@@ -30,55 +46,55 @@ const ReviewChart = ({
   useEffect(() => {
     const canvas = chartRef.current;
     if (!canvas) return;
+  
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-
-    // Destroy previous instance if present (prevents "Chart is already initialized" or duplicate instances)
+  
     if (chartInstanceRef.current) {
-      try {
-        chartInstanceRef.current.destroy();
-      } catch (e) {
-        // ignore destroy errors
-      }
+      chartInstanceRef.current.destroy();
       chartInstanceRef.current = null;
     }
-
+  
+    // ✅ MOVE CALCULATIONS OUTSIDE OBJECT
+    const shift = Math.max(workingMinutes, 1);
+    const checkIn = Math.min(checkInMinutes, shift * 0.25);
+    const checkOut = Math.min(checkOutMinutes, shift * 0.25);
+  
     chartInstanceRef.current = new Chart(ctx, {
       type: "doughnut",
       data: {
-        labels: ["Shift time", "Check in allowed from", "Check out allowed from"],
-        datasets: [{
-          data: [
-            Number.isFinite(workingMinutes) ? workingMinutes : 0,
-            Number.isFinite(checkInMinutes) ? checkInMinutes : 0,
-            Number.isFinite(checkOutMinutes) ? checkOutMinutes : 0,
-          ],
-          
-          backgroundColor: ["#a855f7", "#06b6d4", "#fbbf24"]
-        }]
+        labels: [
+          "Working Duration",
+          "Check-in Grace Window",
+          "Early Check-out Window",
+        ],
+        datasets: [
+          {
+            data: [shift, checkIn, checkOut],
+            backgroundColor: ["#a855f7", "#06b6d4", "#fbbf24"],
+          },
+        ],
       },
       options: {
         responsive: true,
         plugins: {
-          legend: { position: "bottom" }
-        }
-      }
+          legend: { position: "bottom" },
+        },
+      },
     });
-
+  
     return () => {
       if (chartInstanceRef.current) {
-        try {
-          chartInstanceRef.current.destroy();
-        } catch (e) {
-          // ignore
-        }
+        chartInstanceRef.current.destroy();
         chartInstanceRef.current = null;
       }
     };
-  }, [workingMinutes, checkInMinutes, checkOutMinutes]); // empty deps to initialize once per mount
-
+  }, [workingMinutes, checkInMinutes, checkOutMinutes]);
   return <canvas ref={chartRef} className="p-4 bg-gray-50 rounded-lg w-full" />;
 };
+
+  
+  
 
 export default function ShiftPage() {
   const [shifts, setShifts] = useState<any[]>([]);
@@ -144,17 +160,41 @@ export default function ShiftPage() {
 
   // Auto-calculate total hours based on start, end, and break times
   useEffect(() => {
-    if (formData.startTime && formData.endTime && formData.breakTime) {
-      const start = new Date(`2023-01-01T${formData.startTime}`);
-      const end = new Date(`2023-01-01T${formData.endTime}`);
-      let diff = (end.getTime() - start.getTime()) / (1000 * 60 * 60); // hours
-      if (diff < 0) diff += 24; // Handle overnight shifts
-      const [breakHours, breakMinutes] = formData.breakTime.split(':').map(Number);
-      const breakH = breakHours + breakMinutes / 60;
-      diff -= breakH;
-      setFormData((prev: any) => ({ ...prev, totalHours: diff > 0 ? diff.toFixed(1) : "0.0" }));
-    }
-  }, [formData.startTime, formData.endTime, formData.breakTime]);
+    const firstHalf =
+      Number(formData.firstHalfHours) * 60 +
+      Number(formData.firstHalfMinutes);
+  
+    const secondHalf =
+      Number(formData.secondHalfHours) * 60 +
+      Number(formData.secondHalfMinutes);
+  
+    const [bh, bm] = formData.breakTime.split(":").map(Number);
+    const breakMinutes = bh * 60 + bm;
+  
+    const totalWorkMinutes = firstHalf + secondHalf;
+    const totalShiftMinutes = totalWorkMinutes + breakMinutes;
+  
+    const calculatedEndTime = addMinutesToTime(
+      formData.startTime,
+      totalShiftMinutes
+    );
+  
+    setFormData((prev: any) => ({
+      ...prev,
+      endTime: calculatedEndTime,
+      totalHours: (totalWorkMinutes / 60).toFixed(2),
+    }));
+  }, [
+    formData.startTime,
+    formData.firstHalfHours,
+    formData.firstHalfMinutes,
+    formData.secondHalfHours,
+    formData.secondHalfMinutes,
+    formData.breakTime,
+  ]);
+  
+  
+  
 
   const validateForm = () => {
     const errors: any = {};
@@ -175,6 +215,16 @@ export default function ShiftPage() {
       workingHours: Number(formData.totalHours),
       checkInAllowedFrom: Number(formData.checkInGrace),
       checkOutAllowedFrom: Number(formData.earlyGrace),
+
+      shiftAllowance: formData.shiftAllowance,
+      weeklyOffPattern: formData.defineWeeklyOff
+        ? formData.weeklyOffPattern
+        : [],
+      restrictManagerBackdate: formData.restrictManagerBackdate,
+      restrictHRBackdate: formData.restrictHRBackdate,
+      restrictManagerFuture: formData.restrictManagerFuture,
+
+    
       isActive: true,
     };
   };
@@ -254,6 +304,12 @@ export default function ShiftPage() {
     if (direction === "next" && step < 6) setStep(step + 1);
     if (direction === "prev" && step > 1) setStep(step - 1);
   };
+  const workingMinutes =
+  Number(formData.firstHalfHours) * 60 +
+  Number(formData.firstHalfMinutes) +
+  Number(formData.secondHalfHours) * 60 +
+  Number(formData.secondHalfMinutes);
+
 
   return (
     <GlobalLayout>
@@ -488,7 +544,7 @@ export default function ShiftPage() {
                       </div>
                     </div>
                     <p className="text-gray-700">Total Hours: {formData.totalHours || "0.0"}</p>
-                    <ReviewChart workingMinutes={Number(formData.totalHours) * 60}
+                    <ReviewChart workingMinutes={workingMinutes}
                     checkInMinutes={Number(formData.checkInGrace)}
                     checkOutMinutes={Number(formData.earlyGrace)}/>
                   </div>
@@ -639,9 +695,12 @@ export default function ShiftPage() {
                 )}
                 {step === 6 && (
                   <div>
-                    <ReviewChart workingMinutes={Number(formData.totalHours) * 60}
-                    checkInMinutes={Number(formData.checkInGrace) }
-                    checkOutMinutes={Number(formData.earlyGrace)}/>
+                    <ReviewChart
+                      workingMinutes={workingMinutes}
+                      checkInMinutes={Number(formData.checkInGrace)}
+                      checkOutMinutes={Number(formData.earlyGrace)}
+                    />
+
                     <div className="flex justify-between mt-6">
                       <Button variant="outline" onClick={() => handleNavigation("prev")} disabled={false}>Previous</Button>
                       <Button className="bg-green-600 text-white hover:bg-green-700" onClick={handleSave}>Save</Button>

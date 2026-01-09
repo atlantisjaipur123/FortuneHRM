@@ -701,7 +701,7 @@ const handleSubmit = async (e: React.FormEvent) => {
               </div>
 
               {/* Main content: Left (Heads list) + Right (Calculation preview) */}
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 {/* Left: Vertical heads list with checkboxes on right */}
                 <div className="col-span-2 border rounded-lg bg-gray-50 p-4">
                   <h4 className="font-semibold mb-3 text-gray-700">Select Salary Heads</h4>
@@ -747,141 +747,120 @@ const handleSubmit = async (e: React.FormEvent) => {
                     </div>
                   )}
                 </div>
-
-                {/* Right: Calculation preview box */}
-                <div className="col-span-1 border rounded-lg bg-blue-50 p-4">
-                  <h4 className="font-semibold mb-3 text-gray-700">Calculation Preview</h4>
-                  {calculationTotals ? (
-                    <div className="space-y-3 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Total Monthly:</span>
-                        <span className="font-semibold">
-                          ₹{calculationTotals.totalMonthly.toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Total Annual:</span>
-                        <span className="font-semibold">
-                          ₹{calculationTotals.totalAnnual.toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="border-t pt-2 mt-2">
-                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                          <span>PF (Employee):</span>
-                          <span>₹{calculationTotals.totalPfEmployee.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                          <span>PF (Employer):</span>
-                          <span>₹{calculationTotals.totalPfEmployer.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                          <span>ESI (Employee):</span>
-                          <span>₹{calculationTotals.totalEsiEmployee.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                          <span>ESI (Employer):</span>
-                          <span>₹{calculationTotals.totalEsiEmployer.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between text-xs text-gray-500">
-                          <span>Gratuity (Employer):</span>
-                          <span>₹{calculationTotals.totalGratuityEmployer.toFixed(2)}</span>
-                        </div>
-                      </div>
-                      <div className="border-t pt-2 mt-2">
-                        <div className="flex justify-between font-semibold text-gray-700">
-                          <span>Net In Hand:</span>
-                          <span>₹{calculationTotals.netInHand.toFixed(2)}</span>
-                        </div>
-                        <div className="flex justify-between font-semibold text-gray-700 mt-1">
-                          <span>CTC:</span>
-                          <span>₹{calculationTotals.ctc.toFixed(2)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="text-sm text-gray-500 text-center py-4">
-                      Enter salary amount and select heads to see calculation
-                    </div>
-                  )}
-                </div>
               </div>
 
               {/* Detailed breakdown table */}
-              {calculatedRows.length > 0 && (
-                <div className="mt-4">
-                  <h4 className="font-semibold mb-3 text-gray-700">Detailed Breakdown</h4>
-                  <div className="overflow-auto border rounded-lg">
-                    <table className="w-full border-collapse">
+              {calculatedRows.length > 0 && calculationTotals && (
+                <div className="mt-6">
+                  <h4 className="font-semibold mb-3 text-gray-700">
+                    Salary & CTC Breakup
+                  </h4>
+
+                  <div className="overflow-x-auto border rounded-lg">
+                    <table className="w-full border-collapse text-sm">
                       <thead className="bg-gray-100">
                         <tr>
-                          <th className="border p-2 text-left text-sm font-semibold">Salary Head</th>
-                          <th className="border p-2 text-center text-sm font-semibold">Type</th>
-                          <th className="border p-2 text-center text-sm font-semibold">Formula</th>
-                          <th className="border p-2 text-right text-sm font-semibold">Base Amount</th>
-                          <th className="border p-2 text-right text-sm font-semibold">Monthly (Rs.)</th>
-                          <th className="border p-2 text-right text-sm font-semibold">Annual (Rs.)</th>
-                          <th className="border p-2 text-right text-sm font-semibold">PF(E)</th>
-                          <th className="border p-2 text-right text-sm font-semibold">PF(ER)</th>
-                          <th className="border p-2 text-right text-sm font-semibold">ESI(E)</th>
-                          <th className="border p-2 text-right text-sm font-semibold">ESI(ER)</th>
-                          <th className="border p-2 text-right text-sm font-semibold">Gratuity(ER)</th>
+                          <th className="border p-2 text-left font-semibold">
+                            Salary Heads
+                          </th>
+                          <th className="border p-2 text-right font-semibold">
+                            Monthly Amount (Rs.)
+                          </th>
+                          <th className="border p-2 text-right font-semibold">
+                            Annual Amount (Rs.)
+                          </th>
                         </tr>
                       </thead>
+
                       <tbody>
+                        {/* ===== Earnings / Gross ===== */}
                         {calculatedRows.map((r, i) => (
-                          <tr key={r.id ?? i} className={`hover:bg-gray-50 ${r.isSpecialAllowance ? 'bg-yellow-50' : ''}`}>
-                            <td className="border p-2 text-sm">
+                          <tr
+                            key={r.id ?? i}
+                            className={r.isSpecialAllowance ? "bg-yellow-50" : ""}
+                          >
+                            <td className="border p-2">
                               {r.name}
-                              {r.isSpecialAllowance && <span className="text-xs text-gray-500 ml-1">(Balance)</span>}
+                              {r.isSpecialAllowance && (
+                                <span className="text-xs text-gray-500 ml-1">(Balance)</span>
+                              )}
                             </td>
-                            <td className="border p-2 text-center text-sm">{r.type}</td>
-                            <td className="border p-2 text-center text-xs text-gray-600">{r.formula}</td>
-                            <td className="border p-2 text-right text-sm">{Number(r.baseAmount || 0).toFixed(2)}</td>
-                            <td className="border p-2 text-right text-sm">{Number(r.monthly || 0).toFixed(2)}</td>
-                            <td className="border p-2 text-right text-sm">{Number(r.annual || 0).toFixed(2)}</td>
-                            <td className="border p-2 text-right text-sm">{Number(r.pfEmployee || 0).toFixed(2)}</td>
-                            <td className="border p-2 text-right text-sm">{Number(r.pfEmployer || 0).toFixed(2)}</td>
-                            <td className="border p-2 text-right text-sm">{Number(r.esiEmployee || 0).toFixed(2)}</td>
-                            <td className="border p-2 text-right text-sm">{Number(r.esiEmployer || 0).toFixed(2)}</td>
-                            <td className="border p-2 text-right text-sm">{Number(r.gratuityEmployer || 0).toFixed(2)}</td>
+                            <td className="border p-2 text-right">
+                              ₹{Number(r.baseAmount || 0).toFixed(2)}
+                            </td>
+                            <td className="border p-2 text-right">
+                              ₹{(Number(r.baseAmount || 0) * 12).toFixed(2)}
+                            </td>
                           </tr>
                         ))}
-                      </tbody>
-                      <tfoot className="bg-gray-100 font-semibold">
-                        <tr>
-                          <td className="border p-2 text-sm">Totals</td>
-                          <td className="border p-2"></td>
-                          <td className="border p-2"></td>
-                          <td className="border p-2 text-right text-sm">
-                            {calculatedRows.reduce((s, r) => s + Number(r.baseAmount || 0), 0).toFixed(2)}
+
+                        {/* ===== Gross Total ===== */}
+                        <tr className="bg-gray-100 font-semibold">
+                          <td className="border p-2">Gross Salary</td>
+                          <td className="border p-2 text-right">
+                            ₹
+                            {calculatedRows
+                              .reduce((s, r) => s + Number(r.baseAmount || 0), 0)
+                              .toFixed(2)}
                           </td>
-                          <td className="border p-2 text-right text-sm">
-                            {calculationTotals ? calculationTotals.totalMonthly.toFixed(2) : '0.00'}
-                          </td>
-                          <td className="border p-2 text-right text-sm">
-                            {calculationTotals ? calculationTotals.totalAnnual.toFixed(2) : '0.00'}
-                          </td>
-                          <td className="border p-2 text-right text-sm">
-                            {calculationTotals ? calculationTotals.totalPfEmployee.toFixed(2) : '0.00'}
-                          </td>
-                          <td className="border p-2 text-right text-sm">
-                            {calculationTotals ? calculationTotals.totalPfEmployer.toFixed(2) : '0.00'}
-                          </td>
-                          <td className="border p-2 text-right text-sm">
-                            {calculationTotals ? calculationTotals.totalEsiEmployee.toFixed(2) : '0.00'}
-                          </td>
-                          <td className="border p-2 text-right text-sm">
-                            {calculationTotals ? calculationTotals.totalEsiEmployer.toFixed(2) : '0.00'}
-                          </td>
-                          <td className="border p-2 text-right text-sm">
-                            {calculationTotals ? calculationTotals.totalGratuityEmployer.toFixed(2) : '0.00'}
+                          <td className="border p-2 text-right">
+                            ₹
+                            {(
+                              calculatedRows.reduce(
+                                (s, r) => s + Number(r.baseAmount || 0),
+                                0
+                              ) * 12
+                            ).toFixed(2)}
                           </td>
                         </tr>
-                      </tfoot>
+
+                        {/* ===== Employer Contributions ===== */}
+                        <tr>
+                          <td className="border p-2">Employer PF</td>
+                          <td className="border p-2 text-right">
+                            ₹{calculationTotals.totalPfEmployer.toFixed(2)}
+                          </td>
+                          <td className="border p-2 text-right">
+                            ₹{(calculationTotals.totalPfEmployer * 12).toFixed(2)}
+                          </td>
+                        </tr>
+
+                        <tr>
+                          <td className="border p-2">Employer ESI</td>
+                          <td className="border p-2 text-right">
+                            ₹{calculationTotals.totalEsiEmployer.toFixed(2)}
+                          </td>
+                          <td className="border p-2 text-right">
+                            ₹{(calculationTotals.totalEsiEmployer * 12).toFixed(2)}
+                          </td>
+                        </tr>
+
+                        <tr>
+                          <td className="border p-2">Gratuity</td>
+                          <td className="border p-2 text-right">
+                            ₹{calculationTotals.totalGratuityEmployer.toFixed(2)}
+                          </td>
+                          <td className="border p-2 text-right">
+                            ₹{(calculationTotals.totalGratuityEmployer * 12).toFixed(2)}
+                          </td>
+                        </tr>
+
+                        {/* ===== FINAL CTC ===== */}
+                        <tr className="bg-green-100 font-bold">
+                          <td className="border p-2">CTC</td>
+                          <td className="border p-2 text-right">
+                            ₹{calculationTotals.ctc.toFixed(2)}
+                          </td>
+                          <td className="border p-2 text-right">
+                            ₹{(calculationTotals.ctc * 12).toFixed(2)}
+                          </td>
+                        </tr>
+                      </tbody>
                     </table>
                   </div>
                 </div>
               )}
+
             </div>
           )}
 
@@ -1284,7 +1263,6 @@ const handleSubmit = async (e: React.FormEvent) => {
               Exit
             </button>
           </div>
-          <span className="text-red-500 text-sm">* Mandatory Fields for TDS</span>
         </div>
       </form>
     </div>

@@ -148,3 +148,44 @@
     scroll-behavior: smooth;
   }
 }
+/* =====================================
+   GLOBAL SHADCN CHECKBOX VISIBILITY FIX
+   ===================================== */
+
+   button[role="checkbox"] {
+    width: 1rem;
+    height: 1rem;
+    border-radius: 0.25rem;
+    border: 2px solid var(--border);
+    background-color: var(--background);
+    transition: all 0.15s ease-in-out;
+  }
+  
+  /* Checked state */
+  button[role="checkbox"][data-state="checked"] {
+    background-color: var(--primary);
+    border-color: var(--primary);
+  }
+  
+  /* Tick icon */
+  button[role="checkbox"] svg {
+    color: var(--primary-foreground);
+  }
+  
+  /* Hover */
+  button[role="checkbox"]:hover {
+    border-color: var(--primary);
+  }
+  
+  /* Focus (keyboard accessibility) */
+  button[role="checkbox"]:focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  
+  /* Dark mode fine-tuning */
+  .dark button[role="checkbox"] {
+    background-color: var(--card);
+    border-color: var(--border);
+  }
+  

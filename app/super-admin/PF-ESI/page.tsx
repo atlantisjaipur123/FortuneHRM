@@ -833,10 +833,7 @@ export default function PFESIRatesSetupPage() {
                   type="number"
                   value={gratuityForm.employerShare ?? ""}
                   onChange={(e) =>
-                    setGratuityForm({
-                      ...gratuityForm,
-                      employerShare: Number(e.target.value),
-                    })
+                    handleGratuityChange("employerShare", e.target.value)
                   }
                 />
 

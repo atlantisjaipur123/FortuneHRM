@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,DropdownMenuPortal  } from "@/components/ui/dropdown-menu";
 import { Eye, Edit, Ban, CheckCircle, MoreHorizontal } from "lucide-react";
 import { toast } from "@/components/ui/use-toast";
 
@@ -71,6 +71,9 @@ interface CompanyTableProps {
 
 export default function CompanyTable({ companies }: CompanyTableProps) {
   const [recentCompany, setRecentCompany] = useState<{ name: string } | null>(null);
+  const [actionCompany, setActionCompany] = useState<Company | null>(null);
+  const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
+
 
   useEffect(() => {
     const companyData = localStorage.getItem("companyData");
@@ -92,6 +95,7 @@ export default function CompanyTable({ companies }: CompanyTableProps) {
   }, []);
 
   return (
+    <>
     <Table>
       <TableHeader>
         <TableRow>
@@ -152,33 +156,68 @@ export default function CompanyTable({ companies }: CompanyTableProps) {
                   {company.status}
                 </Badge>
               </TableCell>
-              <TableCell className="text-right">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="h-8 w-8 p-0">
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
-                      <Eye className="mr-2 h-4 w-4" />
-                      View Details
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Edit className="mr-2 h-4 w-4" />
-                      Edit Company
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="text-destructive">
-                      <Ban className="mr-2 h-4 w-4" />
-                      {company.status === "active" ? "Suspend" : "Activate"}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+              <TableCell
+                className="text-right"
+                onClick={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+              >
+                <Button
+                  variant="ghost"
+                  className="h-8 w-8 p-0"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setActionCompany(company)
+                    setAnchorEl(e.currentTarget) // 👈 VERY IMPORTANT
+                  }}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+
               </TableCell>
             </TableRow>
           ))
         )}
       </TableBody>
     </Table>
+
+    <DropdownMenu
+      open={!!actionCompany}
+      onOpenChange={(open) => {
+        if (!open) {
+          setActionCompany(null)
+          setAnchorEl(null)
+        }
+      }}
+    >
+      <DropdownMenuTrigger asChild>
+        {/* anchor element */}
+        {anchorEl && <span ref={(el) => el ? el.replaceWith(anchorEl) : null} />}
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent
+        align="end"
+        sideOffset={8}
+        className="z-[9999]"
+      >
+        <DropdownMenuItem>
+          <Eye className="mr-2 h-4 w-4" />
+          View Details
+        </DropdownMenuItem>
+
+        <DropdownMenuItem>
+          <Edit className="mr-2 h-4 w-4" />
+          Edit Company
+        </DropdownMenuItem>
+
+        <DropdownMenuItem className="text-destructive">
+          <Ban className="mr-2 h-4 w-4" />
+          {actionCompany?.status === "active" ? "Suspend" : "Activate"}
+    </DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu>
+
+
+
+    </>
   );
 }
