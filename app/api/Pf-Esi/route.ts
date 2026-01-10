@@ -273,9 +273,26 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
-  const updateData: any = { ...updates, updatedBy: user.id };
+  const updateData: any = {
+    updatedBy: user.id,
+  };
+  
+  // ✅ FIX GRATUITY
+  if (updates.gratuityPercent !== undefined) {
+    updateData.gratuityPercent =
+      updates.gratuityPercent === ""
+        ? null
+        : Number(updates.gratuityPercent);
+  }
+  
+  if (updates.gratuityBase !== undefined) {
+    updateData.gratuityBase = updates.gratuityBase || null;
+  }
+  
+  // keep existing date handling
   if (updates.effectiveFrom) updateData.effectiveFrom = fromDate;
   if (updates.effectiveTo !== undefined) updateData.effectiveTo = toDate;
+  
 
   const rule = await prisma.pFESIRate.update({
     where: { id },

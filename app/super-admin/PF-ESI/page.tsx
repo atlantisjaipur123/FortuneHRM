@@ -105,7 +105,8 @@ interface PFRate {
 }
 interface GratuityRate {
   id: string;
-  employerShare: number;
+  gratuityPercent: number;
+  gratuityBase: string;
   effectiveDate: string;
   endDate: string;
   remarks: string;
@@ -133,13 +134,21 @@ const initialPFColumns: ColumnConfig[] = [
 ];
 const initialGratuityColumns: ColumnConfig[] = [
   {
-    key: "employerShare",
-    label: "Employer Share",
+    key: "gratuityPercent",
+    label: "Gratuity Percent",
     type: "percentage",
     defaultValue: 4.81,
     required: true,
   },
 ];
+type GratuityForm = {
+  gratuityPercent?: number;
+  gratuityBase?: string;
+  effectiveDate?: string;
+  endDate?: string;
+  remarks?: string;
+};
+
 
 
 
@@ -162,7 +171,7 @@ export default function PFESIRatesSetupPage() {
   const [newPFColumn, setNewPFColumn] = useState<{ label: string; type: "percentage" | "value" }>({ label: "", type: "percentage" });
 
   const [gratuityRates, setGratuityRates] = useState<GratuityRate[]>([]);
-  const [gratuityForm, setGratuityForm] = useState<Partial<GratuityRate>>({});
+  const [gratuityForm, setGratuityForm] = useState<GratuityForm>({});
   const [selectedGratuityRate, setSelectedGratuityRate] = useState<GratuityRate | null>(null);
   const [isEditingGratuity, setIsEditingGratuity] = useState(false);
 
@@ -183,20 +192,41 @@ export default function PFESIRatesSetupPage() {
     getPfEsiRulesClient("PF").then(setPFRates);
     getPfEsiRulesClient("GRATUITY").then(setGratuityRates);
   }, []);
-  const handleGratuityChange = (field: string, value: string | Date) => {
-    setGratuityForm({
-      ...gratuityForm,
-      [field]: typeof value === "string" ? value : formatDate(value),
-    });
+  const handleGratuityChange = (
+    field: keyof GratuityForm,
+    value: string | number | Date | null
+  ) => {
+    setGratuityForm((prev) => ({
+      ...prev,
+      [field]:
+        value instanceof Date
+          ? formatDate(value)
+          : typeof value === "string" || typeof value === "number"
+          ? value
+          : undefined,
+    }));
   };
+  
+  
   const handleGratuitySubmit = async () => {
+    if (!gratuityForm.gratuityPercent) {
+      alert("Gratuity percent is required");
+      return;
+    }
+  
+    if (!gratuityForm.effectiveDate) {
+      alert("Effective date is required");
+      return;
+    }
+  
     const payload = {
       rateType: "GRATUITY",
-      employerShare: gratuityForm.employerShare,
+      gratuityPercent: gratuityForm.gratuityPercent,
+      gratuityBase: gratuityForm.gratuityBase ?? "BASIC",
       effectiveFrom: gratuityForm.effectiveDate,
       effectiveTo: gratuityForm.endDate || null,
       remarks: gratuityForm.remarks,
-    };
+    };  
   
     if (isEditingGratuity && selectedGratuityRate) {
       await api.patch("/api/Pf-Esi", { id: selectedGratuityRate.id, ...payload });
@@ -402,13 +432,17 @@ export default function PFESIRatesSetupPage() {
   };
   const handleGratuityEdit = (rate: GratuityRate) => {
     setGratuityForm({
-      ...rate,
-      effectiveDate: rate.effectiveDate || "",
-      endDate: rate.endDate || "",
+      gratuityPercent: Number(rate.gratuityPercent),
+      gratuityBase: rate.gratuityBase,
+      effectiveDate: rate.effectiveDate,
+      endDate: rate.endDate,
+      remarks: rate.remarks,
     });
+  
     setSelectedGratuityRate(rate);
     setIsEditingGratuity(true);
   };
+  
   
   const handleGratuityDelete = async (id: string) => {
     if (!confirm("Delete gratuity rule?")) return;
@@ -544,9 +578,14 @@ export default function PFESIRatesSetupPage() {
                     const value = rate[col.key];
                     return (
                       <TableCell key={col.key} className="p-3 text-sm text-gray-600">
-                        {col.type === "percentage" 
-                          ? `${(Number(value) || 0).toFixed(2)}%` 
-                          : value !== undefined && value !== null ? String(value) : "-"}
+                        {col.type === "percentage"
+                          ? value !== undefined && value !== null
+                            ? `${Number(value).toFixed(2)}%`
+                            : "-"
+                          : value !== undefined && value !== null
+                            ? String(value)
+                            : "-"}
+
                       </TableCell>
                     );
                   })}
@@ -741,9 +780,14 @@ export default function PFESIRatesSetupPage() {
                     const value = rate[col.key];
                     return (
                       <TableCell key={col.key} className="p-3 text-sm text-gray-600">
-                        {col.type === "percentage" 
-                          ? `${(Number(value) || 0).toFixed(2)}%` 
-                          : value !== undefined && value !== null ? String(value) : "-"}
+                        {col.type === "percentage"
+                          ? value !== undefined && value !== null
+                            ? `${Number(value).toFixed(2)}%`
+                            : "-"
+                          : value !== undefined && value !== null
+                            ? String(value)
+                            : "-"}
+
                       </TableCell>
                     );
                   })}
@@ -831,11 +875,12 @@ export default function PFESIRatesSetupPage() {
                 <Label>{col.label} (%)</Label>
                 <Input
                   type="number"
-                  value={gratuityForm.employerShare ?? ""}
+                  value={gratuityForm.gratuityPercent ?? ""}
                   onChange={(e) =>
-                    handleGratuityChange("employerShare", e.target.value)
+                    handleGratuityChange("gratuityPercent", Number(e.target.value))
                   }
                 />
+
 
               </div>
             ))}
@@ -929,7 +974,10 @@ export default function PFESIRatesSetupPage() {
 
                   {gratuityColumns.map((col) => (
                     <TableCell key={col.key}>
-                      {(Number(rate[col.key]) || 0).toFixed(2)}%
+                      {rate[col.key] !== undefined && rate[col.key] !== null
+                        ? `${Number(rate[col.key]).toFixed(2)}%`
+                        : "-"}
+
                     </TableCell>
                   ))}
 
