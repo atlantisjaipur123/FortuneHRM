@@ -79,6 +79,19 @@ type CompanyExtended = Company & {
   tanRegNo?: string
   lwfRegNo?: string
   branchDivision?: string
+  paoRegNo?: string
+  epfCode?: string
+  pfCoverageDate?: string
+  esiNumber?: string
+  ptRegCert?: string
+  ptEnrCert?: string
+  leaveSetupType?: string
+  employeeListOrder?: string
+  showBranchName?: boolean
+  dontGeneratePF?: boolean
+  labourId?: string
+  companyType?: string
+  addressChangedEmployer?: boolean
 }
 
 interface SuperAdminDashboardClientProps {
@@ -172,6 +185,22 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
         lwfRegNo: formData.get("lwfRegNo") as string || undefined,
         branchDivision: formData.get("branchDivision") as string || undefined,
         status: formData.get("status") as string || "active",
+        // Missing EPF/ESI/PT fields
+        epfCode: formData.get("epfCode") as string || undefined,
+        pfCoverageDate: formData.get("pfCoverageDate") as string || undefined,
+        esiNumber: formData.get("esiNumber") as string || undefined,
+        ptRegCert: formData.get("ptRegCert") as string || undefined,
+        ptEnrCert: formData.get("ptEnrCert") as string || undefined,
+        // Missing Settings fields
+        leaveSetupType: formData.get("leaveSetupType") as string || undefined,
+        employeeListOrder: formData.get("employeeListOrder") as string || undefined,
+        showBranchName: formData.get("showBranchName") === "on" || formData.get("showBranchName") === "true",
+        dontGeneratePF: formData.get("dontGeneratePF") === "on" || formData.get("dontGeneratePF") === "true",
+        // Missing Additional Details fields
+        paoRegNo: formData.get("paoRegNo") as string || undefined,
+        labourId: formData.get("labourId") as string || undefined,
+        companyType: formData.get("companyType") as string || undefined,
+        addressChangedEmployer: formData.get("addressChangedEmployer") === "on" || formData.get("addressChangedEmployer") === "true",
         // Authorized Person fields
         apName: formData.get("apName") as string || undefined,
         apDob: formData.get("apDob") as string || undefined,
@@ -293,6 +322,22 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
         tanRegNo: formData.get("tanRegNo") as string || selectedCompany.tanRegNo || undefined,
         lwfRegNo: formData.get("lwfRegNo") as string || selectedCompany.lwfRegNo || undefined,
         branchDivision: formData.get("branchDivision") as string || selectedCompany.branchDivision || undefined,
+        // Missing EPF/ESI/PT fields
+        epfCode: formData.get("epfCode") as string || (selectedCompany as any).epfCode || undefined,
+        pfCoverageDate: formData.get("pfCoverageDate") as string || (selectedCompany as any).pfCoverageDate || undefined,
+        esiNumber: formData.get("esiNumber") as string || (selectedCompany as any).esiNumber || undefined,
+        ptRegCert: formData.get("ptRegCert") as string || (selectedCompany as any).ptRegCert || undefined,
+        ptEnrCert: formData.get("ptEnrCert") as string || (selectedCompany as any).ptEnrCert || undefined,
+        // Missing Settings fields
+        leaveSetupType: formData.get("leaveSetupType") as string || (selectedCompany as any).leaveSetupType || undefined,
+        employeeListOrder: formData.get("employeeListOrder") as string || (selectedCompany as any).employeeListOrder || undefined,
+        showBranchName: formData.get("showBranchName") === "on" || formData.get("showBranchName") === "true" || (selectedCompany as any).showBranchName,
+        dontGeneratePF: formData.get("dontGeneratePF") === "on" || formData.get("dontGeneratePF") === "true" || (selectedCompany as any).dontGeneratePF,
+        // Missing Additional Details fields
+        paoRegNo: formData.get("paoRegNo") as string || (selectedCompany as any).paoRegNo || undefined,
+        labourId: formData.get("labourId") as string || (selectedCompany as any).labourId || undefined,
+        companyType: formData.get("companyType") as string || (selectedCompany as any).companyType || undefined,
+        addressChangedEmployer: formData.get("addressChangedEmployer") === "on" || formData.get("addressChangedEmployer") === "true" || (selectedCompany as any).addressChangedEmployer,
         // Authorized Person fields
         apName: formData.get("apName") as string || formData.get("authorisedPersonName") as string || selectedCompany.apName || undefined,
         apDob: formData.get("apDob") as string || selectedCompany.apDob || undefined,
@@ -705,13 +750,13 @@ const handleConfirm = () => {
               </Card>
             </div>
 
-            <Card>
+            <Card className="overflow-visible">
               <CardHeader>
                 <CardTitle className="text-lg sm:text-xl">Registered Companies</CardTitle>
                 <CardDescription className="text-sm sm:text-base">Manage all companies registered on the platform</CardDescription>
               </CardHeader>
-              <CardContent className="overflow-visible">
-                <div className="flex flex-col sm:flex-row items-center py-1 sm:py-2 gap-2 sm:gap-4">
+              <CardContent className="p-6 overflow-visible">
+                <div className="flex flex-col sm:flex-row items-center py-1 sm:py-2 gap-2 sm:gap-4 mb-4">
                   <Input
                     placeholder="Search by name or admin..."
                     value={searchTerm}
@@ -721,8 +766,9 @@ const handleConfirm = () => {
                   <Button onClick={() => setIsCreateOpen(true)} className="w-full sm:w-auto text-xs sm:text-sm">Add New Company</Button>
                   <Button onClick={() => setIsCompanyMasterOpen(true)} className="w-full sm:w-auto text-xs sm:text-sm">Company Master</Button>
                 </div>
-                <div className="rounded-md border overflow-x-auto overflow-y-visible">
-                  <Table>
+                <div className="relative">
+                  <div className="rounded-md border overflow-x-auto">
+                    <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead className="min-w-[50px] sm:min-w-[80px]"><input type="checkbox" checked={selectedRows.size === filteredCompanies.length} onChange={handleSelectAll} /></TableHead>
@@ -762,7 +808,9 @@ const handleConfirm = () => {
                     <TableBody>
                       {filteredCompanies.length ? (
                         filteredCompanies.map((company, index) => (
-                          <TableRow key={company.id}>
+                          <TableRow 
+                            key={company.id}
+                          >
                             <TableCell className="min-w-[50px] sm:min-w-[80px]"><input type="checkbox" checked={selectedRows.has(company.id)} onChange={(e) => handleSelectRow(company.id, e)} /></TableCell>
                             <TableCell className="min-w-[50px] sm:min-w-[80px]">{index + 1}</TableCell>
                             <TableCell className="min-w-[80px] sm:min-w-[120px]">{company.id}</TableCell>
@@ -783,41 +831,61 @@ const handleConfirm = () => {
                             <TableCell className="min-w-[80px] sm:min-w-[100px]">
                               <Button variant="outline" size="sm" onClick={() => restoreCompany(company.id)} className="text-xs sm:text-sm">Restore</Button>
                             </TableCell>
-                            <TableCell className="min-w-[80px] sm:min-w-[100px]">
+                            <TableCell 
+                              className="min-w-[80px] sm:min-w-[100px] relative"
+                              onClick={(e) => e.stopPropagation()}
+                              onMouseDown={(e) => e.stopPropagation()}
+                            >
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button 
+                                    type="button"
                                     variant="ghost" 
-                                    className="h-6 w-6 sm:h-8 sm:w-8 p-0" 
-                                    onClick={(e) => e.stopPropagation()}
+                                    className="h-8 w-8 p-0 hover:bg-accent focus-visible:ring-0" 
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                    }}
                                   >
-                                    <MoreHorizontal className="h-3 w-3 sm:h-4 sm:w-4" />
+                                    <span className="sr-only">Open menu</span>
+                                    <MoreHorizontal className="h-4 w-4" />
                                   </Button>
                                 </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" sideOffset={5}>
+                                <DropdownMenuContent 
+                                  align="end" 
+                                  side="bottom"
+                                  alignOffset={-5}
+                                  sideOffset={8}
+                                  className="min-w-[160px]"
+                                >
                                   <DropdownMenuItem asChild>
-                                    <Link href={`/company/${company.id}`} className="text-xs sm:text-sm">
-                                      <Building2 className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> View Details
+                                    <Link 
+                                      href={`/company/${company.id}`} 
+                                      className="cursor-pointer flex items-center"
+                                      onClick={(e) => e.stopPropagation()}
+                                    >
+                                      <Building2 className="mr-2 h-4 w-4" /> View Details
                                     </Link>
                                   </DropdownMenuItem>
                                   <DropdownMenuItem 
+                                    className="cursor-pointer"
                                     onClick={(e) => {
+                                      e.preventDefault();
                                       e.stopPropagation();
                                       setSelectedCompany(company);
                                       setIsCompanyMasterOpen(true);
-                                    }} 
-                                    className="text-xs sm:text-sm"
+                                    }}
                                   >
-                                    <Pencil className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Edit
+                                    <Pencil className="mr-2 h-4 w-4" /> Edit
                                   </DropdownMenuItem>
                                   <DropdownMenuItem 
+                                    className="cursor-pointer text-destructive focus:text-destructive"
                                     onClick={(e) => {
+                                      e.preventDefault();
                                       e.stopPropagation();
                                       deleteCompany(company.id);
-                                    }} 
-                                    className="text-xs sm:text-sm"
+                                    }}
                                   >
-                                    <Trash2 className="mr-1 h-3 w-3 sm:mr-2 sm:h-4 sm:w-4" /> Delete
+                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
                                   </DropdownMenuItem>
                                 </DropdownMenuContent>
                               </DropdownMenu>
@@ -828,9 +896,10 @@ const handleConfirm = () => {
                         <TableRow><TableCell colSpan={13} className="h-16 sm:h-24 text-center text-xs sm:text-sm">No companies registered yet</TableCell></TableRow>
                       )}
                     </TableBody>
-                  </Table>
+                    </Table>
+                  </div>
                 </div>
-                {selectedRows.size > 0 && <div className="mt-1 sm:mt-2"><Badge className="text-xs sm:text-sm">{selectedRows.size} row(s) selected</Badge></div>}
+                {selectedRows.size > 0 && <div className="mt-2"><Badge className="text-xs sm:text-sm">{selectedRows.size} row(s) selected</Badge></div>}
               </CardContent>
             </Card>
           </div>
@@ -848,9 +917,8 @@ const handleConfirm = () => {
       <CompanyMasterDialog
         isOpen={isCompanyMasterOpen}
         onOpenChange={setIsCompanyMasterOpen}
-        selectedCompany={selectedCompany}
-        onUpdate={updateCompany}
-        error={error}
+        company={selectedCompany}
+        onSubmit={updateCompany}
       />
     </div>
   )

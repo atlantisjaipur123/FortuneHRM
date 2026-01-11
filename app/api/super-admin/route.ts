@@ -15,6 +15,21 @@ async function verifySuperAdmin() {
   return session
 }
 
+// Helper function to convert state name (from form) to StateCode enum
+function normalizeStateCode(state: string | undefined): StateCode {
+  if (!state) return StateCode.MAHARASHTRA
+  
+  // Convert spaces to underscores and uppercase for enum matching
+  const normalized = state.toUpperCase().replace(/\s+/g, "_").replace(/-/g, "_")
+  
+  // Check if it matches a valid enum value
+  const validState = Object.values(StateCode).find(
+    (code) => code === normalized || code === state.toUpperCase()
+  )
+  
+  return validState || StateCode.MAHARASHTRA
+}
+
 // ============================================================================
 // GET - List all companies with optional filters and stats
 // ============================================================================
@@ -153,7 +168,7 @@ export async function POST(request: NextRequest) {
       flat: body.flat || "",
       road: body.road || null,
       city: body.city || "",
-      state: (body.state as StateCode) || StateCode.MAHARASHTRA,
+      state: normalizeStateCode(body.state),
       pin: body.pin || "",
       stdCode: body.stdCode || null,
       phone: body.phone || null,
@@ -184,6 +199,29 @@ export async function POST(request: NextRequest) {
       defaultAttendance: body.defaultAttendance
         ? (body.defaultAttendance.toUpperCase().replace("-", "_") as DefaultAttendance)
         : DefaultAttendance.PRESENT,
+      // Missing fields from form - EPF/ESI/PT
+      epfCode: body.epfCode || null,
+      pfCoverageDate: body.pfCoverageDate ? new Date(body.pfCoverageDate) : null,
+      esiNumber: body.esiNumber || null,
+      ptRegCert: body.ptRegCert || null,
+      ptEnrCert: body.ptEnrCert || null,
+      // Missing fields - Settings
+      leaveSetupType: body.leaveSetupType
+        ? (body.leaveSetupType.toUpperCase().replace("-", "_") as LeaveSetupType)
+        : LeaveSetupType.FINANCIAL_YEAR,
+      employeeListOrder: body.employeeListOrder
+        ? (body.employeeListOrder.toUpperCase() as EmployeeListOrder)
+        : EmployeeListOrder.NAME,
+      showBranchName: body.showBranchName === true || body.showBranchName === "true" || false,
+      dontGeneratePF: body.dontGeneratePF === true || body.dontGeneratePF === "true" || false,
+      // Missing fields - Additional Details
+      paoRegNo: body.paoRegNo || null,
+      tdsCircle: body.tdsCircle || null,
+      labourId: body.labourId || null,
+      companyType: body.companyType
+        ? (body.companyType.toUpperCase() as CompanyType)
+        : null,
+      addressChangedEmployer: body.addressChangedEmployer === true || body.addressChangedEmployer === "true" || false,
       createdBy: session.id,
     }
 
@@ -343,7 +381,7 @@ export async function PUT(request: NextRequest) {
     if (body.flat !== undefined) updateData.flat = body.flat
     if (body.road !== undefined) updateData.road = body.road || null
     if (body.city !== undefined) updateData.city = body.city
-    if (body.state !== undefined) updateData.state = body.state as StateCode
+    if (body.state !== undefined) updateData.state = normalizeStateCode(body.state)
     if (body.pin !== undefined) updateData.pin = body.pin
     if (body.stdCode !== undefined) updateData.stdCode = body.stdCode || null
     if (body.phone !== undefined) updateData.phone = body.phone || null
@@ -389,6 +427,37 @@ export async function PUT(request: NextRequest) {
     }
     if (body.defaultAttendance !== undefined) {
       updateData.defaultAttendance = body.defaultAttendance.toUpperCase().replace("-", "_") as DefaultAttendance
+    }
+    // Missing fields from form - EPF/ESI/PT
+    if (body.epfCode !== undefined) updateData.epfCode = body.epfCode || null
+    if (body.pfCoverageDate !== undefined) {
+      updateData.pfCoverageDate = body.pfCoverageDate ? new Date(body.pfCoverageDate) : null
+    }
+    if (body.esiNumber !== undefined) updateData.esiNumber = body.esiNumber || null
+    if (body.ptRegCert !== undefined) updateData.ptRegCert = body.ptRegCert || null
+    if (body.ptEnrCert !== undefined) updateData.ptEnrCert = body.ptEnrCert || null
+    // Missing fields - Settings
+    if (body.leaveSetupType !== undefined) {
+      updateData.leaveSetupType = body.leaveSetupType.toUpperCase().replace("-", "_") as LeaveSetupType
+    }
+    if (body.employeeListOrder !== undefined) {
+      updateData.employeeListOrder = body.employeeListOrder.toUpperCase() as EmployeeListOrder
+    }
+    if (body.showBranchName !== undefined) {
+      updateData.showBranchName = body.showBranchName === true || body.showBranchName === "true"
+    }
+    if (body.dontGeneratePF !== undefined) {
+      updateData.dontGeneratePF = body.dontGeneratePF === true || body.dontGeneratePF === "true"
+    }
+    // Missing fields - Additional Details
+    if (body.paoRegNo !== undefined) updateData.paoRegNo = body.paoRegNo || null
+    if (body.tdsCircle !== undefined) updateData.tdsCircle = body.tdsCircle || null
+    if (body.labourId !== undefined) updateData.labourId = body.labourId || null
+    if (body.companyType !== undefined) {
+      updateData.companyType = body.companyType ? (body.companyType.toUpperCase() as CompanyType) : null
+    }
+    if (body.addressChangedEmployer !== undefined) {
+      updateData.addressChangedEmployer = body.addressChangedEmployer === true || body.addressChangedEmployer === "true"
     }
 
     // Prepare authorized person update data

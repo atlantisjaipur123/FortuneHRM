@@ -22,6 +22,25 @@ interface CompanyInformationFormProps {
   error: string | null
   title?: string
 }
+const FIELD_LIMITS: Record<string, number> = {
+  // Company
+  code: 50,        
+  pan: 10,         
+  tan: 10,         
+  cin: 21,         
+  gstin: 15,      
+  pin: 6,          
+  email: 255,      
+
+  
+  apName: 100,     
+  apDesignation: 100,
+  apPan: 10,
+  apPin: 6,
+  apEmail: 255,
+}
+
+
 
 export function CompanyInformationForm({ 
   isOpen, 
@@ -35,33 +54,54 @@ export function CompanyInformationForm({
   const [activeTab, setActiveTab] = useState("company-info")
 
 
-  const REQUIRED_FIELDS = [
-    "code",
-    "pan",
-    "tan",
-    "apName",
-    "apDesignation",
-    "apPan",
-  ]
+  const REQUIRED_FIELDS_BY_TAB: Record<string, string[]> = {
+    "company-info": ["code", "pan", "tan"],
+    "authorized-person": ["apName", "apDesignation", "apPan"],
+  }
+  
   
   const validateForm = (formData: FormData) => {
     const newErrors: Record<string, string> = {}
+    let firstErrorTab: string | null = null
   
-    REQUIRED_FIELDS.forEach((field) => {
-      const value = formData.get(field)
-      if (!value || String(value).trim() === "") {
-        newErrors[field] = "This field is required"
+    // 1️⃣ Mandatory check (tab-aware)
+    Object.entries(REQUIRED_FIELDS_BY_TAB).forEach(([tab, fields]) => {
+      fields.forEach((field) => {
+        const value = String(formData.get(field) || "").trim()
+  
+        if (!value) {
+          newErrors[field] = "This field is required"
+          if (!firstErrorTab) firstErrorTab = tab
+        }
+      })
+    })
+  
+    // 2️⃣ Max length check
+    Object.entries(FIELD_LIMITS).forEach(([field, max]) => {
+      const value = String(formData.get(field) || "").trim()
+      if (value && value.length > max) {
+        newErrors[field] = `Max ${max} characters allowed`
       }
     })
   
     setErrors(newErrors)
+  
+    // 🔥 Switch to tab with first error
+    if (firstErrorTab) {
+      setActiveTab(firstErrorTab)
+    }
+  
     return Object.keys(newErrors).length === 0
   }
+  
+  
+  
   
 
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
+  
     const formData = new FormData(e.currentTarget)
   
     if (!validateForm(formData)) {
@@ -69,14 +109,23 @@ export function CompanyInformationForm({
     }
   
     setIsSubmitting(true)
-    await onSubmit(formData)
-    setIsSubmitting(false)
+  
+    try {
+      await onSubmit(formData)
+    } catch (err) {
+      console.error("Submit failed:", err)
+      // ❗ do NOT close dialog
+      // ❗ do NOT reset form
+    } finally {
+      setIsSubmitting(false) // 🔥 THIS IS THE FIX
+    }
   }
+  
   
 
   return (
-    <Dialog  open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-6xl max-h-[95vh] overflow-hidden p-0">
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-6xl max-h-[95vh] overflow-hidden p-0" showCloseButton={false}>
         <DialogHeader className="p-6 pb-4 border-b">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-xl font-semibold">{title}</DialogTitle>
@@ -129,14 +178,29 @@ export function CompanyInformationForm({
                         <Input
                           id="code"
                           name="code"
-                          className={`bg-white h-10 ${errors.code ? "border-red-500 focus-visible:ring-red-500" : ""}`}
-                          onChange={() => setErrors((e) => ({ ...e, code: "" }))}
+                          maxLength={50} // 🔒 DB limit
+                          className={`bg-white h-10 ${
+                            errors.code ? "border-red-500 focus-visible:ring-red-500" : ""
+                          }`}
+                          onChange={(e) => {
+                            const value = e.target.value
+
+                            // Clear error only when value becomes valid
+                            if (value.trim() && value.length <= 50) {
+                              setErrors((prev) => ({ ...prev, code: "" }))
+                            }
+                          }}
                           onBlur={(e) => {
-                            if (!e.target.value.trim()) {
-                              setErrors((e) => ({ ...e, code: "This field is required" }))
+                            const value = e.target.value.trim()
+
+                            if (!value) {
+                              setErrors((prev) => ({ ...prev, code: "This field is required" }))
+                            } else if (value.length > 50) {
+                              setErrors((prev) => ({ ...prev, code: "Max 50 characters allowed" }))
                             }
                           }}
                         />
+
                         {errors.code && (
                           <p className="text-xs text-red-500 mt-1">{errors.code}</p>
                         )}
@@ -168,14 +232,29 @@ export function CompanyInformationForm({
                         <Input
                           id="pan"
                           name="pan"
-                          className={`bg-white h-10 ${errors.code ? "border-red-500 focus-visible:ring-red-500" : ""}`}
-                          onChange={() => setErrors((e) => ({ ...e, pan: "" }))}
+                          maxLength={10} // 🔒 DB + PAN rule
+                          className={`bg-white h-10 ${
+                            errors.pan ? "border-red-500 focus-visible:ring-red-500" : ""
+                          }`}
+                          onChange={(e) => {
+                            const value = e.target.value.toUpperCase()
+
+                            // Clear error only when valid length
+                            if (value.length === 10) {
+                              setErrors((prev) => ({ ...prev, pan: "" }))
+                            }
+                          }}
                           onBlur={(e) => {
-                            if (!e.target.value.trim()) {
-                              setErrors((e) => ({ ...e, pan: "This field is required" }))
+                            const value = e.target.value.trim()
+
+                            if (!value) {
+                              setErrors((prev) => ({ ...prev, pan: "This field is required" }))
+                            } else if (value.length !== 10) {
+                              setErrors((prev) => ({ ...prev, pan: "PAN must be exactly 10 characters" }))
                             }
                           }}
                         />
+
                         {errors.pan && (
                           <p className="text-xs text-red-500 mt-1">{errors.pan}</p>
                         )}
@@ -192,14 +271,28 @@ export function CompanyInformationForm({
                         <Input
                           id="tan"
                           name="tan"
-                          className={`bg-white h-10 ${errors.code ? "border-red-500 focus-visible:ring-red-500" : ""}`}
-                          onChange={() => setErrors((e) => ({ ...e, tan: "" }))}
+                          maxLength={10} // 🔒 DB limit
+                          className={`bg-white h-10 ${
+                            errors.tan ? "border-red-500 focus-visible:ring-red-500" : ""
+                          }`}
+                          onChange={(e) => {
+                            const value = e.target.value.toUpperCase()
+
+                            if (value.length === 10) {
+                              setErrors((prev) => ({ ...prev, tan: "" }))
+                            }
+                          }}
                           onBlur={(e) => {
-                            if (!e.target.value.trim()) {
-                              setErrors((e) => ({ ...e, tan: "This field is required" }))
+                            const value = e.target.value.trim()
+
+                            if (!value) {
+                              setErrors((prev) => ({ ...prev, tan: "This field is required" }))
+                            } else if (value.length !== 10) {
+                              setErrors((prev) => ({ ...prev, tan: "TAN must be exactly 10 characters" }))
                             }
                           }}
                         />
+
                         {errors.tan && (
                           <p className="text-xs text-red-500 mt-1">{errors.tan}</p>
                         )}
@@ -265,7 +358,33 @@ export function CompanyInformationForm({
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="cin" className="text-sm font-medium">CIN</Label>
-                        <Input id="cin" name="cin" className="bg-white h-10" />
+                        <Input
+                          id="cin"
+                          name="cin"
+                          maxLength={21} // 🔒 DB limit
+                          className={`bg-white h-10 ${
+                            errors.cin ? "border-red-500 focus-visible:ring-red-500" : ""
+                          }`}
+                          onChange={(e) => {
+                            const value = e.target.value.toUpperCase()
+
+                            // Clear error only when within limit
+                            if (value.length <= 21) {
+                              setErrors((prev) => ({ ...prev, cin: "" }))
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const value = e.target.value.trim()
+
+                            if (value && value.length > 21) {
+                              setErrors((prev) => ({
+                                ...prev,
+                                cin: "CIN can be maximum 21 characters",
+                              }))
+                            }
+                          }}
+                        />
+
                       </div>
                       
                       <div className="space-y-2">
@@ -275,11 +394,43 @@ export function CompanyInformationForm({
                             <SelectValue placeholder="Select State" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="maharashtra">Maharashtra</SelectItem>
-                            <SelectItem value="karnataka">Karnataka</SelectItem>
-                            <SelectItem value="tamilnadu">Tamil Nadu</SelectItem>
-                            <SelectItem value="gujarat">Gujarat</SelectItem>
-                            <SelectItem value="delhi">Delhi</SelectItem>
+                          <SelectItem value="ANDAMAN AND NICOBAR ISLANDS">ANDAMAN AND NICOBAR ISLANDS</SelectItem>
+                          <SelectItem value="ANDHRA PRADESH">ANDHRA PRADESH</SelectItem>
+                          <SelectItem value="ARUNACHAL PRADESH">ARUNACHAL PRADESH</SelectItem>
+                          <SelectItem value="ASSAM">ASSAM</SelectItem>
+                          <SelectItem value="BIHAR">BIHAR</SelectItem>
+                          <SelectItem value="CHANDIGARH">CHANDIGARH</SelectItem>
+                          <SelectItem value="CHHATTISGARH">CHHATTISGARH</SelectItem>
+                          <SelectItem value="DADRA AND NAGAR HAVELI AND DAMAN AND DIU">DADRA AND NAGAR HAVELI AND DAMAN AND DIU</SelectItem>
+                          <SelectItem value="DELHI">DELHI</SelectItem>
+                          <SelectItem value="GOA">GOA</SelectItem>
+                          <SelectItem value="GUJARAT">GUJARAT</SelectItem>
+                          <SelectItem value="HARYANA">HARYANA</SelectItem>
+                          <SelectItem value="HIMACHAL PRADESH">HIMACHAL PRADESH</SelectItem>
+                          <SelectItem value="JAMMU AND KASHMIR">JAMMU AND KASHMIR</SelectItem>
+                          <SelectItem value="JHARKHAND">JHARKHAND</SelectItem>
+                          <SelectItem value="KARNATAKA">KARNATAKA</SelectItem>
+                          <SelectItem value="KERALA">KERALA</SelectItem>
+                          <SelectItem value="LADAKH">LADAKH</SelectItem>
+                          <SelectItem value="LAKSHADWEEP">LAKSHADWEEP</SelectItem>
+                          <SelectItem value="MADHYA PRADESH">MADHYA PRADESH</SelectItem>
+                          <SelectItem value="MAHARASHTRA">MAHARASHTRA</SelectItem>
+                          <SelectItem value="MANIPUR">MANIPUR</SelectItem>
+                          <SelectItem value="MEGHALAYA">MEGHALAYA</SelectItem>
+                          <SelectItem value="MIZORAM">MIZORAM</SelectItem>
+                          <SelectItem value="NAGALAND">NAGALAND</SelectItem>
+                          <SelectItem value="ODISHA">ODISHA</SelectItem>
+                          <SelectItem value="PUDUCHERRY">PUDUCHERRY</SelectItem>
+                          <SelectItem value="PUNJAB">PUNJAB</SelectItem>
+                          <SelectItem value="RAJASTHAN">RAJASTHAN</SelectItem>
+                          <SelectItem value="SIKKIM">SIKKIM</SelectItem>
+                          <SelectItem value="TAMIL NADU">TAMIL NADU</SelectItem>
+                          <SelectItem value="TELANGANA">TELANGANA</SelectItem>
+                          <SelectItem value="TRIPURA">TRIPURA</SelectItem>
+                          <SelectItem value="UTTAR PRADESH">UTTAR PRADESH</SelectItem>
+                          <SelectItem value="UTTARAKHAND">UTTARAKHAND</SelectItem>
+                          <SelectItem value="WEST BENGAL">WEST BENGAL</SelectItem>
+                          <SelectItem value="OTHER">OTHER</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -371,14 +522,35 @@ export function CompanyInformationForm({
                         <Input
                           id="apName"
                           name="apName"
-                          className={`bg-white h-10 ${errors.apName ? "border-red-500 focus-visible:ring-red-500" : ""}`}
-                          onChange={() => setErrors((e) => ({ ...e, apName: "" }))}
+                          maxLength={50} // 🔒 DB / FIELD_LIMIT
+                          className={`bg-white h-10 ${
+                            errors.apName ? "border-red-500 focus-visible:ring-red-500" : ""
+                          }`}
+                          onChange={(e) => {
+                            const value = e.target.value
+
+                            // Clear error only when valid
+                            if (value.trim() && value.length <= 50) {
+                              setErrors((prev) => ({ ...prev, apName: "" }))
+                            }
+                          }}
                           onBlur={(e) => {
-                            if (!e.target.value.trim()) {
-                              setErrors((e) => ({ ...e, apName: "This field is required" }))
+                            const value = e.target.value.trim()
+
+                            if (!value) {
+                              setErrors((prev) => ({
+                                ...prev,
+                                apName: "This field is required",
+                              }))
+                            } else if (value.length > 50) {
+                              setErrors((prev) => ({
+                                ...prev,
+                                apName: "Max 50 characters allowed",
+                              }))
                             }
                           }}
                         />
+
                         {errors.apName && (
                           <p className="text-xs text-red-500 mt-1">{errors.apName}</p>
                         )}
@@ -457,14 +629,35 @@ export function CompanyInformationForm({
                         <Input
                           id="apDesignation"
                           name="apDesignation"
-                          className={`bg-white h-10 ${errors.apDesignation ? "border-red-500 focus-visible:ring-red-500" : ""}`}
-                          onChange={() => setErrors((e) => ({ ...e, apDesignation: "" }))}
+                          maxLength={50} // 🔒 FIELD_LIMIT
+                          className={`bg-white h-10 ${
+                            errors.apDesignation ? "border-red-500 focus-visible:ring-red-500" : ""
+                          }`}
+                          onChange={(e) => {
+                            const value = e.target.value
+
+                            // Clear error only when valid
+                            if (value.trim() && value.length <= 50) {
+                              setErrors((prev) => ({ ...prev, apDesignation: "" }))
+                            }
+                          }}
                           onBlur={(e) => {
-                            if (!e.target.value.trim()) {
-                              setErrors((e) => ({ ...e, apDesignation: "This field is required" }))
+                            const value = e.target.value.trim()
+
+                            if (!value) {
+                              setErrors((prev) => ({
+                                ...prev,
+                                apDesignation: "This field is required",
+                              }))
+                            } else if (value.length > 50) {
+                              setErrors((prev) => ({
+                                ...prev,
+                                apDesignation: "Max 50 characters allowed",
+                              }))
                             }
                           }}
                         />
+
                         {errors.apDesignation && (
                           <p className="text-xs text-red-500 mt-1">{errors.apDesignation}</p>
                         )}
@@ -503,14 +696,38 @@ export function CompanyInformationForm({
                         <Input
                           id="apPan"
                           name="apPan"
-                          className={`bg-white h-10 ${errors.apPan ? "border-red-500 focus-visible:ring-red-500" : ""}`}
-                          onChange={() => setErrors((e) => ({ ...e, apPan: "" }))}
+                          maxLength={10} // 🔒 PAN length
+                          className={`bg-white h-10 uppercase ${
+                            errors.apPan ? "border-red-500 focus-visible:ring-red-500" : ""
+                          }`}
+                          onChange={(e) => {
+                            const value = e.target.value.toUpperCase()
+
+                            // force uppercase in input
+                            e.target.value = value
+
+                            // clear error only if valid length
+                            if (value.length === 10) {
+                              setErrors((prev) => ({ ...prev, apPan: "" }))
+                            }
+                          }}
                           onBlur={(e) => {
-                            if (!e.target.value.trim()) {
-                              setErrors((e) => ({ ...e, apPan: "This field is required" }))
+                            const value = e.target.value.trim()
+
+                            if (!value) {
+                              setErrors((prev) => ({
+                                ...prev,
+                                apPan: "This field is required",
+                              }))
+                            } else if (value.length !== 10) {
+                              setErrors((prev) => ({
+                                ...prev,
+                                apPan: "PAN must be exactly 10 characters",
+                              }))
                             }
                           }}
                         />
+
                         {errors.apPan && (
                           <p className="text-xs text-red-500 mt-1">{errors.apPan}</p>
                         )}
@@ -521,7 +738,34 @@ export function CompanyInformationForm({
                       
                       <div className="space-y-2">
                         <Label htmlFor="apEmail" className="text-sm font-medium">E-Mail</Label>
-                        <Input id="apEmail" name="apEmail" type="email" className="bg-white h-10" />
+                        <Input
+                          id="apEmail"
+                          name="apEmail"
+                          type="email"
+                          maxLength={255} // 🔒 DB-safe
+                          className={`bg-white h-10 ${
+                            errors.apEmail ? "border-red-500 focus-visible:ring-red-500" : ""
+                          }`}
+                          onChange={(e) => {
+                            const value = e.target.value
+
+                            // clear error only when valid email or empty (optional field)
+                            if (!value || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+                              setErrors((prev) => ({ ...prev, apEmail: "" }))
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const value = e.target.value.trim()
+
+                            if (value && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+                              setErrors((prev) => ({
+                                ...prev,
+                                apEmail: "Enter a valid email address",
+                              }))
+                            }
+                          }}
+                        />
+
                       </div>
                     </div>
                   </div>
@@ -540,7 +784,33 @@ export function CompanyInformationForm({
                     <div className="space-y-4">
                       <div className="space-y-2">
                         <Label htmlFor="gstin" className="text-sm font-medium">GSTIN</Label>
-                        <Input id="gstin" name="gstin" className="bg-white h-10" />
+                        <Input
+                          id="gstin"
+                          name="gstin"
+                          maxLength={15} // 🔒 DB limit
+                          className={`bg-white h-10 ${
+                            errors.gstin ? "border-red-500 focus-visible:ring-red-500" : ""
+                          }`}
+                          onChange={(e) => {
+                            const value = e.target.value.toUpperCase()
+
+                            // Clear error only when valid length
+                            if (!value || value.length === 15) {
+                              setErrors((prev) => ({ ...prev, gstin: "" }))
+                            }
+                          }}
+                          onBlur={(e) => {
+                            const value = e.target.value.trim()
+
+                            if (value && value.length !== 15) {
+                              setErrors((prev) => ({
+                                ...prev,
+                                gstin: "GSTIN must be exactly 15 characters",
+                              }))
+                            }
+                          }}
+                        />
+
                       </div>
                       
                       <div className="space-y-2">
@@ -613,11 +883,43 @@ export function CompanyInformationForm({
                             <SelectValue placeholder="Select State" />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="maharashtra">Maharashtra</SelectItem>
-                            <SelectItem value="karnataka">Karnataka</SelectItem>
-                            <SelectItem value="tamilnadu">Tamil Nadu</SelectItem>
-                            <SelectItem value="gujarat">Gujarat</SelectItem>
-                            <SelectItem value="delhi">Delhi</SelectItem>
+                          <SelectItem value="ANDAMAN AND NICOBAR ISLANDS">ANDAMAN AND NICOBAR ISLANDS</SelectItem>
+                          <SelectItem value="ANDHRA PRADESH">ANDHRA PRADESH</SelectItem>
+                          <SelectItem value="ARUNACHAL PRADESH">ARUNACHAL PRADESH</SelectItem>
+                          <SelectItem value="ASSAM">ASSAM</SelectItem>
+                          <SelectItem value="BIHAR">BIHAR</SelectItem>
+                          <SelectItem value="CHANDIGARH">CHANDIGARH</SelectItem>
+                          <SelectItem value="CHHATTISGARH">CHHATTISGARH</SelectItem>
+                          <SelectItem value="DADRA AND NAGAR HAVELI AND DAMAN AND DIU">DADRA AND NAGAR HAVELI AND DAMAN AND DIU</SelectItem>
+                          <SelectItem value="DELHI">DELHI</SelectItem>
+                          <SelectItem value="GOA">GOA</SelectItem>
+                          <SelectItem value="GUJARAT">GUJARAT</SelectItem>
+                          <SelectItem value="HARYANA">HARYANA</SelectItem>
+                          <SelectItem value="HIMACHAL PRADESH">HIMACHAL PRADESH</SelectItem>
+                          <SelectItem value="JAMMU AND KASHMIR">JAMMU AND KASHMIR</SelectItem>
+                          <SelectItem value="JHARKHAND">JHARKHAND</SelectItem>
+                          <SelectItem value="KARNATAKA">KARNATAKA</SelectItem>
+                          <SelectItem value="KERALA">KERALA</SelectItem>
+                          <SelectItem value="LADAKH">LADAKH</SelectItem>
+                          <SelectItem value="LAKSHADWEEP">LAKSHADWEEP</SelectItem>
+                          <SelectItem value="MADHYA PRADESH">MADHYA PRADESH</SelectItem>
+                          <SelectItem value="MAHARASHTRA">MAHARASHTRA</SelectItem>
+                          <SelectItem value="MANIPUR">MANIPUR</SelectItem>
+                          <SelectItem value="MEGHALAYA">MEGHALAYA</SelectItem>
+                          <SelectItem value="MIZORAM">MIZORAM</SelectItem>
+                          <SelectItem value="NAGALAND">NAGALAND</SelectItem>
+                          <SelectItem value="ODISHA">ODISHA</SelectItem>
+                          <SelectItem value="PUDUCHERRY">PUDUCHERRY</SelectItem>
+                          <SelectItem value="PUNJAB">PUNJAB</SelectItem>
+                          <SelectItem value="RAJASTHAN">RAJASTHAN</SelectItem>
+                          <SelectItem value="SIKKIM">SIKKIM</SelectItem>
+                          <SelectItem value="TAMIL NADU">TAMIL NADU</SelectItem>
+                          <SelectItem value="TELANGANA">TELANGANA</SelectItem>
+                          <SelectItem value="TRIPURA">TRIPURA</SelectItem>
+                          <SelectItem value="UTTAR PRADESH">UTTAR PRADESH</SelectItem>
+                          <SelectItem value="UTTARAKHAND">UTTARAKHAND</SelectItem>
+                          <SelectItem value="WEST BENGAL">WEST BENGAL</SelectItem>
+                          <SelectItem value="OTHER">OTHER</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
