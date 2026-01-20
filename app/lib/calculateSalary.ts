@@ -98,6 +98,8 @@ export function calculateSalary({
   const selectedHeads = heads.filter(
     (h) => selectedHeadIds.includes(h.id) && h.systemCode !== "SPECIAL_ALLOWANCE"
   );
+  const hasOtherHeads = selectedHeads.length > 0;
+
 
   // Find Special Allowance head
   const specialAllowanceHead = heads.find(
@@ -177,10 +179,7 @@ export function calculateSalary({
         pfEmployer += (pfBase * pfRule.adminChargesAc10) / 100;
       }
     }
-
-    // ESI Calculation
-    // Note: ESI wage ceiling check will be done after all heads are calculated
-    // For now, calculate per head - we'll validate total gross later
+    
     if (applicableFor.ESI && esiRule?.isActive) {
       const esiWageCeiling = esiRule.esiWageCeiling || Infinity;
       
@@ -227,36 +226,40 @@ export function calculateSalary({
     });
   }
 
-  // Step 5: Calculate Special Allowance (balancing head)
-  const specialAllowanceAmount =
-  ctc - (salaryHeadsTotal + employerContributionTotal);
-  if (specialAllowanceAmount < 0) {
-    throw new Error(
-      `Invalid salary structure: Special Allowance became negative (${specialAllowanceAmount})`
-    );
-  }
-  
+ 
+const specialAllowanceAmount =
+ctc - (salaryHeadsTotal + employerContributionTotal);
+
+if (specialAllowanceAmount < 0) {
+throw new Error(
+  `Invalid salary structure: Special Allowance became negative (${specialAllowanceAmount})`
+);
+}
+
+const shouldIncludeSpecialAllowance =
+!hasOtherHeads ||
+(specialAllowanceHead &&
+  selectedHeadIds.includes(specialAllowanceHead.id));
+
+if (specialAllowanceHead && shouldIncludeSpecialAllowance) {
+rows.push({
+  id: specialAllowanceHead.id,
+  name: specialAllowanceHead.name,
+  type: specialAllowanceHead.fieldType,
+  formula: hasOtherHeads ? "Balance" : "100% of CTC",
+  baseAmount: specialAllowanceAmount,
+  monthly: specialAllowanceAmount,
+  annual: specialAllowanceAmount * 12,
+  pfEmployee: 0,
+  pfEmployer: 0,
+  esiEmployee: 0,
+  esiEmployer: 0,
+  gratuityEmployer: 0,
+  isSpecialAllowance: true,
+});
+}
 
   
-  if (specialAllowanceHead && selectedHeadIds.includes(specialAllowanceHead.id)) {
-    // Add Special Allowance row (insert at the end)
-    rows.push({
-      id: specialAllowanceHead.id,
-      name: specialAllowanceHead.name,
-      type: specialAllowanceHead.fieldType,
-      formula: "Balance",
-      baseAmount: specialAllowanceAmount,
-      monthly: specialAllowanceAmount,
-      annual: specialAllowanceAmount * 12,
-      pfEmployee: 0,
-      pfEmployer: 0,
-      esiEmployee: 0,
-      esiEmployer: 0,
-      gratuityEmployer: 0,
-      isSpecialAllowance: true,
-    });
-    
-  }
 
   // Step 6: Calculate totals and validate ESI
   const totalGross = rows.reduce((sum, r) => sum + r.baseAmount, 0);
@@ -324,18 +327,32 @@ export async function calculateEmployeeSalary({
   };
 }) {
   // 1️⃣ Fetch salary heads
-  const heads = await tx.salaryHead.findMany({
+  let effectiveHeadIds = salary.selectedHeadIds;
+
+// 🔹 If no heads selected → fallback to Special Allowance
+if (!effectiveHeadIds || effectiveHeadIds.length === 0) {
+  const specialAllowance = await tx.salaryHead.findFirst({
     where: {
       companyId,
-      id: { in: salary.selectedHeadIds },
+      systemCode: "SPECIAL_ALLOWANCE",
+      isSystem: true,
     },
   });
 
-  if (heads.length === 0) {
-    throw new Error("No salary heads selected");
+  if (!specialAllowance) {
+    throw new Error("Special Allowance head not found for company");
   }
 
-  // 2️⃣ Fetch PF / ESI rules
+  effectiveHeadIds = [specialAllowance.id];
+}
+
+// 🔹 Fetch effective heads
+const heads = await tx.salaryHead.findMany({
+  where: {
+    companyId,
+    id: { in: effectiveHeadIds },
+  },
+});
   const pfRule = await tx.pFESIRate.findFirst({
     where: { companyId, rateType: "PF", isActive: true },
     orderBy: { effectiveFrom: "desc" },
@@ -362,7 +379,7 @@ export async function calculateEmployeeSalary({
       isSystem: h.isSystem,
       systemCode: h.systemCode,
     })),
-    selectedHeadIds: salary.selectedHeadIds,
+    selectedHeadIds:effectiveHeadIds,
     pfRule: pfRule ? {
       empShareAc1: pfRule.empShareAc1,
       erShareAc2: pfRule.erShareAc2,

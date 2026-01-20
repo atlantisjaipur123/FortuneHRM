@@ -1,7 +1,3 @@
-// prisma/schema.prisma
-// Optimized HR ERP System Schema with Best Practices
-// Following scalability, performance, and maintainability principles
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,9 +8,969 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-// ============================================================================
-// ENUMS
-// ============================================================================
+model Company {
+  id                     String                   @id @default(cuid())
+  code                   String                   @unique @db.VarChar(50)
+  name                   String
+  serviceName            String?
+  status                 CompanyStatus            @default(ACTIVE)
+  visibility             CompanyVisibility        @default(PRIVATE)
+  startDate              DateTime?                @db.Date
+  endDate                DateTime?                @db.Date
+  dateOfStartingBusiness DateTime?                @db.Date
+  cin                    String?                  @db.VarChar(21)
+  pan                    String                   @unique(map: "company_pan_key") @db.VarChar(10)
+  tan                    String                   @unique(map: "company_tan_key") @db.VarChar(10)
+  gstin                  String?                  @unique(map: "company_gstin_key") @db.VarChar(15)
+  flat                   String
+  road                   String?
+  city                   String
+  state                  StateCode
+  pin                    String                   @db.VarChar(6)
+  stdCode                String?
+  phone                  String?
+  email                  String?                  @db.VarChar(255)
+  website                String?
+  pfRegionalOffice       String?
+  pensionCoverageDate    DateTime?                @db.Date
+  esiLocalOffice         String?
+  ptoCircleNo            String?
+  pfCoverageDate         DateTime?                @db.Date
+  esiNumber              String?
+  ptRegCert              String?
+  ptEnrCert              String?
+  lwfRegNo               String?
+  ddoCode                String?
+  ddoRegNo               String?
+  tanRegNo               String?
+  paoCode                String?
+  paoRegNo               String?
+  ain                    String?
+  tdsCircle              String?
+  ministryName           String?
+  ministryIfOthers       String?
+  labourId               String?
+  branchDivision         String
+  typeOfCompany          String?
+  natureOfCompany        String?
+  epfCode                String?
+  leaveSetupType         LeaveSetupType           @default(FINANCIAL_YEAR)
+  employeeListOrder      EmployeeListOrder        @default(NAME)
+  defaultAttendance      DefaultAttendance        @default(PRESENT)
+  showBranchName         Boolean                  @default(false)
+  dontGeneratePF         Boolean                  @default(false)
+  deductorType           DeductorType?
+  companyType            CompanyType?
+  addressChangedEmployer Boolean                  @default(false)
+  adminId                String?
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  deletedAt              DateTime?
+  archivedAt             DateTime?
+  createdBy              String?
+  updatedBy              String?
+  searchVector           Unsupported("tsvector")?
+  attendanceTypes        AttendanceTypeConfig[]
+  attendanceRecords      Attendance[]
+  authorizedPerson       AuthorizedPerson?
+  backups                Backup[]
+  branches               Branch[]
+  admin                  User?                    @relation("CompanyAdmin", fields: [adminId], references: [id])
+  departments            Department[]
+  designations           Designation[]
+  employeeCategories     EmployeeCategory[]
+  employees              Employee[]
+  grades                 Grade[]
+  leaveApplications      LeaveApplication[]
+  leaveTypes             LeaveTypeConfig[]
+  levels                 Level[]
+  payrollCycles          PayrollCycle[]
+  payrollRecords         PayrollRecord[]
+  pfEsiRates             PFESIRate[]
+  salaryHeads            SalaryHead[]
+  shiftRotations         ShiftRotation[]
+  shifts                 Shift[]
+  shortLeavePolicies     ShortLeavePolicy[]
+
+  @@unique([code, branchDivision])
+  @@index([code])
+  @@index([name])
+  @@index([pan])
+  @@index([tan])
+  @@index([gstin])
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([state])
+  @@index([branchDivision])
+  @@index([deletedAt])
+  @@index([createdAt])
+  @@index([adminId])
+  @@index([email])
+  @@index([status, deletedAt])
+  @@index([status, visibility])
+  @@index([companyType, status])
+  @@index([createdAt, status])
+  @@index([searchVector], type: Gin)
+  @@map("companies")
+}
+
+model AuthorizedPerson {
+  id             String    @id @default(cuid())
+  companyId      String    @unique
+  name           String
+  designation    String
+  fatherName     String?
+  dob            DateTime? @db.Date
+  gender         Gender    @default(MALE)
+  premise        String?
+  flat           String
+  road           String?
+  area           String?
+  city           String
+  state          String?
+  pin            String    @db.VarChar(6)
+  pan            String    @db.VarChar(10)
+  email          String?   @db.VarChar(255)
+  stdCode        String?
+  phone          String?
+  addressChanged Boolean   @default(false)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  createdBy      String?
+  updatedBy      String?
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([pan])
+  @@index([companyId])
+  @@index([email])
+  @@map("authorized_persons")
+}
+
+model Branch {
+  id           String     @id @default(cuid())
+  companyId    String
+  name         String
+  code         String     @db.VarChar(50)
+  isHeadOffice Boolean    @default(false)
+  flat         String?
+  road         String?
+  city         String?
+  state        StateCode?
+  pin          String?    @db.VarChar(6)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  createdBy    String?
+  updatedBy    String?
+  company      Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([code])
+  @@index([companyId, isHeadOffice])
+  @@map("branches")
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([companyId, name])
+  @@map("departments")
+}
+
+model Designation {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([companyId, name])
+  @@map("designations")
+}
+
+model EmployeeCategory {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("employee_categories")
+}
+
+model Level {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("levels")
+}
+
+model Grade {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("grades")
+}
+
+model AttendanceTypeConfig {
+  id        String   @id @default(cuid())
+  companyId String
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  createdBy String?
+  updatedBy String?
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@map("attendance_type_configs")
+}
+
+model SalaryHead {
+  id                  String               @id @default(cuid())
+  companyId           String
+  name                String
+  shortName           String?
+  form16Field         String?
+  fieldType           String
+  calcBase            String?
+  isPercentage        Boolean              @default(false)
+  value               Float?
+  applicableFor       Json?
+  percentageOf        String?
+  isSystem            Boolean              @default(false)
+  systemCode          String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  createdBy           String?
+  updatedBy           String?
+  employeeSalaryHeads EmployeeSalaryHead[]
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([companyId, name])
+  @@index([fieldType])
+  @@map("salary_heads")
+}
+
+model Employee {
+  id                       String                @id @default(cuid())
+  companyId                String
+  code                     String                @db.VarChar(20)
+  name                     String
+  fatherHusbandName        String?
+  pan                      String?               @db.VarChar(10)
+  aadhaar                  String?               @db.VarChar(12)
+  uan                      String?               @db.VarChar(12)
+  pfAcNo                   String?               @db.VarChar(30)
+  esiNo                    String?               @db.VarChar(20)
+  email                    String?               @db.VarChar(255)
+  nasscomRegNo             String?
+  gender                   Gender                @default(MALE)
+  maritalStatus            MaritalStatus         @default(UNMARRIED)
+  dob                      DateTime?             @db.Date
+  doj                      DateTime              @db.Date
+  dor                      DateTime?             @db.Date
+  dateOfMarriage           DateTime?             @db.Date
+  fathersName              String?
+  mothersName              String?
+  caste                    String?
+  bloodGroup               BloodGroup?
+  nationality              String?
+  religion                 Religion?
+  noOfDependent            Int?
+  spouse                   String?
+  photo                    String?
+  physicallyHandicap       String?
+  registeredInPmrpy        Boolean               @default(false)
+  emergencyContact         String?
+  emergencyPhone           String?
+  permanentAddressId       String?               @unique
+  correspondenceAddressId  String?               @unique
+  stdCode                  String?
+  phone                    String?
+  mobile                   String?
+  internalId               String?
+  scale                    String?
+  ptGroup                  String?
+  noticePeriodMonths       Int?
+  probationPeriodMonths    Int?
+  confirmationDate         DateTime?             @db.Date
+  resigLetterDate          DateTime?             @db.Date
+  resigDateLwd             DateTime?             @db.Date
+  resignationReason        String?
+  appraisalDate            DateTime?             @db.Date
+  commitmentCompletionDate DateTime?             @db.Date
+  dateOfDeath              DateTime?             @db.Date
+  identityMark             String?
+  reimbursementApplicable  Boolean               @default(false)
+  branch                   String?
+  department               String?
+  designation              String?
+  level                    String?
+  grade                    String?
+  category                 String?
+  attendanceType           String?
+  shiftId                  String?
+  bankName                 String?
+  bankBranch               String?
+  bankIfsc                 String?
+  bankAddress              String?
+  nameAsPerAc              String?
+  salaryAcNumber           String?
+  paymentMode              PaymentMode?          @default(TRANSFER)
+  acType                   AccountType?          @default(ECS)
+  bankRefNo                String?
+  wardCircleRange          String?
+  licPolicyNo              String?
+  policyTerm               String?
+  licId                    String?
+  annualRenewableDate      DateTime?             @db.Date
+  hraApplicable            Boolean               @default(false)
+  bonusApplicable          Boolean               @default(false)
+  gratuityApplicable       Boolean               @default(false)
+  lwfApplicable            Boolean               @default(false)
+  pfApplicable             Boolean               @default(false)
+  pfJoiningDate            DateTime?             @db.Date
+  pfLastDate               DateTime?             @db.Date
+  previousPfNo             String?
+  salaryForPfOption        String?
+  salaryForPf              Float?
+  minAmtPf                 Float?
+  pensionAppl              Boolean               @default(false)
+  pensionJoiningDate       DateTime?             @db.Date
+  pensionOnHigherWages     Boolean               @default(false)
+  noLimit                  Boolean               @default(false)
+  esiApplicable            Boolean               @default(false)
+  esiJoiningDate           DateTime?             @db.Date
+  esiLastDate              DateTime?             @db.Date
+  salaryForEsiOption       String?
+  salaryForEsi             Float?
+  minAmtEsiContribution    Float?
+  dispensaryOrPanel        String?
+  recruitmentAgency        String?
+  bankMandate              String?
+  employmentStatus         EmployeeStatus        @default(ACTIVE)
+  lapTops                  String?
+  companyVehicle           String?
+  corpCreditCardNo         String?
+  transportRoute           String?
+  workLocation             String?
+  reasonForLeaving         String?
+  service                  String?
+  remarks                  String?
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+  deletedAt                DateTime?
+  createdBy                String?
+  updatedBy                String?
+  attendanceRecords        Attendance[]
+  assets                   CompanyAsset[]
+  salaryConfig             EmployeeSalaryConfig?
+  salaryBreakdown          EmployeeSalaryHead[]
+  company                  Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  correspondenceAddress    Address?              @relation("CorrespondenceAddress", fields: [correspondenceAddressId], references: [id])
+  permanentAddress         Address?              @relation("PermanentAddress", fields: [permanentAddressId], references: [id])
+  shift                    Shift?                @relation(fields: [shiftId], references: [id])
+  experiences              Experience[]
+  familyMembers            FamilyMember[]
+  leaveApplications        LeaveApplication[]
+  nominees                 Nominee[]
+  payrollRecords           PayrollRecord[]
+  qualifications           Qualification[]
+  witnesses                Witness[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
+  @@index([pan])
+  @@index([uan])
+  @@index([esiNo])
+  @@index([aadhaar])
+  @@index([email])
+  @@index([doj])
+  @@index([dor])
+  @@index([department])
+  @@index([designation])
+  @@index([branch])
+  @@index([category])
+  @@index([level])
+  @@index([grade])
+  @@index([attendanceType])
+  @@index([employmentStatus])
+  @@index([deletedAt])
+  @@index([shiftId])
+  @@index([companyId, deletedAt])
+  @@index([companyId, employmentStatus])
+  @@index([companyId, department])
+  @@index([companyId, designation])
+  @@index([companyId, branch])
+  @@index([companyId, category])
+  @@index([department, employmentStatus])
+  @@index([doj, employmentStatus])
+  @@index([companyId, doj])
+  @@index([companyId, shiftId])
+  @@map("employees")
+}
+
+model EmployeeSalaryConfig {
+  id                   String   @id @default(cuid())
+  companyId            String
+  employeeId           String   @unique
+  salaryMode           String
+  inputAmount          Float
+  grossSalary          Float
+  netSalary            Float
+  annualCtc            Float
+  pfRuleSnapshot       Json
+  esiRuleSnapshot      Json
+  gratuityRuleSnapshot Json
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  employee             Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@map("employee_salary_configs")
+}
+
+model Address {
+  id                       String     @id @default(cuid())
+  permanentEmployeeId      String?    @unique
+  correspondenceEmployeeId String?    @unique
+  flat                     String?
+  building                 String?
+  area                     String?
+  road                     String?
+  city                     String?
+  district                 String?
+  state                    StateCode?
+  pin                      String?    @db.VarChar(6)
+  createdAt                DateTime   @default(now())
+  updatedAt                DateTime   @updatedAt
+  correspondenceEmployee   Employee?  @relation("CorrespondenceAddress")
+  permanentEmployee        Employee?  @relation("PermanentAddress")
+
+  @@index([state])
+  @@index([city])
+  @@index([pin])
+  @@map("addresses")
+}
+
+model Qualification {
+  id           String   @id @default(cuid())
+  employeeId   String
+  college      String?
+  degree       String?
+  subject      String?
+  fromYear     Int?
+  toYear       Int?
+  year         String?
+  cgpa         String?
+  percentage   String?
+  regNo        String?
+  validityYear Int?
+  certificate  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([employeeId, fromYear])
+  @@map("qualifications")
+}
+
+model Experience {
+  id          String   @id @default(cuid())
+  employeeId  String
+  companyName String
+  location    String?
+  designation String
+  from        DateTime @db.Date
+  to          DateTime @db.Date
+  remark      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([employeeId, from])
+  @@map("experiences")
+}
+
+model FamilyMember {
+  id           String   @id @default(cuid())
+  employeeId   String
+  name         String
+  relationship String
+  dobAge       String?
+  residingWith Boolean  @default(true)
+  address      String?
+  district     String?
+  state        String?
+  aadhar       String?
+  remark       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@index([employeeId, relationship])
+  @@map("family_members")
+}
+
+model Nominee {
+  id            String         @id @default(cuid())
+  employeeId    String
+  name          String
+  relationship  String
+  dobAge        String?
+  address       String?
+  district      String?
+  state         String?
+  pin           String?
+  gratuityShare Float?
+  maritalStatus MaritalStatus?
+  remark        String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  employee      Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("nominees")
+}
+
+model Witness {
+  id         String   @id @default(cuid())
+  employeeId String
+  name       String
+  address    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("witnesses")
+}
+
+model CompanyAsset {
+  id         String   @id @default(cuid())
+  employeeId String
+  particular String
+  remark     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  createdBy  String?
+  updatedBy  String?
+  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId])
+  @@map("company_assets")
+}
+
+model EmployeeSalaryHead {
+  id               String     @id @default(cuid())
+  companyId        String
+  employeeId       String
+  salaryHeadId     String
+  headName         String
+  headType         String
+  baseAmount       Float
+  netAmount        Float
+  pfEmployee       Float      @default(0)
+  pfEmployer       Float      @default(0)
+  esiEmployee      Float      @default(0)
+  esiEmployer      Float      @default(0)
+  gratuityEmployer Float      @default(0)
+  createdAt        DateTime   @default(now())
+  employee         Employee   @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  salaryHead       SalaryHead @relation(fields: [salaryHeadId], references: [id])
+
+  @@index([salaryHeadId])
+  @@index([employeeId])
+  @@index([companyId])
+  @@map("employee_salary_heads")
+}
+
+model Attendance {
+  id            String           @id @default(cuid())
+  companyId     String
+  employeeId    String
+  date          DateTime         @db.Date
+  checkIn       DateTime?
+  checkOut      DateTime?
+  breakStart    DateTime?
+  breakEnd      DateTime?
+  status        AttendanceStatus @default(PRESENT)
+  workingHours  Float?           @default(0)
+  overtimeHours Float?           @default(0)
+  notes         String?
+  location      String?
+  shiftId       String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  createdBy     String?
+  updatedBy     String?
+  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee      Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  shift         Shift?           @relation(fields: [shiftId], references: [id])
+
+  @@unique([employeeId, date])
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([date])
+  @@index([status])
+  @@index([companyId, date])
+  @@index([employeeId, date])
+  @@index([companyId, employeeId, date])
+  @@index([companyId, status, date])
+  @@index([shiftId])
+  @@map("attendances")
+}
+
+model LeaveTypeConfig {
+  id                String             @id @default(cuid())
+  companyId         String
+  name              String
+  code              String?
+  type              LeaveType          @default(FULL_DAY)
+  payConsume        Boolean            @default(true)
+  allowApply        Boolean            @default(true)
+  halfDay           Boolean            @default(false)
+  accrueRule        String?
+  fixedDays         Int?
+  fixedPeriod       String?
+  plPer             Float?
+  plBasis           String?
+  minAttendance     Int?
+  maxPerMonth       Int?
+  availedFrom       String?
+  autoAllot         Boolean            @default(false)
+  restrictDays      Int?
+  mandatoryDocDays  Int?
+  allowEncash       Boolean            @default(false)
+  minEncash         Int?
+  maxEncash         Int?
+  cfOption          String?
+  cfMaxLimit        Int?
+  totalPerYear      Int?
+  isActive          Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  createdBy         String?
+  updatedBy         String?
+  leaveApplications LeaveApplication[]
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([companyId, isActive])
+  @@map("leave_type_configs")
+}
+
+model LeaveApplication {
+  id              String          @id @default(cuid())
+  companyId       String
+  employeeId      String
+  leaveTypeId     String
+  startDate       DateTime        @db.Date
+  endDate         DateTime        @db.Date
+  days            Float
+  type            LeaveType       @default(FULL_DAY)
+  status          LeaveStatus     @default(PENDING)
+  reason          String?
+  appliedDate     DateTime        @default(now())
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectedBy      String?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  documents       Json?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  createdBy       String?
+  updatedBy       String?
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee        Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType       LeaveTypeConfig @relation(fields: [leaveTypeId], references: [id])
+
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([leaveTypeId])
+  @@index([status])
+  @@index([startDate])
+  @@index([endDate])
+  @@index([companyId, employeeId])
+  @@index([companyId, status])
+  @@index([employeeId, status])
+  @@index([employeeId, startDate, endDate])
+  @@index([companyId, startDate, endDate])
+  @@map("leave_applications")
+}
+
+model Shift {
+  id                  String          @id @default(cuid())
+  companyId           String
+  name                String
+  code                String?
+  startTime           String
+  endTime             String
+  breakDuration       Int?
+  workingHours        Float?
+  shiftType           ShiftType       @default(FIXED)
+  checkInAllowedFrom  Int?
+  checkOutAllowedFrom Int?
+  isActive            Boolean         @default(true)
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  createdBy           String?
+  updatedBy           String?
+  attendanceRecords   Attendance[]
+  employees           Employee[]
+  shiftRotations      ShiftRotation[]
+  company             Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([companyId, isActive])
+  @@map("shifts")
+}
+
+model ShiftRotation {
+  id              String    @id @default(cuid())
+  companyId       String
+  shiftId         String
+  employeeId      String?
+  department      String?
+  startDate       DateTime  @db.Date
+  endDate         DateTime? @db.Date
+  rotationPattern Json?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  createdBy       String?
+  updatedBy       String?
+  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  shift           Shift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([shiftId])
+  @@index([employeeId])
+  @@index([companyId, startDate, endDate])
+  @@map("shift_rotations")
+}
+
+model PayrollCycle {
+  id             String          @id @default(cuid())
+  companyId      String
+  cycleType      String
+  startDate      DateTime        @db.Date
+  endDate        DateTime        @db.Date
+  isActive       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  createdBy      String?
+  updatedBy      String?
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  payrollRecords PayrollRecord[]
+
+  @@index([companyId])
+  @@index([cycleType])
+  @@index([startDate, endDate])
+  @@index([companyId, cycleType])
+  @@index([companyId, isActive])
+  @@map("payroll_cycles")
+}
+
+model PayrollRecord {
+  id                  String        @id @default(cuid())
+  companyId           String
+  employeeId          String
+  payrollCycleId      String?
+  month               Int
+  year                Int
+  basicSalary         Float
+  hra                 Float         @default(0)
+  conveyanceAllowance Float         @default(0)
+  medicalAllowance    Float         @default(0)
+  specialAllowance    Float         @default(0)
+  grossSalary         Float
+  providentFund       Float         @default(0)
+  esi                 Float         @default(0)
+  professionalTax     Float         @default(0)
+  incomeTax           Float         @default(0)
+  otherDeductions     Float         @default(0)
+  totalDeductions     Float
+  netSalary           Float
+  workingDays         Int
+  presentDays         Int
+  leaveDays           Int           @default(0)
+  overtimeHours       Float         @default(0)
+  overtimeAmount      Float         @default(0)
+  lateDeduction       Float         @default(0)
+  status              PayrollStatus @default(DRAFT)
+  processedAt         DateTime?
+  paidAt              DateTime?
+  remarks             String?
+  metadata            Json?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  createdBy           String?
+  updatedBy           String?
+  company             Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee            Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  payrollCycle        PayrollCycle? @relation(fields: [payrollCycleId], references: [id])
+
+  @@unique([employeeId, month, year])
+  @@index([companyId])
+  @@index([employeeId])
+  @@index([payrollCycleId])
+  @@index([month, year])
+  @@index([status])
+  @@index([companyId, month, year])
+  @@index([employeeId, month, year])
+  @@index([companyId, status])
+  @@map("payroll_records")
+}
+
+model PFESIRate {
+  id                 String        @id @default(cuid())
+  companyId          String
+  rateType           StatutoryType
+  gratuityPercent    Float?
+  gratuityBase       String?
+  empShare           Float?
+  employerShare      Float?
+  esiWageCeiling     Float?
+  empShareAc1        Float?
+  erShareAc2         Float?
+  adminChargesAc10   Float?
+  epsAc21            Float?
+  edliChargesAc21    Float?
+  adminChargesAc22   Float?
+  calcType           String?
+  pfWageCeiling      Float?
+  epsWageCeiling     Float?
+  minEpsContribution Float?
+  effectiveFrom      DateTime      @db.Date
+  effectiveTo        DateTime?     @db.Date
+  remarks            String?
+  isActive           Boolean       @default(true)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  createdBy          String?
+  updatedBy          String?
+  company            Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([rateType])
+  @@index([effectiveFrom, effectiveTo])
+  @@index([companyId, rateType])
+  @@index([companyId, isActive])
+  @@index([companyId, effectiveFrom])
+  @@map("pf_esi_rates")
+}
+
+model ShortLeavePolicy {
+  id                   String   @id @default(cuid())
+  companyId            String
+  name                 String
+  applicableOn         String?
+  totalHours           Int      @default(2)
+  totalMinutes         Int      @default(0)
+  minHours             Int      @default(1)
+  minMinutes           Int      @default(0)
+  maxHours             Int      @default(1)
+  maxMinutes           Int      @default(0)
+  deductBalance        Boolean  @default(true)
+  allowBackdated       Boolean  @default(true)
+  advanceApplicability String?
+  status               String   @default("Active")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  createdBy            String?
+  updatedBy            String?
+  company              Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId])
+  @@index([companyId, status])
+  @@map("short_leave_policies")
+}
+
+model User {
+  id          String    @id @default(cuid())
+  name        String?
+  email       String    @unique
+  role        String    @default("USER")
+  password    String?
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+  companies   Company[] @relation("CompanyAdmin")
+
+  @@index([email])
+  @@index([role])
+  @@index([isActive])
+  @@index([email, isActive])
+  @@map("users")
+}
+
+model Backup {
+  id          String   @id @default(cuid())
+  companyId   String
+  version     String
+  filePath    String?
+  fileUrl     String?
+  sizeInBytes BigInt?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  createdBy   String?
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId])
+  @@index([createdAt])
+  @@index([companyId, createdAt])
+  @@map("backups")
+}
+
 enum StatutoryType {
   PF
   ESI
@@ -208,1062 +1164,4 @@ enum ShiftType {
   FLEXIBLE
 
   @@map("shift_type")
-}
-
-// ============================================================================
-// CORE MODELS
-// ============================================================================
-
-model Company {
-  id                     String            @id @default(cuid())
-  code                   String            @unique @db.VarChar(50)
-  name                   String
-  serviceName            String?
-  status                 CompanyStatus     @default(ACTIVE)
-  visibility             CompanyVisibility @default(PRIVATE)
-  startDate              DateTime?         @db.Date
-  endDate                DateTime?         @db.Date
-  dateOfStartingBusiness DateTime?         @db.Date
-  cin                    String?           @db.VarChar(21)
-  pan                    String            @db.VarChar(10)
-  tan                    String            @db.VarChar(10)
-  gstin                  String?           @db.VarChar(15)
-  flat                   String
-  road                   String?
-  city                   String
-  state                  StateCode
-  pin                    String            @db.VarChar(6)
-  stdCode                String?
-  phone                  String?
-  email                  String?           @db.VarChar(255)
-  website                String?
-  pfRegionalOffice       String?
-  pensionCoverageDate    DateTime?         @db.Date
-  esiLocalOffice         String?
-  ptoCircleNo            String?
-  pfCoverageDate         DateTime?         @db.Date
-  esiNumber              String?
-  ptRegCert              String?
-  ptEnrCert              String?
-  lwfRegNo               String?
-  ddoCode                String?
-  ddoRegNo               String?
-  tanRegNo               String?
-  paoCode                String?
-  paoRegNo               String?
-  ain                    String?
-  tdsCircle              String?
-  ministryName           String?
-  ministryIfOthers       String?
-  labourId               String?
-  branchDivision         String
-  typeOfCompany          String?
-  natureOfCompany        String?
-  epfCode                String?
-  leaveSetupType         LeaveSetupType    @default(FINANCIAL_YEAR)
-  employeeListOrder      EmployeeListOrder @default(NAME)
-  defaultAttendance      DefaultAttendance @default(PRESENT)
-  showBranchName         Boolean           @default(false)
-  dontGeneratePF         Boolean           @default(false)
-  deductorType           DeductorType?
-  companyType            CompanyType?
-  addressChangedEmployer Boolean           @default(false)
-
-  // Relations
-  authorizedPerson   AuthorizedPerson?
-  branches           Branch[]
-  departments        Department[]
-  designations       Designation[]
-  employeeCategories EmployeeCategory[]
-  levels             Level[]
-  grades             Grade[]
-  attendanceTypes    AttendanceTypeConfig[]
-
-  salaryHeads        SalaryHead[]
-  employees          Employee[]
-  backups            Backup[]
-  attendanceRecords  Attendance[]
-  leaveApplications  LeaveApplication[]
-  leaveTypes         LeaveTypeConfig[]
-  shifts             Shift[]
-  payrollCycles      PayrollCycle[]
-  payrollRecords     PayrollRecord[]
-  pfEsiRates         PFESIRate[]
-  shiftRotations     ShiftRotation[]
-  shortLeavePolicies ShortLeavePolicy[]
-  admin              User?              @relation("CompanyAdmin", fields: [adminId], references: [id])
-  adminId            String?
-
-  // Audit fields
-  createdAt    DateTime                 @default(now())
-  updatedAt    DateTime                 @updatedAt
-  deletedAt    DateTime?
-  archivedAt   DateTime?
-  createdBy    String?
-  updatedBy    String?
-  searchVector Unsupported("tsvector")?
-
-  // Unique constraints
-  @@unique([code, branchDivision])
-  @@unique([pan], map: "company_pan_key")
-  @@unique([tan], map: "company_tan_key")
-  @@unique([gstin], map: "company_gstin_key")
-  // Indexes - Single column
-  @@index([code])
-  @@index([name])
-  @@index([pan])
-  @@index([tan])
-  @@index([gstin])
-  @@index([status])
-  @@index([startDate])
-  @@index([endDate])
-  @@index([state])
-  @@index([branchDivision])
-  @@index([deletedAt])
-  @@index([createdAt])
-  @@index([adminId])
-  @@index([email])
-  // Composite indexes for common queries
-  @@index([status, deletedAt])
-  @@index([status, visibility])
-  @@index([companyType, status])
-  @@index([createdAt, status])
-  // Full-text search
-  @@index([searchVector], type: Gin)
-  @@map("companies")
-}
-
-model AuthorizedPerson {
-  id             String    @id @default(cuid())
-  companyId      String    @unique
-  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name           String
-  designation    String
-  fatherName     String?
-  dob            DateTime? @db.Date
-  gender         Gender    @default(MALE)
-  premise        String?
-  flat           String
-  road           String?
-  area           String?
-  city           String
-  state          String?
-  pin            String    @db.VarChar(6)
-  pan            String    @db.VarChar(10)
-  email          String?   @db.VarChar(255)
-  stdCode        String?
-  phone          String?
-  addressChanged Boolean   @default(false)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  createdBy      String?
-  updatedBy      String?
-
-  @@index([pan])
-  @@index([companyId])
-  @@index([email])
-  @@map("authorized_persons")
-}
-
-model Branch {
-  id           String     @id @default(cuid())
-  companyId    String
-  company      Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name         String
-  code         String     @db.VarChar(50)
-  isHeadOffice Boolean    @default(false)
-  flat         String?
-  road         String?
-  city         String?
-  state        StateCode?
-  pin          String?    @db.VarChar(6)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-  createdBy    String?
-  updatedBy    String?
-
-  @@unique([companyId, code])
-  @@index([companyId])
-  @@index([code])
-  @@index([companyId, isHeadOffice])
-  @@map("branches")
-}
-
-model Department {
-  id        String   @id @default(cuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
-
-  @@unique([companyId, name])
-  @@index([companyId])
-  @@index([companyId, name])
-  @@map("departments")
-}
-
-model Designation {
-  id        String   @id @default(cuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
-
-  @@unique([companyId, name])
-  @@index([companyId])
-  @@index([companyId, name])
-  @@map("designations")
-}
-
-model EmployeeCategory {
-  id        String  @id @default(cuid())
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  name String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
-
-  @@unique([companyId, name])
-  @@index([companyId])
-  @@map("employee_categories")
-}
-
-model Level {
-  id        String  @id @default(cuid())
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  name String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
-
-  @@unique([companyId, name])
-  @@index([companyId])
-  @@map("levels")
-}
-
-model Grade {
-  id        String  @id @default(cuid())
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  name String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
-
-  @@unique([companyId, name])
-  @@index([companyId])
-  @@map("grades")
-}
-
-model AttendanceTypeConfig {
-  id        String  @id @default(cuid())
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  name String
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
-
-  @@unique([companyId, name])
-  @@index([companyId])
-  @@map("attendance_type_configs")
-}
-
-model SalaryHead {
-  id            String   @id @default(cuid())
-  companyId     String
-  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name          String
-  shortName     String?
-  form16Field   String?
-  fieldType     String // "EARNING" | "DEDUCTION"
-  calcBase      String? // "CTC" | "GROSS" | "BASIC"
-  isPercentage  Boolean  @default(false)
-  value         Float?
-  applicableFor Json?
-  percentageOf  String?
-  isSystem      Boolean  @default(false)
-  systemCode    String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  createdBy     String?
-  updatedBy     String?
-
-  employeeSalaryHeads EmployeeSalaryHead[]
-
-  @@unique([companyId, name])
-  @@index([companyId])
-  @@index([companyId, name])
-  @@index([fieldType])
-  @@map("salary_heads")
-}
-
-model Employee {
-  id        String  @id @default(cuid())
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  code              String  @db.VarChar(20)
-  name              String
-  fatherHusbandName String?
-
-  pan     String? @db.VarChar(10)
-  aadhaar String? @db.VarChar(12)
-  uan     String? @db.VarChar(12)
-  pfAcNo  String? @db.VarChar(30)
-  esiNo   String? @db.VarChar(20)
-
-  email        String? @db.VarChar(255)
-  nasscomRegNo String?
-
-  gender         Gender        @default(MALE)
-  maritalStatus  MaritalStatus @default(UNMARRIED)
-  dob            DateTime?     @db.Date
-  doj            DateTime      @db.Date
-  dor            DateTime?     @db.Date
-  dateOfMarriage DateTime?     @db.Date
-
-  // Personal details
-  fathersName        String?
-  mothersName        String?
-  caste              String?
-  bloodGroup         BloodGroup?
-  nationality        String?
-  religion           Religion?
-  noOfDependent      Int?
-  spouse             String?
-  photo              String? // URL or file path
-  physicallyHandicap String?
-  registeredInPmrpy  Boolean     @default(false)
-  emergencyContact   String?
-  emergencyPhone     String?
-
-  permanentAddressId      String?  @unique
-  correspondenceAddressId String?  @unique
-  permanentAddress        Address? @relation("PermanentAddress", fields: [permanentAddressId], references: [id], onDelete: SetNull)
-  correspondenceAddress   Address? @relation("CorrespondenceAddress", fields: [correspondenceAddressId], references: [id], onDelete: SetNull)
-
-  stdCode    String?
-  phone      String?
-  mobile     String?
-  internalId String?
-  scale      String?
-  ptGroup    String?
-
-  noticePeriodMonths       Int?
-  probationPeriodMonths    Int?
-  confirmationDate         DateTime? @db.Date
-  resigLetterDate          DateTime? @db.Date
-  resigDateLwd             DateTime? @db.Date
-  resignationReason        String?
-  appraisalDate            DateTime? @db.Date
-  commitmentCompletionDate DateTime? @db.Date
-  dateOfDeath              DateTime? @db.Date
-
-  identityMark            String?
-  reimbursementApplicable Boolean @default(false)
-
-  branch         String?
-  department     String?
-  designation    String?
-  level          String?
-  grade          String?
-  category       String?
-  attendanceType String?
-  shiftId        String?
-  shift          Shift?  @relation(fields: [shiftId], references: [id], onDelete: SetNull)
-
-  bankName       String?
-  bankBranch     String?
-  bankIfsc       String?
-  bankAddress    String?
-  nameAsPerAc    String?
-  salaryAcNumber String?
-  paymentMode    PaymentMode? @default(TRANSFER)
-  acType         AccountType? @default(ECS)
-  bankRefNo      String?
-
-  wardCircleRange     String?
-  licPolicyNo         String?
-  policyTerm          String?
-  licId               String?
-  annualRenewableDate DateTime? @db.Date
-
-  hraApplicable      Boolean @default(false)
-  bonusApplicable    Boolean @default(false)
-  gratuityApplicable Boolean @default(false)
-  lwfApplicable      Boolean @default(false)
-
-  pfApplicable         Boolean   @default(false)
-  pfJoiningDate        DateTime? @db.Date
-  pfLastDate           DateTime? @db.Date
-  previousPfNo         String?
-  salaryForPfOption    String?
-  salaryForPf          Float?
-  minAmtPf             Float?
-  pensionAppl          Boolean   @default(false)
-  pensionJoiningDate   DateTime? @db.Date
-  pensionOnHigherWages Boolean   @default(false)
-  noLimit              Boolean   @default(false)
-
-  esiApplicable         Boolean   @default(false)
-  esiJoiningDate        DateTime? @db.Date
-  esiLastDate           DateTime? @db.Date
-  salaryForEsiOption    String?
-  salaryForEsi          Float?
-  minAmtEsiContribution Float?
-  dispensaryOrPanel     String?
-
-  recruitmentAgency String?
-  bankMandate       String?
-  employmentStatus  EmployeeStatus @default(ACTIVE)
-  lapTops           String?
-  companyVehicle    String?
-  corpCreditCardNo  String?
-  transportRoute    String?
-  workLocation      String?
-
-  reasonForLeaving String?
-  service          String?
-  remarks          String?
-
-  // Relations
-  qualifications  Qualification[]
-  experiences     Experience[]
-  familyMembers   FamilyMember[]
-  nominees        Nominee[]
-  witnesses       Witness[]
-  assets          CompanyAsset[]
-  salaryBreakdown EmployeeSalaryHead[]
-  salaryConfig    EmployeeSalaryConfig?
-
-  attendanceRecords Attendance[]
-  leaveApplications LeaveApplication[]
-  payrollRecords    PayrollRecord[]
-
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  deletedAt DateTime?
-  createdBy String?
-  updatedBy String?
-
-  // Single column indexes
-  @@unique([companyId, code])
-  @@index([companyId])
-  @@index([pan])
-  @@index([uan])
-  @@index([esiNo])
-  @@index([aadhaar])
-  @@index([email])
-  @@index([doj])
-  @@index([dor])
-  @@index([department])
-  @@index([designation])
-  @@index([branch])
-  @@index([category])
-  @@index([level])
-  @@index([grade])
-  @@index([attendanceType])
-  @@index([employmentStatus])
-  @@index([deletedAt])
-  @@index([shiftId])
-  // Composite indexes for common queries
-  @@index([companyId, deletedAt])
-  @@index([companyId, employmentStatus])
-  @@index([companyId, department])
-  @@index([companyId, designation])
-  @@index([companyId, branch])
-  @@index([companyId, category])
-  @@index([department, employmentStatus])
-  @@index([doj, employmentStatus])
-  @@index([companyId, doj])
-  @@index([companyId, shiftId])
-  @@map("employees")
-}
-
-model EmployeeSalaryConfig {
-  id         String @id @default(cuid())
-  companyId  String
-  employeeId String @unique
-
-  // Salary input
-  salaryMode  String // "CTC" | "GROSS"
-  inputAmount Float // monthly amount entered by HR
-
-  // Final computed amounts (monthly unless specified)
-  grossSalary Float
-  netSalary   Float
-  annualCtc   Float
-
-  // Statutory rule snapshots (JSON)
-  pfRuleSnapshot       Json
-  esiRuleSnapshot      Json
-  gratuityRuleSnapshot Json
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@index([companyId])
-  @@map("employee_salary_configs")
-}
-
-model Address {
-  id String @id @default(cuid())
-
-  permanentEmployeeId      String? @unique
-  correspondenceEmployeeId String? @unique
-
-  permanentEmployee      Employee? @relation("PermanentAddress")
-  correspondenceEmployee Employee? @relation("CorrespondenceAddress")
-
-  flat     String?
-  building String?
-  area     String?
-  road     String?
-  city     String?
-  district String?
-  state    StateCode?
-  pin      String?    @db.VarChar(6)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([state])
-  @@index([city])
-  @@index([pin])
-  @@map("addresses")
-}
-
-// ============================================================================
-// EMPLOYEE RELATED MODELS
-// ============================================================================
-
-model Qualification {
-  id           String   @id @default(cuid())
-  employeeId   String
-  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  college      String? // University/College name
-  degree       String? // Qualification/Degree name
-  subject      String? // Subject/Specialization
-  fromYear     Int?
-  toYear       Int?
-  year         String? // Alternative year field (as string)
-  cgpa         String? // CGPA/Percentage
-  percentage   String? // Percentage (alternative to cgpa)
-  regNo        String? // Registration number
-  validityYear Int?
-  certificate  String? // Certificate URL/path
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@index([employeeId])
-  @@index([employeeId, fromYear])
-  @@map("qualifications")
-}
-
-model Experience {
-  id          String   @id @default(cuid())
-  employeeId  String
-  employee    Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  companyName String
-  location    String?
-  designation String
-  from        DateTime @db.Date
-  to          DateTime @db.Date
-  remark      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([employeeId])
-  @@index([employeeId, from])
-  @@map("experiences")
-}
-
-model FamilyMember {
-  id           String   @id @default(cuid())
-  employeeId   String
-  employee     Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  name         String
-  relationship String
-  dobAge       String?
-  residingWith Boolean  @default(true)
-  address      String?
-  district     String?
-  state        String?
-  aadhar       String?
-  remark       String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@index([employeeId])
-  @@index([employeeId, relationship])
-  @@map("family_members")
-}
-
-model Nominee {
-  id            String         @id @default(cuid())
-  employeeId    String
-  employee      Employee       @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  name          String
-  relationship  String
-  dobAge        String?
-  address       String?
-  district      String?
-  state         String?
-  pin           String?
-  gratuityShare Float?
-  maritalStatus MaritalStatus?
-  remark        String?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-
-  @@index([employeeId])
-  @@map("nominees")
-}
-
-model Witness {
-  id         String   @id @default(cuid())
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  name       String
-  address    String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@index([employeeId])
-  @@map("witnesses")
-}
-
-model CompanyAsset {
-  id         String   @id @default(cuid())
-  employeeId String
-  employee   Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  particular String
-  remark     String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-  createdBy  String?
-  updatedBy  String?
-
-  @@index([employeeId])
-  @@map("company_assets")
-}
-
-model EmployeeSalaryHead {
-  id           String     @id @default(cuid())
-  companyId    String
-  employeeId   String
-  salaryHeadId String
-  salaryHead   SalaryHead @relation(fields: [salaryHeadId], references: [id], onDelete: Restrict)
-
-  headName String
-  headType String // "EARNING" | "DEDUCTION"
-
-  baseAmount Float
-  netAmount  Float
-
-  pfEmployee Float @default(0)
-  pfEmployer Float @default(0)
-
-  esiEmployee Float @default(0)
-  esiEmployer Float @default(0)
-
-  gratuityEmployer Float @default(0)
-
-  createdAt DateTime @default(now())
-
-  employee Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-
-  @@index([salaryHeadId])
-  @@index([employeeId])
-  @@index([companyId])
-  @@map("employee_salary_heads")
-}
-
-// ============================================================================
-// ATTENDANCE & LEAVE MODELS
-// ============================================================================
-
-model Attendance {
-  id            String           @id @default(cuid())
-  companyId     String
-  company       Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  employeeId    String
-  employee      Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  date          DateTime         @db.Date
-  checkIn       DateTime?
-  checkOut      DateTime?
-  breakStart    DateTime?
-  breakEnd      DateTime?
-  status        AttendanceStatus @default(PRESENT)
-  workingHours  Float?           @default(0)
-  overtimeHours Float?           @default(0)
-  notes         String?
-  location      String?
-  shiftId       String?
-  shift         Shift?           @relation(fields: [shiftId], references: [id], onDelete: SetNull)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
-  createdBy     String?
-  updatedBy     String?
-
-  @@unique([employeeId, date])
-  @@index([companyId])
-  @@index([employeeId])
-  @@index([date])
-  @@index([status])
-  @@index([companyId, date])
-  @@index([employeeId, date])
-  @@index([companyId, employeeId, date])
-  @@index([companyId, status, date])
-  @@index([shiftId])
-  @@map("attendances")
-}
-
-model LeaveTypeConfig {
-  id               String    @id @default(cuid())
-  companyId        String
-  company          Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name             String
-  code             String?
-  type             LeaveType @default(FULL_DAY)
-  payConsume       Boolean   @default(true)
-  allowApply       Boolean   @default(true)
-  halfDay          Boolean   @default(false)
-  accrueRule       String? // 'None' | 'Fixed' | 'Attendance'
-  fixedDays        Int?
-  fixedPeriod      String? // 'Yearly' | 'Monthly'
-  plPer            Float?
-  plBasis          String?
-  minAttendance    Int?
-  maxPerMonth      Int?
-  availedFrom      String?
-  autoAllot        Boolean   @default(false)
-  restrictDays     Int?
-  mandatoryDocDays Int?
-  allowEncash      Boolean   @default(false)
-  minEncash        Int?
-  maxEncash        Int?
-  cfOption         String?
-  cfMaxLimit       Int?
-  totalPerYear     Int?
-  isActive         Boolean   @default(true)
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-  createdBy        String?
-  updatedBy        String?
-
-  leaveApplications LeaveApplication[]
-
-  @@unique([companyId, name])
-  @@index([companyId])
-  @@index([companyId, isActive])
-  @@map("leave_type_configs")
-}
-
-model LeaveApplication {
-  id              String          @id @default(cuid())
-  companyId       String
-  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  employeeId      String
-  employee        Employee        @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  leaveTypeId     String
-  leaveType       LeaveTypeConfig @relation(fields: [leaveTypeId], references: [id], onDelete: Restrict)
-  startDate       DateTime        @db.Date
-  endDate         DateTime        @db.Date
-  days            Float
-  type            LeaveType       @default(FULL_DAY)
-  status          LeaveStatus     @default(PENDING)
-  reason          String?
-  appliedDate     DateTime        @default(now())
-  approvedBy      String?
-  approvedAt      DateTime?
-  rejectedBy      String?
-  rejectedAt      DateTime?
-  rejectionReason String?
-  documents       Json?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  createdBy       String?
-  updatedBy       String?
-
-  @@index([companyId])
-  @@index([employeeId])
-  @@index([leaveTypeId])
-  @@index([status])
-  @@index([startDate])
-  @@index([endDate])
-  @@index([companyId, employeeId])
-  @@index([companyId, status])
-  @@index([employeeId, status])
-  @@index([employeeId, startDate, endDate])
-  @@index([companyId, startDate, endDate])
-  @@map("leave_applications")
-}
-
-// ============================================================================
-// SHIFT & PAYROLL MODELS
-// ============================================================================
-
-model Shift {
-  id                  String    @id @default(cuid())
-  companyId           String
-  company             Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name                String
-  code                String?
-  startTime           String // Format: "HH:mm"
-  endTime             String // Format: "HH:mm"
-  breakDuration       Int? // in minutes
-  workingHours        Float?
-  shiftType           ShiftType @default(FIXED)
-  checkInAllowedFrom  Int? // minutes before shift start
-  checkOutAllowedFrom Int? // minutes after shift end
-  isActive            Boolean   @default(true)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  createdBy           String?
-  updatedBy           String?
-
-  employees         Employee[]
-  attendanceRecords Attendance[]
-  shiftRotations    ShiftRotation[]
-
-  @@unique([companyId, name])
-  @@index([companyId])
-  @@index([companyId, isActive])
-  @@map("shifts")
-}
-
-model ShiftRotation {
-  id              String    @id @default(cuid())
-  companyId       String
-  company         Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  shiftId         String
-  shift           Shift     @relation(fields: [shiftId], references: [id], onDelete: Cascade)
-  employeeId      String?
-  department      String?
-  startDate       DateTime  @db.Date
-  endDate         DateTime? @db.Date
-  rotationPattern Json? // For rotating shifts
-  isActive        Boolean   @default(true)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  createdBy       String?
-  updatedBy       String?
-
-  @@index([companyId])
-  @@index([shiftId])
-  @@index([employeeId])
-  @@index([companyId, startDate, endDate])
-  @@map("shift_rotations")
-}
-
-model PayrollCycle {
-  id        String   @id @default(cuid())
-  companyId String
-  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  cycleType String // 'payroll' | 'attendance'
-  startDate DateTime @db.Date
-  endDate   DateTime @db.Date
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  createdBy String?
-  updatedBy String?
-
-  payrollRecords PayrollRecord[]
-
-  @@index([companyId])
-  @@index([cycleType])
-  @@index([startDate, endDate])
-  @@index([companyId, cycleType])
-  @@index([companyId, isActive])
-  @@map("payroll_cycles")
-}
-
-model PayrollRecord {
-  id                  String        @id @default(cuid())
-  companyId           String
-  company             Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  employeeId          String
-  employee            Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  payrollCycleId      String?
-  payrollCycle        PayrollCycle? @relation(fields: [payrollCycleId], references: [id], onDelete: SetNull)
-  month               Int
-  year                Int
-  basicSalary         Float
-  hra                 Float         @default(0)
-  conveyanceAllowance Float         @default(0)
-  medicalAllowance    Float         @default(0)
-  specialAllowance    Float         @default(0)
-  grossSalary         Float
-  providentFund       Float         @default(0)
-  esi                 Float         @default(0)
-  professionalTax     Float         @default(0)
-  incomeTax           Float         @default(0)
-  otherDeductions     Float         @default(0)
-  totalDeductions     Float
-  netSalary           Float
-  workingDays         Int
-  presentDays         Int
-  leaveDays           Int           @default(0)
-  overtimeHours       Float         @default(0)
-  overtimeAmount      Float         @default(0)
-  lateDeduction       Float         @default(0)
-  status              PayrollStatus @default(DRAFT)
-  processedAt         DateTime?
-  paidAt              DateTime?
-  remarks             String?
-  metadata            Json?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
-  createdBy           String?
-  updatedBy           String?
-
-  @@unique([employeeId, month, year])
-  @@index([companyId])
-  @@index([employeeId])
-  @@index([payrollCycleId])
-  @@index([month, year])
-  @@index([status])
-  @@index([companyId, month, year])
-  @@index([employeeId, month, year])
-  @@index([companyId, status])
-  @@map("payroll_records")
-}
-
-model PFESIRate {
-  id        String        @id @default(cuid())
-  companyId String
-  company   Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  rateType  StatutoryType
-
-  // Gratuity Fields
-  gratuityPercent Float? // e.g. 4.81
-  gratuityBase    String? // BASIC | GROSS
-
-  // ESI Fields
-  empShare       Float? // Employee share (e.g., 0.75 for 0.75%)
-  employerShare  Float? // Employer share (e.g., 3.25 for 3.25%)
-  esiWageCeiling Float? // ESI wage ceiling (e.g., 21000)
-
-  // PF Fields
-  empShareAc1        Float? // Employee Share A/c1 (e.g., 12 for 12%)
-  erShareAc2         Float? // ER Share A/c2 (e.g., 3.67 for 3.67%)
-  adminChargesAc10   Float? // Admin Charges A/c10 (e.g., 0.50 for 0.50%)
-  epsAc21            Float? // EPS A/c21 (e.g., 8.33 for 8.33%)
-  edliChargesAc21    Float? // EDLI Charges A/c21 (e.g., 0.50 for 0.50%)
-  adminChargesAc22   Float? // Admin Charges A/c22 (e.g., 0.00 for 0.00%)
-  calcType           String? // 'Fixed' or 'On Actual'
-  pfWageCeiling      Float? // PF wage ceiling (e.g., 15000)
-  epsWageCeiling     Float? // EPS wage ceiling (e.g., 15000)
-  minEpsContribution Float? // Min EPS contribution (e.g., 75)
-
-  effectiveFrom DateTime  @db.Date
-  effectiveTo   DateTime? @db.Date
-  remarks       String?
-  isActive      Boolean   @default(true)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  createdBy     String?
-  updatedBy     String?
-
-  @@index([companyId])
-  @@index([rateType])
-  @@index([effectiveFrom, effectiveTo])
-  @@index([companyId, rateType])
-  @@index([companyId, isActive])
-  @@index([companyId, effectiveFrom])
-  @@map("pf_esi_rates")
-}
-
-model ShortLeavePolicy {
-  id                   String   @id @default(cuid())
-  companyId            String
-  company              Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  name                 String
-  applicableOn         String? // e.g., "All Days", "Weekdays", etc.
-  totalHours           Int      @default(2)
-  totalMinutes         Int      @default(0)
-  minHours             Int      @default(1)
-  minMinutes           Int      @default(0)
-  maxHours             Int      @default(1)
-  maxMinutes           Int      @default(0)
-  deductBalance        Boolean  @default(true)
-  allowBackdated       Boolean  @default(true)
-  advanceApplicability String? // e.g., "None", "Same Day", etc.
-  status               String   @default("Active") // 'Active' | 'Inactive'
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
-  createdBy            String?
-  updatedBy            String?
-
-  @@unique([companyId, name])
-  @@index([companyId])
-  @@index([companyId, status])
-  @@map("short_leave_policies")
-}
-
-// ============================================================================
-// USER & SYSTEM MODELS
-// ============================================================================
-
-model User {
-  id        String    @id @default(cuid())
-  name      String?
-  email     String    @unique
-  role      String    @default("USER")
-  password  String? // Hashed password
-  isActive  Boolean   @default(true)
-  companies Company[] @relation("CompanyAdmin")
-
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  lastLoginAt DateTime?
-
-  @@index([email])
-  @@index([role])
-  @@index([isActive])
-  @@index([email, isActive])
-  @@map("users")
-}
-
-model Backup {
-  id          String   @id @default(cuid())
-  companyId   String
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  version     String
-  filePath    String?
-  fileUrl     String?
-  sizeInBytes BigInt?
-  metadata    Json?
-  createdAt   DateTime @default(now())
-  createdBy   String?
-
-  @@index([companyId])
-  @@index([createdAt])
-  @@index([companyId, createdAt])
-  @@map("backups")
 }

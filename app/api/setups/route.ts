@@ -13,6 +13,7 @@ export async function GET() {
       levels,
       grades,
       attendanceTypes,
+      shifts,
     ] = await Promise.all([
       prisma.branch.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
       prisma.department.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
@@ -21,8 +22,28 @@ export async function GET() {
       prisma.level.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
       prisma.grade.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
       prisma.attendanceTypeConfig.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
+      prisma.shift.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
     ])
 
+    // ptGroups is stored as a string field in employees, not a separate model
+    // Extract unique ptGroup values from employees for this company
+    const employeesWithPtGroup = await prisma.employee.findMany({
+      where: { 
+        companyId,
+        ptGroup: { not: null },
+        deletedAt: null,
+      },
+      select: { ptGroup: true },
+    })
+
+    // Get unique ptGroup values
+    const uniquePtGroups = Array.from(new Set(employeesWithPtGroup.map(emp => emp.ptGroup).filter(Boolean)))
+    const ptGroups = uniquePtGroups
+      .map(ptGroup => ({ id: ptGroup!, name: ptGroup! }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+
+    // Return data directly (not wrapped) for compatibility with setups page
+    // The hook will handle both formats
     return NextResponse.json({
       branches,
       departments,
@@ -31,6 +52,8 @@ export async function GET() {
       levels,
       grades,
       attendanceTypes,
+      shifts,
+      ptGroups,
     })
   })
 }

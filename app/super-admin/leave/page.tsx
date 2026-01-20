@@ -55,8 +55,6 @@ type Applicability =
   | { type: 'Level'; ids: string[] }
 
 type LeavePolicy = {
-  id: number
-  companyId: string
   name: string
   description?: string
   applicability: Applicability
@@ -103,25 +101,15 @@ function Stepper({
 
 /* -------------------------- Main Page -------------------------- */
 export default function LeavePolicyPage() {
-  /* ---------- Company (from home page) ---------- */
-  const [companyId] = useState(() => {
-    const saved = localStorage.getItem('selectedCompanyId')
-    return saved ?? 'demo-company'
-  })
+  /* ---------- Policies (from API) ---------- */
+const [policies, setPolicies] = useState<LeavePolicy[]>([])
+const [loading, setLoading] = useState(true)
 
-  /* ---------- Policies (per company) ---------- */
-  const [policies, setPolicies] = useState<LeavePolicy[]>([])
-  useEffect(() => {
-    const data = localStorage.getItem(`policies_${companyId}`)
-    if (data) setPolicies(JSON.parse(data))
-  }, [companyId])
-  useEffect(() => {
-    localStorage.setItem(`policies_${companyId}`, JSON.stringify(policies))
-  }, [policies, companyId])
 
   /* ---------- Modal & Form ---------- */
   const [showModal, setShowModal] = useState(false)
-  const [editId, setEditId] = useState<number | null>(null)
+  const [editPolicyName, setEditPolicyName] = useState<string | null>(null)
+
   const [step, setStep] = useState(1)
 
   const [policyName, setPolicyName] = useState('')
@@ -131,16 +119,30 @@ export default function LeavePolicyPage() {
 
   // Load edit data
   useEffect(() => {
-    if (editId !== null) {
-      const p = policies.find(x => x.id === editId)
-      if (p) {
-        setPolicyName(p.name)
-        setDescription(p.description ?? '')
-        setApplicability(p.applicability)
-        setLeaveTypes(p.leaveTypes.map(lt => ({ ...lt })))
+    const fetchPolicies = async () => {
+      try {
+        const res = await fetch('/api/leave',{
+          credentials: 'include',
+        })
+        const json = await res.json()
+  
+        if (!res.ok) {
+          alert(json.error || 'Failed to load leave policies')
+          return
+        }
+  
+        setPolicies(json.data)
+      } catch (err) {
+        console.error(err)
+        alert('Network error while loading leave policies')
+      } finally {
+        setLoading(false)
       }
     }
-  }, [editId, policies])
+  
+    fetchPolicies()
+  }, [])
+  
 
   const resetForm = () => {
     setStep(1)
@@ -148,11 +150,29 @@ export default function LeavePolicyPage() {
     setDescription('')
     setApplicability({ type: 'All' })
     setLeaveTypes([])
-    setEditId(null)
+    setEditPolicyName(null)
   }
 
   const openCreate = () => { resetForm(); setShowModal(true) }
-  const openEdit = (id: number) => { setEditId(id); setShowModal(true) }
+  const openEdit = (name: string) => {
+    const policy = policies.find(p => p.name === name)
+    if (!policy) return
+  
+    setEditPolicyName(policy.name)
+    setPolicyName(policy.name)
+    setDescription(policy.description || '')
+    setApplicability(policy.applicability)
+    setLeaveTypes(
+      policy.leaveTypes.map(lt => ({
+        ...lt,
+        id: lt.id || crypto.randomUUID(),
+      }))
+    )
+    
+    setShowModal(true)
+  }
+  
+  
   const closeModal = () => { setShowModal(false); resetForm() }
 
   const nextStep = () => setStep(s => Math.min(s + 1, 3))
@@ -165,34 +185,50 @@ export default function LeavePolicyPage() {
   ]
 
   /* ---------- Save ---------- */
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!policyName.trim()) return alert('Policy name is required.')
     if (leaveTypes.length === 0) return alert('Add at least one leave type.')
-
-    const policy: LeavePolicy = {
-      id: editId ?? Date.now(),
-      companyId,
-      name: policyName,
-      description,
-      applicability,
-      leaveTypes: leaveTypes.map(lt => ({ ...lt })),
-      status: 'Active',
+  
+    try {
+      const res = await fetch('/api/leave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: policyName,
+          description,
+          applicability,
+          leaveTypes,
+          ...(editPolicyName && { originalPolicyName: editPolicyName }),
+        }),
+      })
+  
+      const json = await res.json()
+      if (!res.ok) {
+        alert(json.error || 'Failed to save policy')
+        return
+      }
+  
+      // reload list
+      const refresh = await fetch('/api/leave',{
+        credentials: 'include',
+      })
+      const refreshed = await refresh.json()
+      setPolicies(refreshed.data)
+  
+      closeModal()
+    } catch (err) {
+      console.error(err)
+      alert('Network error while saving')
     }
-
-    if (editId) {
-      setPolicies(prev => prev.map(p => (p.id === editId ? policy : p)))
-    } else {
-      setPolicies(prev => [...prev, policy])
-    }
-    closeModal()
   }
+  
 
   /* ---------- Leave Type Helpers ---------- */
   const addLeaveType = () => {
     setLeaveTypes(prev => [
       ...prev,
       {
-        id: Date.now().toString(),
+        id: crypto.randomUUID(),
         name: '',
         code: '',
         type: 'Full Day',
@@ -229,37 +265,55 @@ export default function LeavePolicyPage() {
       prev.map(lt => (lt.id === id ? { ...lt, [field]: value } : lt))
     )
   }
-
+  
   const removeLeaveType = (id: string) => {
     setLeaveTypes(prev => prev.filter(lt => lt.id !== id))
   }
+  
 
   /* ---------- Delete ---------- */
-  const handleDelete = (id: number) => {
-    if (confirm('Delete this policy?')) {
-      setPolicies(prev => prev.filter(p => p.id !== id))
+  const handleDelete = async (name: string) => {
+    if (!confirm('Delete this policy?')) return
+  
+    const res = await fetch('/api/leave', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ policyName: name }),
+      credentials: 'include',
+    })
+  
+    const json = await res.json()
+    if (!res.ok) {
+      alert(json.error || 'Delete failed')
+      return
     }
+  
+    setPolicies(prev => prev.filter(p => p.name !== name))
   }
+  
 
   /* ---------- Applicability Helpers ---------- */
   const toggleApplicability = (type: Applicability['type']) => {
     if (type === 'All') {
       setApplicability({ type: 'All' })
     } else {
-      setApplicability(prev =>
-        prev.type === type ? prev : { type, ids: [] }
-      )
+      setApplicability({ type, ids: [] })
     }
   }
+  
   const toggleId = (id: string) => {
     if (applicability.type === 'All') return
-    setApplicability(prev => ({
-      ...prev,
-      ids: prev.ids.includes(id)
-        ? prev.ids.filter(x => x !== id)
-        : [...prev.ids, id],
-    }))
+    setApplicability(prev => {
+      if (prev.type === 'All') return prev
+      return {
+        ...prev,
+        ids: prev.ids.includes(id)
+          ? prev.ids.filter((x: string) => x !== id)
+          : [...prev.ids, id],
+      }
+    })
   }
+  
 
   // Demo data (replace with API)
   const branches = ['HQ', 'North', 'South', 'East', 'West']
@@ -280,6 +334,12 @@ export default function LeavePolicyPage() {
         </div>
 
         {/* ---------- Table ---------- */}
+        {loading && (
+          <div className="text-center py-6 text-gray-500 text-sm">
+            Loading leave policies...
+          </div>
+        )}
+
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <table className="w-full table-auto">
             <thead className="bg-gray-50 border-b">
@@ -308,7 +368,7 @@ export default function LeavePolicyPage() {
                     ? 'All'
                     : `${p.applicability.type}: ${p.applicability.ids.join(', ') || '—'}`
                 return (
-                  <tr key={p.id} className="hover:bg-gray-50">
+                  <tr key={p.name} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm">{p.name}</td>
                     <td className="px-4 py-3 text-sm">
                       {p.leaveTypes.map(lt => lt.name).join(', ')}
@@ -321,13 +381,13 @@ export default function LeavePolicyPage() {
                     </td>
                     <td className="px-4 py-3 flex gap-3">
                       <button
-                        onClick={() => openEdit(p.id)}
+                        onClick={() => openEdit(p.name)}
                         className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm"
                       >
                         <Edit3 className="w-4 h-4" /> Edit
                       </button>
                       <button
-                        onClick={() => handleDelete(p.id)}
+                        onClick={() => handleDelete(p.name)}
                         className="text-red-600 hover:text-red-800 flex items-center gap-1 text-sm"
                       >
                         <Trash2 className="w-4 h-4" /> Delete
@@ -336,7 +396,8 @@ export default function LeavePolicyPage() {
                   </tr>
                 )
               })}
-              {policies.length === 0 && (
+              {!loading && policies.length === 0 && (
+
                 <tr>
                   <td colSpan={5} className="text-center py-6 text-gray-500 text-sm">
                     No leave policies found.
@@ -355,7 +416,7 @@ export default function LeavePolicyPage() {
             {/* Header */}
             <div className="flex justify-between items-center p-4 border-b">
               <h2 className="text-xl font-semibold">
-                {editId ? 'Edit Leave Policy' : 'Create Leave Policy'}
+                {editPolicyName ? 'Edit Leave Policy' : 'Create Leave Policy'}
               </h2>
               <button onClick={closeModal} className="text-gray-500 hover:text-gray-700">
                 <X className="w-6 h-6" />
@@ -661,7 +722,7 @@ export default function LeavePolicyPage() {
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-600">
-                                Mandatory to upload document if leave days >
+                                Mandatory to upload document if leave days 
                               </label>
                               <div className="flex items-center gap-2">
                                 <input
@@ -884,7 +945,7 @@ export default function LeavePolicyPage() {
                         {applicability.type === 'All'
                           ? 'All'
                           : `${applicability.type}: ${
-                              applicability.ids.length
+                              (applicability as { ids: string[] }).ids.length
                                 ? applicability.ids.join(', ')
                                 : '—'
                             }`}
@@ -931,7 +992,7 @@ export default function LeavePolicyPage() {
                   onClick={handleSave}
                   className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
                 >
-                  {editId ? 'UPDATE' : 'CREATE'}
+                  {editPolicyName ? 'UPDATE' : 'CREATE'}
                 </button>
               )}
             </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { calculateSalary } from "@/app/lib/calculateSalary";
 
+
 type AddEmployeeProps = {
   employee?: any;
   onSubmit?: (updatedEmployee: any) => void;
@@ -50,6 +51,8 @@ useEffect(() => {
 type SalaryMode = "CTC" | "GROSS";
 const [salaryMode, setSalaryMode] = useState<SalaryMode>("CTC");
 const [salaryAmount, setSalaryAmount] = useState<number>(0);
+const [salaryError, setSalaryError] = useState<string | null>(null);
+
 
 
 const [salaryHeads, setSalaryHeads] = useState<any[]>([]);
@@ -199,13 +202,19 @@ useEffect(() => {
       esiRule: esiRule,
     });
 
+    setSalaryError(null);  // 👈 CLEAR ERROR ON SUCCESS
     setCalculatedRows(result.rows);
     setCalculationTotals(result.totals);
-  } catch (error) {
-    console.error("Salary calculation error:", error);
+  } catch (error: any) {
+    const message =
+      error?.message ||
+      "Total salary heads exceed the entered CTC. Please adjust the salary structure.";
+  
+    setSalaryError(message);   // 👈 STORE ERROR FOR UI
     setCalculatedRows([]);
     setCalculationTotals(null);
   }
+  
 }, [
   salaryAmount,
   salaryMode,
@@ -313,7 +322,20 @@ const handleSubmit = async (e: React.FormEvent) => {
               />
               
               <label className="block text-sm font-bold mt-4">Permanent Address Details : -</label>
-              <input type="text" placeholder="Flat" className="w-full p-2 border border-gray-300 rounded mt-1" />
+              <input
+                type="text"
+                value={employee.permanentAddress?.flat || ""}
+                onChange={(e) =>
+                  setEmployee((prev:any) => ({
+                    ...prev,
+                    permanentAddress: {
+                      ...prev.permanentAddress,
+                      flat: e.target.value
+                    }
+                  }))
+                }
+              />
+
               <input type="text" placeholder="Building" className="w-full p-2 border border-gray-300 rounded mt-1" />
               <input type="text" placeholder="Area" className="w-full p-2 border border-gray-300 rounded mt-1" />
               <input type="text" placeholder="Road" className="w-full p-2 border border-gray-300 rounded mt-1" />
@@ -669,6 +691,13 @@ const handleSubmit = async (e: React.FormEvent) => {
           {activeTab === "Salary" && (
             <div className="p-6 space-y-5">
               <h3 className="text-xl font-bold text-gray-800">Salary Components</h3>
+              {salaryError && (
+                <div className="rounded-md border border-red-400 bg-red-50 p-4 text-red-700">
+                  <strong>Salary Configuration Error:</strong>
+                  <div className="mt-1">{salaryError}</div>
+                </div>
+              )}
+
 
               {/* Top controls */}
               <div className="flex gap-4 items-end mb-4">

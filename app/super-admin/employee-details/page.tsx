@@ -10,13 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import AddEmployee from "@/components/add-employee";
 import {
   Dialog,
@@ -26,6 +20,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { GlobalLayout } from "@/app/components/global-layout";
+import { useCompanySetups } from "@/hooks/useCompanySetups"
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // INTERFACES (unchanged)
@@ -193,130 +189,19 @@ interface Employee {
   category: string;
   designation: string;
   department: string;
-  scale: string;
+  level: string;
   ptGroup: string;
   shift: string;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// INITIAL DATA
-// ─────────────────────────────────────────────────────────────────────────────
-const initialEmployees: Employee[] = [
-  {
-    id: 1,
-    code: "AJ502",
-    name: "ASHISH CHOUDHARY",
-    fatherHusbandName: "SHANKAR LAL CHOUDHARY",
-    pan: "CCEPC7570F",
-    dob: "1991-01-10",
-    doj: "2020-12-22",
-    dor: "",
-    uan: "101453128899",
-    pfAcNo: "RJRAJ223938160000010026",
-    permanentAddress: {},
-    email: "",
-    nasscomRegNo: "",
-    gender: "Male",
-    maritalStatus: "UnMarried",
-    fathersName: "",
-    mothersName: "",
-    caste: "GEN",
-    bloodGroup: "",
-    nationality: "Resident",
-    religion: "Hindu",
-    dateOfMarriage: "",
-    noOfDependent: "",
-    spouse: "",
-    stdCode: "",
-    phone: "",
-    mobile: "",
-    internalId: "",
-    noticePeriodMonths: "",
-    probationPeriodMonths: "",
-    confirmationDate: "",
-    resigLetterDate: "",
-    resigDateLwd: "",
-    resignationReason: "",
-    appraisalDate: "",
-    dateOfDeath: "",
-    commitmentCompletionDate: "",
-    identityMark: "",
-    reimbursementApplicable: false,
-    correspondenceAddress: {},
-    photo: "",
-    bankName: "",
-    bankBranch: "",
-    bankIfsc: "",
-    bankAddress: "",
-    nameAsPerAc: "",
-    salaryAcNumber: "",
-    paymentMode: "TRANSFER",
-    acType: "ECS",
-    bankRefNo: "",
-    wardCircleRange: "",
-    licPolicyNo: "",
-    policyTerm: "",
-    licId: "",
-    annualRenewableDate: "",
-    hraApplicable: false,
-    bonusApplicable: false,
-    gratuityApplicable: false,
-    lwfApplicable: false,
-    pfApplicable: false,
-    physicallyHandicap: "NO",
-    educationalQual: "",
-    registeredInPmrpy: false,
-    previousPfNo: "",
-    pfJoiningDate: "",
-    pfLastDate: "",
-    salaryForPfOption: "",
-    salaryForPf: "",
-    minAmtPf: "",
-    pensionAppl: false,
-    pensionJoiningDate: "",
-    pensionOnHigherWages: false,
-    noLimit: false,
-    esiApplicable: false,
-    esiJoiningDate: "",
-    esiNo: "",
-    esiLastDate: "",
-    salaryForEsiOption: "",
-    salaryForEsi: "",
-    minAmtEsiContribution: "",
-    dispensaryOrPanel: "",
-    recruitmentAgency: "",
-    bankMandate: "",
-    employmentStatus: "",
-    lapTops: "",
-    companyVehicle: "",
-    corpCreditCardNo: "",
-    transportRoute: "",
-    workLocation: "",
-    companyAssets: [],
-    educationalQualifications: [],
-    reasonForLeaving: "",
-    service: "",
-    remarks: "",
-    family: [],
-    nominees: [],
-    witnesses: [],
-    previousYears: "",
-    previousMonths: "",
-    experiences: [],
-    branch: "Main Branch",
-    category: "Full-Time",
-    designation: "Software Engineer",
-    department: "IT",
-    scale: "Level 3",
-    ptGroup: "Group A",
-    shift: "Morning",
-  },
-];
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 export default function EmployeeDetailsPage() {
+  const { data: setups, loading: setupsLoading } = useCompanySetups()
+
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -325,6 +210,16 @@ export default function EmployeeDetailsPage() {
   const [includeResigned, setIncludeResigned] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [selectedBranches, setSelectedBranches] = useState<string[]>([])
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([])
+  const [selectedDesignations, setSelectedDesignations] = useState<string[]>([])
+  const [selectedLevels, setSelectedLevels] = useState<string[]>([])
+  const [selectedGrades, setSelectedGrades] = useState<string[]>([])
+  const [selectedPtGroups, setSelectedPtGroups] = useState<string[]>([])
+  const [selectedShifts, setSelectedShifts] = useState<string[]>([])
+  
+
 
   // ── Load dropdown options from localStorage (fallback values) ──
   const [branches] = useState<string[]>(() => {
@@ -361,28 +256,45 @@ export default function EmployeeDetailsPage() {
   });
 
   // ── Filter states (8 dropdowns) ──
-  const [selectedBranch, setSelectedBranch] = useState<string>("all");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
-  const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
-  const [selectedDesignation, setSelectedDesignation] = useState<string>("all");
-  const [selectedLevel, setSelectedLevel] = useState<string>("all");
-  const [selectedGrade, setSelectedGrade] = useState<string>("all");
-  const [selectedPtGroup, setSelectedPtGroup] = useState<string>("all");
-  const [selectedShift, setSelectedShift] = useState<string>("all");
+  
 
   // ── Load employees from API ──
   async function loadEmployees() {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      if (selectedBranch !== "all") params.append("branch", selectedBranch);
-      if (selectedCategory !== "all") params.append("category", selectedCategory);
-      if (selectedDepartment !== "all") params.append("department", selectedDepartment);
-      if (selectedDesignation !== "all") params.append("designation", selectedDesignation);
-      if (selectedLevel !== "all") params.append("level", selectedLevel);
-      if (selectedGrade !== "all") params.append("grade", selectedGrade);
-      if (selectedPtGroup !== "all") params.append("ptGroup", selectedPtGroup);
-      if (selectedShift !== "all") params.append("shift", selectedShift);
+      if (selectedBranches.length) {
+        selectedBranches.forEach(b => params.append("branch", b))
+      }
+      
+      if (selectedCategories.length) {
+        selectedCategories.forEach(c => params.append("category", c))
+      }
+      
+      if (selectedDepartments.length) {
+        selectedDepartments.forEach(d => params.append("department", d))
+      }
+      
+      if (selectedDesignations.length) {
+        selectedDesignations.forEach(d => params.append("designation", d))
+      }
+      
+      if (selectedLevels.length) {
+        selectedLevels.forEach(l => params.append("level", l))
+      }
+      
+      if (selectedGrades.length) {
+        selectedGrades.forEach(g => params.append("grade", g))
+      }
+      
+      if (selectedPtGroups.length) {
+        selectedPtGroups.forEach(p => params.append("ptGroup", p))
+      }
+      
+      if (selectedShifts.length) {
+        selectedShifts.forEach(s => params.append("shift", s))
+      }
+      
       params.append("includeResigned", includeResigned.toString());
 
       const response = await api.get(`/api/employee-details?${params.toString()}`);
@@ -493,7 +405,7 @@ export default function EmployeeDetailsPage() {
         category: emp.category || "",
         designation: emp.designation || "",
         department: emp.department || "",
-        scale: emp.scale || emp.level || "",
+        level: emp.level || "",
         ptGroup: emp.ptGroup || "",
         shift: emp.shiftId || "",
       }));
@@ -510,50 +422,22 @@ export default function EmployeeDetailsPage() {
   // ── Load employees from API when filters change ──
   useEffect(() => {
     loadEmployees();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    selectedBranch,
-    selectedCategory,
-    selectedDepartment,
-    selectedDesignation,
-    selectedLevel,
-    selectedGrade,
-    selectedPtGroup,
-    selectedShift,
+    selectedBranches,
+    selectedCategories,
+    selectedDepartments,
+    selectedDesignations,
+    selectedLevels,
+    selectedGrades,
+    selectedPtGroups,
+    selectedShifts,
     includeResigned,
   ]);
+  
 
   // ── Filtered employees (real-time) ──
-  const filteredEmployees = useMemo(() => {
-    return employees.filter((emp) => {
-      const showAll = showAllEmployees;
-      const resigned = includeResigned || !emp.dor;
-
-      const branch = selectedBranch === "all" || emp.branch === selectedBranch;
-      const category = selectedCategory === "all" || emp.category === selectedCategory;
-      const department = selectedDepartment === "all" || emp.department === selectedDepartment;
-      const designation = selectedDesignation === "all" || emp.designation === selectedDesignation;
-      const level = selectedLevel === "all" || emp.scale === selectedLevel;
-      const grade = selectedGrade === "all" || emp.scale === selectedGrade;
-      const ptGroup = selectedPtGroup === "all" || emp.ptGroup === selectedPtGroup;
-      const shift = selectedShift === "all" || emp.shift === selectedShift;
-
-      return showAll && resigned && branch && category && department && designation && level && grade && ptGroup && shift;
-    });
-  }, [
-    employees,
-    showAllEmployees,
-    includeResigned,
-    selectedBranch,
-    selectedCategory,
-    selectedDepartment,
-    selectedDesignation,
-    selectedLevel,
-    selectedGrade,
-    selectedPtGroup,
-    selectedShift,
-  ]);
-
+  
+  
   // ── CRUD ──
   const handleSubmit = async (updatedEmployee: any) => {
     try {
@@ -896,133 +780,257 @@ export default function EmployeeDetailsPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* 1. Branch */}
               <div>
-                <Label htmlFor="branch">Branch</Label>
-                <Select value={selectedBranch} onValueChange={setSelectedBranch}>
-                  <SelectTrigger id="branch">
-                    <SelectValue placeholder="All Branches" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Branches</SelectItem>
-                    {branches.map((b) => (
-                      <SelectItem key={b} value={b}>{b}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Branch</Label>
+
+                <Popover>
+                <PopoverTrigger>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full justify-start"
+                  >
+                    {selectedBranches.length === 0
+                      ? "All Branches"
+                      : `${selectedBranches.length} selected`}
+                  </Button>
+                </PopoverTrigger>
+
+
+                  <PopoverContent
+                    className="w-64 max-h-64 overflow-y-auto"
+                    align="start"
+                  >
+                    <div className="space-y-2">
+                      {setups?.branches?.map((b: any) => {
+                        const checked = selectedBranches.includes(b.name)
+
+                        return (
+                          <div
+                            key={b.id}
+                            className="flex items-center gap-2"
+                          >
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) => {
+                                setSelectedBranches((prev) =>
+                                  v
+                                    ? [...prev, b.name]
+                                    : prev.filter((x) => x !== b.name)
+                                )
+                              }}
+                            />
+                            <span className="text-sm">{b.name}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
 
-              {/* 2. Category */}
               <div>
-                <Label htmlFor="category">Category</Label>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger id="category">
-                    <SelectValue placeholder="All Categories" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map((c) => (
-                      <SelectItem key={c} value={c}>{c}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label>Category</Label>
+
+                <Popover>
+                  <PopoverTrigger>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-start"
+                    >
+                      {selectedCategories.length === 0
+                        ? "All Categories"
+                        : `${selectedCategories.length} selected`}
+                    </Button>
+                  </PopoverTrigger>
+
+                  <PopoverContent
+                    className="w-64 max-h-64 overflow-y-auto"
+                    align="start"
+                  >
+                    <div className="space-y-2">
+                      {setups?.categories?.map((c: any) => {
+                        const checked = selectedCategories.includes(c.name)
+
+                        return (
+                          <div key={c.id} className="flex items-center gap-2">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) => {
+                                setSelectedCategories((prev) =>
+                                  v
+                                    ? [...prev, c.name]
+                                    : prev.filter((x) => x !== c.name)
+                                )
+                              }}
+                            />
+                            <span className="text-sm">{c.name}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </PopoverContent>
+                </Popover>
               </div>
+
+
 
               {/* 3. Department */}
               <div>
-                <Label htmlFor="department">Department</Label>
-                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                  <SelectTrigger id="department">
-                    <SelectValue placeholder="All Departments" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Departments</SelectItem>
-                    {departments.map((d) => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                <Label>Department</Label>
+
+                <Popover>
+                  <PopoverTrigger>
+                    <Button type="button" variant="outline" className="w-full justify-start">
+                      {selectedDepartments.length === 0
+                        ? "All Departments"
+                        : `${selectedDepartments.length} selected`}
+                    </Button>
+                  </PopoverTrigger>
+
+                  <PopoverContent className="w-64 max-h-64 overflow-y-auto" align="start">
+                    {setups?.departments?.map((d: any) => (
+                      <div key={d.id} className="flex items-center gap-2">
+                        <Checkbox
+                          checked={selectedDepartments.includes(d.name)}
+                          onCheckedChange={(v) =>
+                            setSelectedDepartments(prev =>
+                              v ? [...prev, d.name] : prev.filter(x => x !== d.name)
+                            )
+                          }
+                        />
+                        <span className="text-sm">{d.name}</span>
+                      </div>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </PopoverContent>
+                </Popover>
               </div>
 
               {/* 4. Designation */}
               <div>
-                <Label htmlFor="designation">Designation</Label>
-                <Select value={selectedDesignation} onValueChange={setSelectedDesignation}>
-                  <SelectTrigger id="designation">
-                    <SelectValue placeholder="All Designations" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Designations</SelectItem>
-                    {designations.map((d) => (
-                      <SelectItem key={d} value={d}>{d}</SelectItem>
+                <Label>Designation</Label>
+
+                <Popover>
+                  <PopoverTrigger>
+                    <Button type="button" variant="outline" className="w-full justify-start">
+                      {selectedDesignations.length === 0
+                        ? "All Designations"
+                        : `${selectedDesignations.length} selected`}
+                    </Button>
+                  </PopoverTrigger>
+
+                  <PopoverContent className="w-64 max-h-64 overflow-y-auto" align="start">
+                    {setups?.designations?.map((d: any) => (
+                      <div key={d.id} className="flex items-center gap-2">
+                        <Checkbox
+                          checked={selectedDesignations.includes(d.name)}
+                          onCheckedChange={(v) =>
+                            setSelectedDesignations(prev =>
+                              v ? [...prev, d.name] : prev.filter(x => x !== d.name)
+                            )
+                          }
+                        />
+                        <span className="text-sm">{d.name}</span>
+                      </div>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </PopoverContent>
+                </Popover>
               </div>
+
 
               {/* 5. Level */}
               <div>
-                <Label htmlFor="level">Level</Label>
-                <Select value={selectedLevel} onValueChange={setSelectedLevel}>
-                  <SelectTrigger id="level">
-                    <SelectValue placeholder="All Levels" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Levels</SelectItem>
-                    {levels.map((l) => (
-                      <SelectItem key={l} value={l}>{l}</SelectItem>
+                <Label>Level</Label>
+
+                <Popover>
+                  <PopoverTrigger>
+                    <Button type="button" variant="outline" className="w-full justify-start">
+                      {selectedLevels.length === 0
+                        ? "All Levels"
+                        : `${selectedLevels.length} selected`}
+                    </Button>
+                  </PopoverTrigger>
+
+                  <PopoverContent className="w-64 max-h-64 overflow-y-auto" align="start">
+                    {setups?.levels?.map((l: any) => (
+                      <div key={l.id} className="flex items-center gap-2">
+                        <Checkbox
+                          checked={selectedLevels.includes(l.name)}
+                          onCheckedChange={(v) =>
+                            setSelectedLevels(prev =>
+                              v ? [...prev, l.name] : prev.filter(x => x !== l.name)
+                            )
+                          }
+                        />
+                        <span className="text-sm">{l.name}</span>
+                      </div>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </PopoverContent>
+                </Popover>
               </div>
+
 
               {/* 6. Grade */}
               <div>
-                <Label htmlFor="grade">Grade</Label>
-                <Select value={selectedGrade} onValueChange={setSelectedGrade}>
-                  <SelectTrigger id="grade">
-                    <SelectValue placeholder="All Grades" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Grades</SelectItem>
-                    {grades.map((g) => (
-                      <SelectItem key={g} value={g}>{g}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <Label>Grade</Label>
 
-              {/* 7. PT Group */}
+                <Popover>
+                  <PopoverTrigger>
+                    <Button type="button" variant="outline" className="w-full justify-start">
+                      {selectedGrades.length === 0
+                        ? "All Grades"
+                        : `${selectedGrades.length} selected`}
+                    </Button>
+                  </PopoverTrigger>
+
+                  <PopoverContent className="w-64 max-h-64 overflow-y-auto" align="start">
+                    {setups?.grades?.map((g: any) => (
+                      <div key={g.id} className="flex items-center gap-2">
+                        <Checkbox
+                          checked={selectedGrades.includes(g.name)}
+                          onCheckedChange={(v) =>
+                            setSelectedGrades(prev =>
+                              v ? [...prev, g.name] : prev.filter(x => x !== g.name)
+                            )
+                          }
+                        />
+                        <span className="text-sm">{g.name}</span>
+                      </div>
+                    ))}
+                  </PopoverContent>
+                </Popover>
+              </div>
               <div>
-                <Label htmlFor="ptGroup">PT Group</Label>
-                <Select value={selectedPtGroup} onValueChange={setSelectedPtGroup}>
-                  <SelectTrigger id="ptGroup">
-                    <SelectValue placeholder="All PT Groups" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All PT Groups</SelectItem>
-                    {ptGroups.map((p) => (
-                      <SelectItem key={p} value={p}>{p}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <Label>PT Group</Label>
 
-              {/* 8. Shift */}
-              <div>
-                <Label htmlFor="shift">Shift</Label>
-                <Select value={selectedShift} onValueChange={setSelectedShift}>
-                  <SelectTrigger id="shift">
-                    <SelectValue placeholder="All Shifts" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Shifts</SelectItem>
-                    {shifts.map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+                <Popover>
+                  <PopoverTrigger>
+                    <Button type="button" variant="outline" className="w-full justify-start">
+                      {selectedPtGroups.length === 0
+                        ? "All PT Groups"
+                        : `${selectedPtGroups.length} selected`}
+                    </Button>
+                  </PopoverTrigger>
 
+                  <PopoverContent className="w-64 max-h-64 overflow-y-auto" align="start">
+                    {setups?.ptGroups?.map((p: any) => (
+                      <div key={p.id} className="flex items-center gap-2">
+                        <Checkbox
+                          checked={selectedPtGroups.includes(p.name)}
+                          onCheckedChange={(v) =>
+                            setSelectedPtGroups(prev =>
+                              v ? [...prev, p.name] : prev.filter(x => x !== p.name)
+                            )
+                          }
+                        />
+                        <span className="text-sm">{p.name}</span>
+                      </div>
+                    ))}
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div> {/* END FILTER GRID */}
+              
             {/* Checkboxes */}
             <div className="flex flex-wrap items-center gap-4 mt-6">
               <div className="flex items-center space-x-2">
@@ -1083,8 +1091,8 @@ export default function EmployeeDetailsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredEmployees.length > 0 ? (
-                      filteredEmployees.map((emp, i) => (
+                    {employees.length > 0 ? (
+                      employees.map((emp, i) => (
                         <TableRow key={emp.id}>
                           <TableCell>{i + 1}</TableCell>
                           <TableCell>{emp.code}</TableCell>
@@ -1118,6 +1126,7 @@ export default function EmployeeDetailsPage() {
                   </TableBody>
                 </Table>
               </div>
+              
             )}
           </CardContent>
         </Card>

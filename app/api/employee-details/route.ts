@@ -41,10 +41,11 @@ export async function GET(req: NextRequest) {
     if (department && department !== "all") where.department = department;
     if (designation && designation !== "all") where.designation = designation;
     if (category && category !== "all") where.category = category;
-    if (level && level !== "all") where.level = level;
+    if (level && level !== "all") where.scale = level;
     if (grade && grade !== "all") where.grade = grade;
     if (ptGroup && ptGroup !== "all") where.ptGroup = ptGroup;
-    if (shift && shift !== "all") where.shiftId = shift;
+    if (shift && shift !== "all") where.shiftId = shift;  // Fixed: use shiftId not shift
+
 
     // Filter resigned employees
     if (!includeResigned) {
@@ -275,26 +276,35 @@ export async function POST(req: NextRequest) {
       });
 
       // If salary is provided, calculate and save it
+      // If salary is provided, calculate and save it
       let salaryResult = null;
-      if (salary && salary.mode && salary.inputAmount && salary.selectedHeadIds) {
-        // Check if salary already configured
-        const existingConfig = await (tx as any).employeeSalaryConfig.findFirst({
-          where: { employeeId: createdEmployee.id },
-        });
-
-        if (!existingConfig) {
-          salaryResult = await calculateEmployeeSalary({
-            tx,
-            companyId,
-            employeeId: createdEmployee.id,
-            salary: {
-              mode: salary.mode,
-              inputAmount: salary.inputAmount,
-              selectedHeadIds: salary.selectedHeadIds,
-            },
-          });
+      if (salary && salary.mode && salary.inputAmount !== undefined) {
+        const salaryMode = String(salary.mode).toUpperCase();
+        if (salaryMode !== "CTC" && salaryMode !== "GROSS") {
+          throw new Error(`Invalid salary mode: ${salary.mode}. Must be "CTC" or "GROSS"`);
         }
+
+        const inputAmount = Number(salary.inputAmount);
+        if (isNaN(inputAmount) || inputAmount <= 0) {
+          throw new Error("Invalid salary amount. Must be a positive number");
+        }
+
+        const selectedHeadIds = Array.isArray(salary.selectedHeadIds)
+          ? salary.selectedHeadIds
+          : [];
+
+        salaryResult = await calculateEmployeeSalary({
+          tx,
+          companyId,
+          employeeId: createdEmployee.id,
+          salary: {
+            mode: salaryMode as "CTC" | "GROSS",
+            inputAmount,
+            selectedHeadIds, // ← CAN BE EMPTY
+          },
+        });
       }
+
 
       return {
         employee: createdEmployee,
@@ -541,14 +551,28 @@ export async function PUT(req: NextRequest) {
       });
 
       // Update salary if provided
+      // Update salary if provided
       let salaryResult = null;
-      if (salary && salary.mode && salary.inputAmount && salary.selectedHeadIds) {
-        // Delete existing salary breakdown
+      if (salary && salary.mode && salary.inputAmount !== undefined) {
+        const salaryMode = String(salary.mode).toUpperCase();
+        if (salaryMode !== "CTC" && salaryMode !== "GROSS") {
+          throw new Error(`Invalid salary mode: ${salary.mode}. Must be "CTC" or "GROSS"`);
+        }
+
+        const inputAmount = Number(salary.inputAmount);
+        if (isNaN(inputAmount) || inputAmount <= 0) {
+          throw new Error("Invalid salary amount. Must be a positive number");
+        }
+
+        const selectedHeadIds = Array.isArray(salary.selectedHeadIds)
+          ? salary.selectedHeadIds
+          : [];
+
+        // Delete old salary
         await tx.employeeSalaryHead.deleteMany({
           where: { employeeId: id },
         });
 
-        // Delete existing config
         const existingConfig = await (tx as any).employeeSalaryConfig.findFirst({
           where: { employeeId: id },
         });
@@ -557,19 +581,19 @@ export async function PUT(req: NextRequest) {
             where: { id: existingConfig.id },
           });
         }
-      
-        // Calculate new salary
+
         salaryResult = await calculateEmployeeSalary({
           tx,
           companyId,
           employeeId: id,
           salary: {
-            mode: salary.mode,
-            inputAmount: salary.inputAmount,
-            selectedHeadIds: salary.selectedHeadIds,
+            mode: salaryMode as "CTC" | "GROSS",
+            inputAmount,
+            selectedHeadIds, // ← CAN BE EMPTY
           },
         });
       }
+
       
         return {
         employee: updatedEmployee,
