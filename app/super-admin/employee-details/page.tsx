@@ -463,7 +463,7 @@ export default function EmployeeDetailsPage() {
         alert("Employee created successfully");
       }
       setOpen(false);
-      setForm({});
+      setForm({}); // Reset form
       loadEmployees(); // Reload employees
     } catch (error: any) {
       console.error("Failed to save employee:", error);
@@ -471,18 +471,47 @@ export default function EmployeeDetailsPage() {
     }
   };
 
-  const handleEdit = (employee: Employee) => {
-    setForm(employee);
-    setOpen(true);
-  };
+  const handleEdit = async (employee: Employee) => {
+    try {
+      setLoading(true)
+  
+      // Fetch latest employee data from DB
+      const res = await api.get(`/api/employee-details/${employee.id}`)
+  
+      if (!res?.employee) {
+        alert("Failed to load employee details")
+        return
+      }
+  
+      setForm(res.employee) // FULL DB DATA
+      setOpen(true)
+    } catch (err: any) {
+      console.error(err)
+      alert(err.message || "Error loading employee")
+    } finally {
+      setLoading(false)
+    }
+  }
+  
 
   const handleDelete = async (id: number) => {
-    if (!confirm("Delete this employee?")) return;
+    if (!confirm("Are you sure you want to delete this employee? This action cannot be undone.")) return;
 
     try {
-      await api.delete("/api/employee-details", {
-        body: { id: id.toString() },
+      const response = await fetch("/api/employee-details", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id: id.toString() }),
       });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to delete employee");
+      }
+
       alert("Employee deleted successfully");
       loadEmployees(); // Reload employees
     } catch (error: any) {
@@ -1138,7 +1167,7 @@ export default function EmployeeDetailsPage() {
               employee={form}
               onSubmit={handleSubmit}
               onCancel={() => {
-                setForm({});
+                setForm({}); // Reset form when canceling
                 setOpen(false);
               }}
             />

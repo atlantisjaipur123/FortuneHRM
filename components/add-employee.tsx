@@ -42,8 +42,24 @@ const [employee, setEmployee] = useState<any>({});
 
 // Load employee data when prop changes (for editing)
 useEffect(() => {
-  if (employeeProp) {
-    setEmployee(employeeProp);
+  if (employeeProp && Object.keys(employeeProp).length > 0) {
+    // Deep clone to avoid reference issues
+    setEmployee(JSON.parse(JSON.stringify(employeeProp)));
+    
+    // Load salary data if employee has salary information
+    if (employeeProp.salary) {
+      setSalaryMode(employeeProp.salary.mode || "CTC");
+      setSalaryAmount(employeeProp.salary.inputAmount || 0);
+      if (employeeProp.salary.selectedHeadIds) {
+        setSelectedHeadIds(employeeProp.salary.selectedHeadIds);
+      }
+    }
+  } else {
+    // Reset form for new employee
+    setEmployee({});
+    setSalaryMode("CTC");
+    setSalaryAmount(0);
+    setSelectedHeadIds([]);
   }
 }, [employeeProp]);
 

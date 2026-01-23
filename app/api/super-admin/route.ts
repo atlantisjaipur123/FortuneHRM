@@ -28,31 +28,84 @@ function normalizeStateCode(state: string | undefined): StateCode {
   )
   
   return validState || StateCode.MAHARASHTRA
-}
+}// 🔹 GET SINGLE COMPANY BY ID (for View/Edit)
+
+
+
 
 // ============================================================================
 // GET - List all companies with optional filters and stats
 // ============================================================================
 export async function GET(request: NextRequest) {
   try {
-    // Verify super admin access
     await verifySuperAdmin()
-    
+
     const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+
+    // 🔹 SINGLE COMPANY (View / Edit)
+    if (id) {
+      const company = await prisma.company.findFirst({
+        where: { id, deletedAt: null },
+        include: {
+          authorizedPerson: true,
+          _count: { select: { employees: true } },
+        },
+      })
+
+      if (!company) {
+        return NextResponse.json(
+          { error: "Company not found" },
+          { status: 404 }
+        )
+      }
+
+      // Flatten authorized person data for easier form access
+      const ap = company.authorizedPerson
+      const companyData: any = {
+        ...company,
+        status: company.status === CompanyStatus.ACTIVE ? "active" : "inactive",
+        adminName: ap?.name,
+        startDate: company.startDate?.toISOString(),
+        endDate: company.endDate?.toISOString(),
+        employees: company._count.employees,
+        createdAt: company.createdAt.toISOString(),
+        // Flatten authorized person fields
+        apName: ap?.name,
+        apDesignation: ap?.designation,
+        apFatherName: ap?.fatherName,
+        apDob: ap?.dob?.toISOString().split('T')[0],
+        apSex: ap?.gender?.toLowerCase(),
+        apPremise: ap?.premise,
+        apFlat: ap?.flat,
+        apRoad: ap?.road,
+        apArea: ap?.area,
+        apCity: ap?.city,
+        apState: ap?.state,
+        apPin: ap?.pin,
+        apPan: ap?.pan,
+        apEmail: ap?.email,
+        apStdCode: ap?.stdCode,
+        apPhone: ap?.phone,
+        addressChanged: ap?.addressChanged || false,
+      }
+
+      return NextResponse.json({
+        success: true,
+        company: companyData,
+      })
+    }
+
+    // 🔹 LIST COMPANIES (Table)
     const search = searchParams.get("search") || ""
     const status = searchParams.get("status") as CompanyStatus | null
     const page = parseInt(searchParams.get("page") || "1")
     const limit = parseInt(searchParams.get("limit") || "100")
     const skip = (page - 1) * limit
 
-    // Build where clause
-    const where: any = {
-      deletedAt: null, // Only show non-deleted companies
-    }
+    const where: any = { deletedAt: null }
 
-    if (status) {
-      where.status = status
-    }
+    if (status) where.status = status
 
     if (search) {
       where.OR = [
@@ -62,39 +115,28 @@ export async function GET(request: NextRequest) {
         { authorizedPerson: { name: { contains: search, mode: "insensitive" } } },
       ]
     }
-
-    // Get companies with authorized person and employee count
-    const [companies, totalCount] = await Promise.all([
+    const [companies, totalCount] = await Promise.all([ // ✅ FIXED: Renamed from [companies, totalCompanies] to [companies, totalCount]
       prisma.company.findMany({
         where,
         skip,
         take: limit,
         include: {
           authorizedPerson: true,
-          _count: {
-            select: { employees: true },
-          },
+          _count: { select: { employees: true } },
         },
         orderBy: { createdAt: "desc" },
       }),
       prisma.company.count({ where }),
     ])
-
-    // Get stats
     const stats = {
       totalCompanies: await prisma.company.count({ where: { deletedAt: null } }),
       activeCompanies: await prisma.company.count({
         where: { deletedAt: null, status: CompanyStatus.ACTIVE },
       }),
       totalEmployees: await prisma.employee.count({
-        where: { 
-          deletedAt: null,
-          company: { deletedAt: null } 
-        },
+        where: { deletedAt: null, company: { deletedAt: null } },
       }),
     }
-
-    // Transform companies to match the expected format
     const formattedCompanies = companies.map((company) => {
       const { _count, ...companyWithoutCount } = company
       return {

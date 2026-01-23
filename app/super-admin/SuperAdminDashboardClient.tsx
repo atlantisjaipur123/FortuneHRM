@@ -121,6 +121,9 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
   const router = useRouter()
   const { setCompany } = useCompany()
   const [isCompanyDropdownOpen, setIsCompanyDropdownOpen] = useState(false)
+  const [isViewOpen, setIsViewOpen] = useState(false)
+  const [viewCompany, setViewCompany] = useState<CompanyExtended | null>(null)
+  const [companyMode, setCompanyMode] = useState<"view" | "edit">("edit")
 
   // Search filtering for Current Company card
   const filteredSearchCompanies = useMemo(() => {
@@ -637,6 +640,43 @@ const handleConfirm = () => {
     setIsCompanyConfirmed(false)
   }
 
+  // Handle action (view/edit)
+  const handleAction = async (id: string, action: "view" | "edit") => {
+    try {
+      // Fetch full company data from API
+      const response = await fetch(`/api/super-admin?id=${id}`)
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || "Failed to fetch company details")
+      }
+
+      const companyData = data.company as CompanyExtended
+      setSelectedCompany(companyData)
+      setViewCompany(companyData)
+      setCompanyMode(action)
+      
+      if (action === "view") {
+        setIsViewOpen(true)
+      } else {
+        setIsCompanyMasterOpen(true)
+      }
+    } catch (error: any) {
+      console.error("Fetch company error:", error)
+      toast({
+        title: "Error",
+        description: error.message || "Failed to fetch company details",
+        variant: "destructive",
+        duration: 5000,
+      })
+    }
+  }
+
+  // Handle delete
+  const handleDelete = (id: string) => {
+    deleteCompany(id)
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <div className="flex flex-col sm:flex-row">
@@ -833,22 +873,15 @@ const handleConfirm = () => {
                             </TableCell>
                             <TableCell 
                               className="min-w-[80px] sm:min-w-[100px] relative"
-                              onClick={(e) => e.stopPropagation()}
-                              onMouseDown={(e) => e.stopPropagation()}
                             >
                               <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button 
-                                    type="button"
-                                    variant="ghost" 
-                                    className="h-8 w-8 p-0 hover:bg-accent focus-visible:ring-0" 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                    }}
+                               <DropdownMenuTrigger>
+                                  <span
+                                    className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent cursor-pointer"
+                                    aria-label="Open actions"
                                   >
-                                    <span className="sr-only">Open menu</span>
                                     <MoreHorizontal className="h-4 w-4" />
-                                  </Button>
+                                  </span>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent 
                                   align="end" 
@@ -857,36 +890,22 @@ const handleConfirm = () => {
                                   sideOffset={8}
                                   className="min-w-[160px]"
                                 >
-                                  <DropdownMenuItem asChild>
-                                    <Link 
-                                      href={`/company/${company.id}`} 
-                                      className="cursor-pointer flex items-center"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <Building2 className="mr-2 h-4 w-4" /> View Details
-                                    </Link>
+                                  <DropdownMenuItem onClick={() => handleAction(company.id, "view")}>
+                                    <Building2 className="mr-2 h-4 w-4" />
+                                    View Details
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onClick={() => handleAction(company.id, "edit")}>
+                                    <Pencil className="mr-2 h-4 w-4" />
+                                    Edit
                                   </DropdownMenuItem>
                                   <DropdownMenuItem 
-                                    className="cursor-pointer"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      setSelectedCompany(company);
-                                      setIsCompanyMasterOpen(true);
-                                    }}
+                                    className="text-destructive" 
+                                    onClick={() => handleDelete(company.id)}
                                   >
-                                    <Pencil className="mr-2 h-4 w-4" /> Edit
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Delete
                                   </DropdownMenuItem>
-                                  <DropdownMenuItem 
-                                    className="cursor-pointer text-destructive focus:text-destructive"
-                                    onClick={(e) => {
-                                      e.preventDefault();
-                                      e.stopPropagation();
-                                      deleteCompany(company.id);
-                                    }}
-                                  >
-                                    <Trash2 className="mr-2 h-4 w-4" /> Delete
-                                  </DropdownMenuItem>
+
                                 </DropdownMenuContent>
                               </DropdownMenu>
                             </TableCell>
@@ -918,7 +937,16 @@ const handleConfirm = () => {
         isOpen={isCompanyMasterOpen}
         onOpenChange={setIsCompanyMasterOpen}
         company={selectedCompany}
+        mode={companyMode}
         onSubmit={updateCompany}
+      />
+      
+      <CompanyMasterDialog
+        isOpen={isViewOpen}
+        onOpenChange={setIsViewOpen}
+        company={viewCompany}
+        mode="view"
+        onSubmit={async () => {}} // No-op for view mode
       />
     </div>
   )

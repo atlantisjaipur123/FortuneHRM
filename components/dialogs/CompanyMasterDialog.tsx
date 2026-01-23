@@ -7,6 +7,7 @@ interface CompanyMasterDialogProps {
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   company: CompanyExtended | null
+  mode: "view" | "edit"
   onSubmit: (formData: FormData) => Promise<void>
 }
 
@@ -14,6 +15,7 @@ export function CompanyMasterDialog({
   isOpen,
   onOpenChange,
   company,
+  mode,
   onSubmit,
 }: CompanyMasterDialogProps) {
 
@@ -39,9 +41,12 @@ export function CompanyMasterDialog({
     <CompanyInformationForm
       isOpen={isOpen}
       onOpenChange={onOpenChange}
+      initialData={company}
+      mode={mode}              // "view" or "edit"
       onSubmit={handleUpdate}
-      error={error} // 🔥 REAL ERROR NOW PASSED
-      title="Company Master"
+      error={error}
+      title={mode === "view" ? "View Company Details" : "Edit Company"}
     />
+
   )
 }
