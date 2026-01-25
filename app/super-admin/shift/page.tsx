@@ -152,6 +152,12 @@ export default function ShiftPage() {
   
       startTime: selectedShift.startTime ?? "00:00",
       endTime: selectedShift.endTime ?? "00:00",
+
+      defineWeeklyOff: selectedShift.defineWeeklyOff ?? true,
+      weeklyOffPattern: Array.isArray(selectedShift.weeklyOffPattern)
+      ? selectedShift.weeklyOffPattern
+      : [{ week: 1, day: "Sun", type: "Full day", time: "" }],
+
   
       errors: {},
     });
@@ -586,13 +592,13 @@ export default function ShiftPage() {
                       </div>
                     </div>
                     <div>
-                      <Label className="text-gray-700">If no attendance is recorded for <Input type="number" value={formData.noAttendanceHours} onChange={(e) => setFormData({ ...formData, noAttendanceHours: e.target.value })} className="w-12 inline" /> <Input type="number" value={formData.noAttendanceMinutes} onChange={(e) => setFormData({ ...formData, noAttendanceMinutes: e.target.value })} className="w-12 inline" /> from shift start time then mark "Full day" as absent.</Label>
+                      <Label className="text-gray-700">If no attendance is recorded for <Input type="number" value={formData.noAttendanceHours} onChange={(e) => setFormData({ ...formData, noAttendanceHours: e.target.value })} className="w-20 inline" /> <Input type="number" value={formData.noAttendanceMinutes} onChange={(e) => setFormData({ ...formData, noAttendanceMinutes: e.target.value })} className="w-20 inline" /> from shift start time then mark "Full day" as absent.</Label>
                     </div>
                     <div>
-                      <Label className="text-gray-700">If no attendance is recorded for <Input type="number" value="4" className="w-12 inline" readOnly /> <Input type="number" value="0" className="w-12 inline" readOnly /> from shift start time then mark "Half day" as absent.</Label>
+                      <Label className="text-gray-700">If no attendance is recorded for <Input type="number" value={formData.noAttendanceHours} onChange={(e) => setFormData({ ...formData, noAttendanceHours: e.target.value })} className="w-20 inline" /> <Input type="number" value={formData.noAttendanceMinutes} onChange={(e) => setFormData({ ...formData, noAttendanceMinutes: e.target.value })} className="w-20 inline"/> from shift start time then mark "Half day" as absent.</Label>
                     </div>
                     <div>
-                      <Label className="text-gray-700">If check out is recorded for <Input type="number" value={formData.noAttendanceCheckOutHours} onChange={(e) => setFormData({ ...formData, noAttendanceCheckOutHours: e.target.value })} className="w-12 inline" /> <Input type="number" value={formData.noAttendanceCheckOutMinutes} onChange={(e) => setFormData({ ...formData, noAttendanceCheckOutMinutes: e.target.value })} className="w-12 inline" /> before shift end, mark second half as absent.</Label>
+                      <Label className="text-gray-700">If check out is recorded for <Input type="number" value={formData.noAttendanceCheckOutHours} onChange={(e) => setFormData({ ...formData, noAttendanceCheckOutHours: e.target.value })} className="w-20 inline" /> <Input type="number" value={formData.noAttendanceCheckOutMinutes} onChange={(e) => setFormData({ ...formData, noAttendanceCheckOutMinutes: e.target.value })} className="w-20 inline" /> before shift end, mark second half as absent.</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Checkbox
@@ -650,7 +656,7 @@ export default function ShiftPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {formData.weeklyOffPattern.map((row: any, i: number) => (
+                          {(formData.weeklyOffPattern ??[]).map((row: any, i: number) => (
                             <TableRow key={i}>
                               <TableCell>{row.week}</TableCell>
                               <TableCell>

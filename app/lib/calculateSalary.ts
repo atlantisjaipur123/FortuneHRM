@@ -9,6 +9,7 @@
  * 5. Special Allowance as balancing head
  */
 
+import { Prisma } from "@prisma/client";
 export interface SalaryHead {
   id: string;
   name: string;
@@ -231,10 +232,11 @@ const specialAllowanceAmount =
 ctc - (salaryHeadsTotal + employerContributionTotal);
 
 if (specialAllowanceAmount < 0) {
-throw new Error(
-  `Invalid salary structure: Special Allowance became negative (${specialAllowanceAmount})`
-);
+  throw new Error(
+    "Salary configuration error: The total of selected salary heads and employer contributions exceeds the CTC."
+  );
 }
+
 
 const shouldIncludeSpecialAllowance =
 !hasOtherHeads ||
@@ -309,15 +311,18 @@ return {
    SERVER-SIDE: Calculate and Save Employee Salary
    This version works with Prisma transactions and saves to database
 -------------------------------------------------------------------*/
-import { Prisma } from "@prisma/client";
 
+
+// ❌ DO NOT import prisma here
+
+// Replace with this exact code (copy-paste whole block)
 export async function calculateEmployeeSalary({
   tx,
   companyId,
   employeeId,
   salary,
 }: {
-  tx: Prisma.TransactionClient;
+  tx: any;
   companyId: string;
   employeeId: string;
   salary: {
@@ -326,33 +331,34 @@ export async function calculateEmployeeSalary({
     selectedHeadIds: string[];
   };
 }) {
-  // 1️⃣ Fetch salary heads
+  // 1️⃣ Determine effective salary heads (fallback to special allowance)
   let effectiveHeadIds = salary.selectedHeadIds;
 
-// 🔹 If no heads selected → fallback to Special Allowance
-if (!effectiveHeadIds || effectiveHeadIds.length === 0) {
-  const specialAllowance = await tx.salaryHead.findFirst({
+  if (!effectiveHeadIds || effectiveHeadIds.length === 0) {
+    const specialAllowance = await tx.salaryHead.findFirst({
+      where: {
+        companyId,
+        systemCode: "SPECIAL_ALLOWANCE",
+        isSystem: true,
+      },
+    });
+
+    if (!specialAllowance) {
+      throw new Error("Special Allowance head not found for company");
+    }
+
+    effectiveHeadIds = [specialAllowance.id];
+  }
+
+  // 2️⃣ Fetch salary heads
+  const heads = await tx.salaryHead.findMany({
     where: {
       companyId,
-      systemCode: "SPECIAL_ALLOWANCE",
-      isSystem: true,
+      id: { in: effectiveHeadIds },
     },
   });
 
-  if (!specialAllowance) {
-    throw new Error("Special Allowance head not found for company");
-  }
-
-  effectiveHeadIds = [specialAllowance.id];
-}
-
-// 🔹 Fetch effective heads
-const heads = await tx.salaryHead.findMany({
-  where: {
-    companyId,
-    id: { in: effectiveHeadIds },
-  },
-});
+  // 3️⃣ Fetch PF & ESI rules (latest active)
   const pfRule = await tx.pFESIRate.findFirst({
     where: { companyId, rateType: "PF", isActive: true },
     orderBy: { effectiveFrom: "desc" },
@@ -363,7 +369,7 @@ const heads = await tx.salaryHead.findMany({
     orderBy: { effectiveFrom: "desc" },
   });
 
-  // 3️⃣ Use client-side calculation function
+  // 4️⃣ Run pure calculation (reuse client-side helper)
   const calculationResult = calculateSalary({
     mode: salary.mode,
     inputAmount: salary.inputAmount,
@@ -379,25 +385,30 @@ const heads = await tx.salaryHead.findMany({
       isSystem: h.isSystem,
       systemCode: h.systemCode,
     })),
-    selectedHeadIds:effectiveHeadIds,
-    pfRule: pfRule ? {
-      empShareAc1: pfRule.empShareAc1,
-      erShareAc2: pfRule.erShareAc2,
-      epsAc21: pfRule.epsAc21,
-      edliChargesAc21: pfRule.edliChargesAc21,
-      adminChargesAc10: pfRule.adminChargesAc10,
-      pfWageCeiling: pfRule.pfWageCeiling,
-      isActive: pfRule.isActive,
-    } : null,
-    esiRule: esiRule ? {
-      empShare: esiRule.empShare,
-      employerShare: esiRule.employerShare,
-      esiWageCeiling: esiRule.esiWageCeiling,
-      isActive: esiRule.isActive,
-    } : null,
+    selectedHeadIds: effectiveHeadIds,
+    pfRule: pfRule
+      ? {
+          empShareAc1: pfRule.empShareAc1,
+          erShareAc2: pfRule.erShareAc2,
+          epsAc21: pfRule.epsAc21,
+          edliChargesAc21: pfRule.edliChargesAc21,
+          adminChargesAc10: pfRule.adminChargesAc10,
+          pfWageCeiling: pfRule.pfWageCeiling,
+          isActive: pfRule.isActive,
+        }
+      : null,
+    esiRule: esiRule
+      ? {
+          empShare: esiRule.empShare,
+          employerShare: esiRule.employerShare,
+          esiWageCeiling: esiRule.esiWageCeiling,
+          isActive: esiRule.isActive,
+        }
+      : null,
   });
 
-  // 4️⃣ Save salary breakdown to database
+  // 5️⃣ Persist salary head rows
+  // Use tx.* for all DB writes inside transaction
   const salaryHeadRows = calculationResult.rows.map((row) => ({
     companyId,
     employeeId,
@@ -413,19 +424,20 @@ const heads = await tx.salaryHead.findMany({
     gratuityEmployer: row.gratuityEmployer,
   }));
 
-  await (tx as any).employeeSalaryHead.createMany({
-    data: salaryHeadRows,
-  });
+  if (salaryHeadRows.length > 0) {
+    await tx.employeeSalaryHead.createMany({
+      data: salaryHeadRows,
+    });
+  }
 
-  // 5️⃣ Save salary config
-  const salaryConfig = await (tx as any).employeeSalaryConfig.create({
+  // 6️⃣ Save salary config and return it (single create)
+  const salaryConfig = await tx.employeeSalaryConfig.create({
     data: {
       companyId,
       employeeId,
       salaryMode: salary.mode,
       inputAmount: salary.inputAmount,
       grossSalary: calculationResult.totals.totalMonthly,
-
       netSalary: calculationResult.totals.netInHand,
       annualCtc: calculationResult.totals.ctc * 12,
       pfRuleSnapshot: pfRule || {},

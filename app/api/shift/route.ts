@@ -8,200 +8,121 @@ import { getCompanyId } from "@/app/lib/getCompanyid";
 // -----------------------------------------------------
 export async function GET(req: NextRequest) {
   const user = await getSession();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  let companyId: string;
   try {
-    companyId = getCompanyId();
+    const companyId = getCompanyId();
+    const shifts = await prisma.shift.findMany({
+      where: { companyId, isActive: true },
+      orderBy: { createdAt: "desc" },
+    });
+    return NextResponse.json({ success: true, shifts });
   } catch (error: any) {
-    return NextResponse.json(
-      { error: "Company ID is required" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Company context required" }, { status: 400 });
   }
-
-  const shifts = await prisma.shift.findMany({
-    where: {
-      companyId: companyId,
-      isActive: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
-
-  return NextResponse.json({ success: true, shifts });
 }
 
 // -----------------------------------------------------
-// POST → Create shift
+// POST → Create shift (Aligned with 6-step frontend)
 // -----------------------------------------------------
 export async function POST(req: NextRequest) {
   const user = await getSession();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  let companyId: string;
-  try {
-    companyId = getCompanyId();
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: "Company ID is required" },
-      { status: 400 }
-    );
-  }
-
-  const body = await req.json();
-
-  if (!body.name || !body.startTime || !body.endTime) {
-    return NextResponse.json(
-      { error: "Shift name, startTime and endTime are required" },
-      { status: 400 }
-    );
-  }
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
   try {
-    const shift = await prisma.shift.create({
-      data: {
-        companyId: companyId,
+    const companyId = getCompanyId();
+    const body = await req.json();
 
-        name: body.name,
-        code: body.code || null,
-
-        startTime: body.startTime,
-        endTime: body.endTime,
-
-        breakDuration: body.breakDuration
-          ? Number(body.breakDuration)
-          : null,
-
-        workingHours: body.workingHours
-          ? Number(body.workingHours)
-          : null,
-
-        shiftType: body.shiftType || "FIXED",
-
-        checkInAllowedFrom: body.checkInAllowedFrom
-          ? Number(body.checkInAllowedFrom)
-          : null,
-
-        checkOutAllowedFrom: body.checkOutAllowedFrom
-          ? Number(body.checkOutAllowedFrom)
-          : null,
-
-        createdBy: user.id,
-      },
-    });
-
-    return NextResponse.json({ success: true, shift });
-  } catch (error: any) {
-    if (error.code === "P2002") {
-      return NextResponse.json(
-        { error: "Shift with this name already exists" },
-        { status: 409 }
-      );
+    // Validation: Required fields from Step 1 & 2
+    if (!body.name || !body.startTime || !body.endTime) {
+      return NextResponse.json({ error: "Name, Start Time, and End Time are required" }, { status: 400 });
     }
 
-    console.error("Create shift error:", error);
-    return NextResponse.json(
-      { error: "Failed to create shift" },
-      { status: 500 }
-    );
+    // SANITIZATION: Prevents NaN and Negative values [cite: 454-455]
+    // We use Math.max(0, ...) to ensure no negative time is ever stored.
+    const payload = {
+      companyId,
+      name: body.name,
+      code: body.code || null,
+      startTime: body.startTime,
+      endTime: body.endTime,
+      // Frontend sends minutes, we store as Int
+      breakDuration: Math.max(0, Number(body.breakDuration || 0)), 
+      // Frontend sends hours as decimal (e.g., 8.5), we store as Float
+      workingHours: Math.max(0, Number(body.workingHours || 0)), 
+      // Grace periods from Step 2
+      checkInAllowedFrom: Math.max(0, Number(body.checkInAllowedFrom || 0)),
+      checkOutAllowedFrom: Math.max(0, Number(body.checkOutAllowedFrom || 0)),
+      // Additional Step 3-5 fields
+      shiftAllowance: !!body.shiftAllowance,
+      weeklyOffPattern: body.weeklyOffPattern || [], // Note: Ensure this is a Json field in Prisma
+      restrictManagerBackdate: !!body.restrictManagerBackdate,
+      restrictHRBackdate: !!body.restrictHRBackdate,
+      restrictManagerFuture: !!body.restrictManagerFuture,
+      createdBy: user.id,
+      isActive: true,
+    };
+
+    const shift = await prisma.shift.create({ data: payload });
+    return NextResponse.json({ success: true, shift });
+  } catch (error: any) {
+    if (error.code === "P2002") return NextResponse.json({ error: "Shift code/name already exists" }, { status: 409 });
+    console.error("Shift POST error:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }
 
 // -----------------------------------------------------
-// PATCH → Update shift (expects id in body)
+// PATCH → Update shift (Expects ID in body)
 // -----------------------------------------------------
 export async function PATCH(req: NextRequest) {
   const user = await getSession();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  let companyId: string;
   try {
-    companyId = getCompanyId();
+    const companyId = getCompanyId();
+    const { id, ...data } = await req.json();
+
+    if (!id) return NextResponse.json({ error: "Shift ID is required" }, { status: 400 });
+
+    // Scrub numeric fields to prevent negative values on update
+    if (data.breakDuration !== undefined) data.breakDuration = Math.max(0, Number(data.breakDuration));
+    if (data.workingHours !== undefined) data.workingHours = Math.max(0, Number(data.workingHours));
+    if (data.checkInAllowedFrom !== undefined) data.checkInAllowedFrom = Math.max(0, Number(data.checkInAllowedFrom));
+    if (data.checkOutAllowedFrom !== undefined) data.checkOutAllowedFrom = Math.max(0, Number(data.checkOutAllowedFrom));
+
+    const result = await prisma.shift.updateMany({
+      where: { id, companyId },
+      data: { ...data, updatedBy: user.id },
+    });
+
+    if (!result.count) return NextResponse.json({ error: "Shift not found" }, { status: 404 });
+    return NextResponse.json({ success: true });
   } catch (error: any) {
-    return NextResponse.json(
-      { error: "Company ID is required" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Update failed" }, { status: 500 });
   }
-
-  const { id, ...data } = await req.json();
-
-  if (!id) {
-    return NextResponse.json(
-      { error: "Shift ID is required" },
-      { status: 400 }
-    );
-  }
-
-  const result = await prisma.shift.updateMany({
-    where: {
-      id,
-      companyId: companyId, // 🔐 multi-tenant protection
-    },
-    data: {
-      ...data,
-      updatedBy: user.id,
-    },
-  });
-
-  if (!result.count) {
-    return NextResponse.json(
-      { error: "Shift not found or access denied" },
-      { status: 404 }
-    );
-  }
-
-  return NextResponse.json({ success: true });
 }
 
 // -----------------------------------------------------
-// DELETE → Soft delete (expects id in body)
+// DELETE → Soft delete (Expects ID in body per frontend)
 // -----------------------------------------------------
 export async function DELETE(req: NextRequest) {
   const user = await getSession();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  let companyId: string;
   try {
-    companyId = getCompanyId();
+    const companyId = getCompanyId();
+    const { id } = await req.json(); // Correctly parses JSON body from frontend API() call
+
+    if (!id) return NextResponse.json({ error: "Shift ID is required" }, { status: 400 });
+
+    await prisma.shift.updateMany({
+      where: { id, companyId },
+      data: { isActive: false, updatedBy: user.id },
+    });
+
+    return NextResponse.json({ success: true });
   } catch (error: any) {
-    return NextResponse.json(
-      { error: "Company ID is required" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "Delete failed" }, { status: 500 });
   }
-
-  const { id } = await req.json();
-
-  if (!id) {
-    return NextResponse.json(
-      { error: "Shift ID is required" },
-      { status: 400 }
-    );
-  }
-
-  await prisma.shift.updateMany({
-    where: {
-      id,
-      companyId: companyId,
-    },
-    data: {
-      isActive: false,
-      updatedBy: user.id,
-    },
-  });
-
-  return NextResponse.json({ success: true });
 }

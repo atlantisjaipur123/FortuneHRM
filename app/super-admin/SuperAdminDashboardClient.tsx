@@ -804,7 +804,6 @@ const handleConfirm = () => {
                     className="max-w-full sm:max-w-sm text-xs sm:text-sm"
                   />
                   <Button onClick={() => setIsCreateOpen(true)} className="w-full sm:w-auto text-xs sm:text-sm">Add New Company</Button>
-                  <Button onClick={() => setIsCompanyMasterOpen(true)} className="w-full sm:w-auto text-xs sm:text-sm">Company Master</Button>
                 </div>
                 <div className="relative">
                   <div className="rounded-md border overflow-x-auto">

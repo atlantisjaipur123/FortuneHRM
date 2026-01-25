@@ -300,8 +300,6 @@ export function CompanyInformationForm({
                             {errors.pan && (
                               <p className="text-xs text-red-500 mt-1">{errors.pan}</p>
                             )}
-
-                              <Button type="button" variant="outline" size="sm">...</Button>
                             </div>
                           </div>
                           
@@ -337,11 +335,9 @@ export function CompanyInformationForm({
                               }}
                             />
 
-                            {errors.tan && (
-                              <p className="text-xs text-red-500 mt-1">{errors.tan}</p>
-                            )}
-
-                              <Button type="button" variant="outline" size="sm">...</Button>
+                              {errors.tan && (
+                                <p className="text-xs text-red-500 mt-1">{errors.tan}</p>
+                              )}
                             </div>
                           </div>
                           
@@ -377,7 +373,6 @@ export function CompanyInformationForm({
                                 readOnly={isReadOnly}
                                 className={`bg-white flex-1 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`} 
                               />
-                              <Button type="button" variant="outline" size="sm" disabled={isReadOnly}>...</Button>
                             </div>
                           </div>
                           
@@ -392,7 +387,7 @@ export function CompanyInformationForm({
                                 readOnly={isReadOnly}
                                 className={`bg-white flex-1 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`} 
                               />
-                              <Button type="button" variant="outline" size="sm" disabled={isReadOnly}>...</Button>
+                              
                             </div>
                           </div>
                           
@@ -406,7 +401,6 @@ export function CompanyInformationForm({
                                 readOnly={isReadOnly}
                                 className={`bg-white flex-1 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`} 
                               />
-                              <Button type="button" variant="outline" size="sm" disabled={isReadOnly}>...</Button>
                             </div>
                           </div>
                           
@@ -649,7 +643,7 @@ export function CompanyInformationForm({
                                 defaultChecked={getCheckboxValue("dontGeneratePF")}
                                 disabled={isReadOnly}
                               />
-                              <Label htmlFor="dontGeneratePF" className="text-sm">Donot Generate PF No Automatically</Label>
+                              <Label htmlFor="dontGeneratePF" className="text-sm">Do not Generate PF No Automatically</Label>
                             </div>
                           </div>
                         </div>
@@ -767,7 +761,7 @@ export function CompanyInformationForm({
                           
                           <div className="space-y-2">
                             <Label className="text-sm font-medium">
-                              Pin  - State 
+                              Pin
                             </Label>
                             <div className="flex gap-2">
                               <Input 
@@ -777,16 +771,7 @@ export function CompanyInformationForm({
                                 readOnly={isReadOnly}
                                 className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`} 
                               />
-                              <div className="flex gap-2 flex-1">
-                                <Input 
-                                  id="apState" 
-                                  name="apState" 
-                                  defaultValue={getValue("apState")}
-                                  readOnly={isReadOnly}
-                                  className={`bg-white flex-1 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`} 
-                                />
-                                <Button type="button" variant="outline" size="sm" disabled={isReadOnly}>▼</Button>
-                              </div>
+                              
                             </div>
                           </div>
                           
@@ -798,7 +783,7 @@ export function CompanyInformationForm({
                                 name="apStdCode" 
                                 defaultValue={getValue("apStdCode")}
                                 readOnly={isReadOnly}
-                                className={`bg-blue-50 h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`} 
+                                className={`w-20 bg-blue-50 h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`} 
                               />
                               <Input 
                                 id="apPhone" 
@@ -967,7 +952,7 @@ export function CompanyInformationForm({
                               <p className="text-xs text-red-500 mt-1">{errors.apPan}</p>
                             )}
 
-                              <Button type="button" variant="outline" size="sm" disabled={isReadOnly}>...</Button>
+                              
                             </div>
                           </div>
                           

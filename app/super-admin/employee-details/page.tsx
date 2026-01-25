@@ -496,29 +496,45 @@ export default function EmployeeDetailsPage() {
 
   const handleDelete = async (id: number) => {
     if (!confirm("Are you sure you want to delete this employee? This action cannot be undone.")) return;
-
+  
     try {
+      const selectedCompany = localStorage.getItem("selectedCompany");
+      if (!selectedCompany) {
+        alert("Please select a company first");
+        return;
+      }
+  
+      const company = JSON.parse(selectedCompany);
+      const companyId = company?.id;
+  
+      if (!companyId) {
+        alert("Invalid company selected");
+        return;
+      }
+  
       const response = await fetch("/api/employee-details", {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
+          "x-company-id": companyId, // 🔥 REQUIRED
         },
         body: JSON.stringify({ id: id.toString() }),
       });
-
+  
       const data = await response.json();
-
+  
       if (!response.ok) {
         throw new Error(data.error || "Failed to delete employee");
       }
-
+  
       alert("Employee deleted successfully");
-      loadEmployees(); // Reload employees
+      loadEmployees(); // refresh table
     } catch (error: any) {
       console.error("Failed to delete employee:", error);
       alert(error.message || "Failed to delete employee");
     }
   };
+  
 
   // ── Import ──
   const normalizeHeader = (header: string) =>
@@ -812,16 +828,15 @@ export default function EmployeeDetailsPage() {
                 <Label>Branch</Label>
 
                 <Popover>
-                <PopoverTrigger>
-                  <Button
+                <PopoverTrigger asChild>
+                  <button
                     type="button"
-                    variant="outline"
-                    className="w-full justify-start"
+                    className="w-full justify-start bg-gray-200 p-2 rounded-md text-sm"
                   >
                     {selectedBranches.length === 0
                       ? "All Branches"
                       : `${selectedBranches.length} selected`}
-                  </Button>
+                  </button>
                 </PopoverTrigger>
 
 
@@ -861,16 +876,15 @@ export default function EmployeeDetailsPage() {
                 <Label>Category</Label>
 
                 <Popover>
-                  <PopoverTrigger>
-                    <Button
+                  <PopoverTrigger asChild>
+                    <button
                       type="button"
-                      variant="outline"
-                      className="w-full justify-start"
+                      className="w-full justify-start bg-gray-200 p-2 rounded-md text-sm"
                     >
                       {selectedCategories.length === 0
                         ? "All Categories"
                         : `${selectedCategories.length} selected`}
-                    </Button>
+                    </button>
                   </PopoverTrigger>
 
                   <PopoverContent
@@ -909,12 +923,12 @@ export default function EmployeeDetailsPage() {
                 <Label>Department</Label>
 
                 <Popover>
-                  <PopoverTrigger>
-                    <Button type="button" variant="outline" className="w-full justify-start">
+                  <PopoverTrigger asChild >
+                    <button type="button" className="w-full justify-start bg-gray-200 p-2 rounded-md text-sm">
                       {selectedDepartments.length === 0
                         ? "All Departments"
                         : `${selectedDepartments.length} selected`}
-                    </Button>
+                    </button>
                   </PopoverTrigger>
 
                   <PopoverContent className="w-64 max-h-64 overflow-y-auto" align="start">
@@ -940,12 +954,12 @@ export default function EmployeeDetailsPage() {
                 <Label>Designation</Label>
 
                 <Popover>
-                  <PopoverTrigger>
-                    <Button type="button" variant="outline" className="w-full justify-start">
+                  <PopoverTrigger asChild>
+                    <button type="button" className="w-full justify-start bg-gray-200 p-2 rounded-md text-sm">
                       {selectedDesignations.length === 0
                         ? "All Designations"
                         : `${selectedDesignations.length} selected`}
-                    </Button>
+                    </button>
                   </PopoverTrigger>
 
                   <PopoverContent className="w-64 max-h-64 overflow-y-auto" align="start">
@@ -972,12 +986,12 @@ export default function EmployeeDetailsPage() {
                 <Label>Level</Label>
 
                 <Popover>
-                  <PopoverTrigger>
-                    <Button type="button" variant="outline" className="w-full justify-start">
+                  <PopoverTrigger asChild>
+                    <button type="button" className="w-full justify-start bg-gray-200 p-2 rounded-md text-sm">
                       {selectedLevels.length === 0
                         ? "All Levels"
                         : `${selectedLevels.length} selected`}
-                    </Button>
+                    </button>
                   </PopoverTrigger>
 
                   <PopoverContent className="w-64 max-h-64 overflow-y-auto" align="start">
@@ -1004,12 +1018,12 @@ export default function EmployeeDetailsPage() {
                 <Label>Grade</Label>
 
                 <Popover>
-                  <PopoverTrigger>
-                    <Button type="button" variant="outline" className="w-full justify-start">
+                  <PopoverTrigger asChild>
+                    <button type="button" className="w-full justify-start bg-gray-200 p-2 rounded-md text-sm">
                       {selectedGrades.length === 0
                         ? "All Grades"
                         : `${selectedGrades.length} selected`}
-                    </Button>
+                    </button>
                   </PopoverTrigger>
 
                   <PopoverContent className="w-64 max-h-64 overflow-y-auto" align="start">
@@ -1033,12 +1047,12 @@ export default function EmployeeDetailsPage() {
                 <Label>PT Group</Label>
 
                 <Popover>
-                  <PopoverTrigger>
-                    <Button type="button" variant="outline" className="w-full justify-start">
+                  <PopoverTrigger asChild>
+                    <button type="button" className="w-full justify-start bg-gray-200 p-2 rounded-md text-sm">
                       {selectedPtGroups.length === 0
                         ? "All PT Groups"
                         : `${selectedPtGroups.length} selected`}
-                    </Button>
+                      </button>
                   </PopoverTrigger>
 
                   <PopoverContent className="w-64 max-h-64 overflow-y-auto" align="start">

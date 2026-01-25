@@ -2,6 +2,46 @@
 
 import { useState, useEffect } from "react";
 import { calculateSalary } from "@/app/lib/calculateSalary";
+import {useCompanySetups} from "@/hooks/useCompanySetups";  
+const INDIAN_STATES: string[] = [
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chhattisgarh",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+  "Andaman and Nicobar Islands",
+  "Chandigarh",
+  "Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi",
+  "Jammu and Kashmir",
+  "Ladakh",
+  "Lakshadweep",
+  "Puducherry",
+];
+
 
 
 type AddEmployeeProps = {
@@ -17,8 +57,8 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
     "Personal",
     "Office details",
     "Qualification",
-    "Salary",
     "Financial",
+    "Salary",
     "Other",
     "Family",
     "Nominee(s)",
@@ -358,10 +398,20 @@ const handleSubmit = async (e: React.FormEvent) => {
               <input type="text" placeholder="City" className="w-full p-2 border border-gray-300 rounded mt-1" />
               <input type="text" placeholder="PIN" className="w-full p-2 border border-gray-300 rounded mt-1" />
               <input type="text" placeholder="District" className="w-full p-2 border border-gray-300 rounded mt-1" />
-              <select className="w-full p-2 border border-gray-300 rounded mt-1">
-                <option>State</option>
-              </select>
-              
+            <select 
+              className="w-full p-2 border border-gray-300 rounded mt-1"
+              value={employee.permanentState ?? ""} 
+              onChange={(e) => handleFieldChange("permanentState", e.target.value)}
+            >
+              <option value="">Select State</option>
+              {INDIAN_STATES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+
+            </select>
+
               <label className="block text-sm font-bold mt-4">E-Mail</label>
               <input 
                 type="email" 
@@ -396,19 +446,10 @@ const handleSubmit = async (e: React.FormEvent) => {
             </div>
             
             <div>
-              <label className="block text-sm font-bold">[Additional Info]</label>
+              <label className="block text-sm font-bold">Addhar No.</label>
               <input type="text" className="w-full p-2 border border-gray-300 rounded" />
-              
-              <label className="block text-sm font-bold mt-4">[Identity Proof]</label>
-              <input type="text" className="w-full p-2 border border-gray-300 rounded" />
-              
-              <label className="block text-sm font-bold mt-4">STD Code</label>
-              <input type="text" className="w-full p-2 border border-gray-300 rounded" />
-              
-              <label className="block text-sm font-bold mt-4">Phone</label>
-              <input type="text" className="w-full p-2 border border-gray-300 rounded" />
-              
-              <label className="block text-sm font-bold mt-4">Mobile</label>
+                           
+              <label className="block text-sm font-bold mt-4">Mobile No.</label>
               <input type="text" className="w-full p-2 border border-gray-300 rounded" />
               
               <label className="block text-sm font-bold mt-4">Internal ID</label>
@@ -451,11 +492,6 @@ const handleSubmit = async (e: React.FormEvent) => {
               <label className="block text-sm font-bold mt-4">Date of Death</label>
               <input type="date" className="w-full p-2 border border-gray-300 rounded" />
               
-              <div className="mt-4">
-                <button className="px-4 py-2 bg-yellow-300 rounded">Add</button>
-                <button className="px-4 py-2 bg-yellow-300 rounded ml-2">Remove</button>
-              </div>
-              
               <label className="block text-sm font-bold mt-4">SELECT REASON</label>
               <select className="w-full p-2 border border-gray-300 rounded">
                 <option>SELECT REASON</option>
@@ -473,6 +509,9 @@ const handleSubmit = async (e: React.FormEvent) => {
                 <label className="block text-sm font-bold mt-4">Marital Status</label>
                 <select className="w-full p-2 border border-gray-300 rounded">
                   <option>UnMarried</option>
+                  <option>Married</option>
+                  <option>Widowed</option>
+                  <option>Divorced</option>
                 </select>
                 
                 <label className="block text-sm font-bold mt-4">Father's Name</label>
@@ -483,7 +522,14 @@ const handleSubmit = async (e: React.FormEvent) => {
                 
                 <label className="block text-sm font-bold mt-4">Blood Group</label>
                 <select className="w-full p-2 border border-gray-300 rounded">
-                  <option></option>
+                  <option>A+</option>
+                  <option>A-</option>
+                  <option>B+</option>
+                  <option>B-</option>
+                  <option>AB+</option>
+                  <option>AB-</option>
+                  <option>O+</option>
+                  <option>O-</option>
                 </select>
                 
                 <label className="block text-sm font-bold mt-4">Date of Marriage</label>
@@ -497,16 +543,26 @@ const handleSubmit = async (e: React.FormEvent) => {
                 <label className="block text-sm font-bold">Caste</label>
                 <select className="w-full p-2 border border-gray-300 rounded">
                   <option>GEN</option>
+                  <option>OBC</option>
+                  <option>SC</option>
+                  <option>ST</option>
                 </select>
                 
                 <label className="block text-sm font-bold mt-4">Nationality</label>
                 <select className="w-full p-2 border border-gray-300 rounded">
-                  <option>Resident</option>
+                  <option>Indian</option>
+                  <option>NRI</option>
                 </select>
                 
                 <label className="block text-sm font-bold mt-4">Religion</label>
                 <select className="w-full p-2 border border-gray-300 rounded">
                   <option>Hindu</option>
+                  <option>Muslim</option>
+                  <option>Christian</option>
+                  <option>Sikh</option>
+                  <option>Buddhist</option>
+                  <option>Jain</option>
+                  <option>Others</option>
                 </select>
                 
                 <label className="block text-sm font-bold mt-4">Spouse</label>
@@ -517,14 +573,22 @@ const handleSubmit = async (e: React.FormEvent) => {
                 </div>
                 
                 <label className="block text-sm font-bold mt-4">Correspondence Address Details : -</label>
-                <button className="px-4 py-2 bg-yellow-300 rounded">Copy</button>
-                <button className="px-4 py-2 bg-yellow-300 rounded ml-2">Clear</button>
                 
                 <input type="text" placeholder="Address" className="w-full p-2 border border-gray-300 rounded mt-1" />
                 <input type="text" placeholder="City" className="w-full p-2 border border-gray-300 rounded mt-1" />
                 <input type="text" placeholder="District" className="w-full p-2 border border-gray-300 rounded mt-1" />
-                <select className="w-full p-2 border border-gray-300 rounded mt-1">
-                  <option>State</option>
+                <select 
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  value={employee.correspondenceState ?? ""} 
+                  onChange={(e) => handleFieldChange("correspondenceState", e.target.value)}
+                >
+                  <option value="">Select State</option>
+                  {INDIAN_STATES.map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+
                 </select>
                 <input type="text" placeholder="PIN" className="w-full p-2 border border-gray-300 rounded mt-1" />
               </div>
@@ -652,7 +716,7 @@ const handleSubmit = async (e: React.FormEvent) => {
             <div className="mt-6">
               <h3 className="text-lg font-bold mb-4">Educational Qualifications</h3>
           
-              <table className="w-full border border-gray-300">
+              <table className="w-full border border-gray-300 ">
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="border border-gray-300 p-2 text-sm">S.N.</th>
@@ -915,9 +979,8 @@ const handleSubmit = async (e: React.FormEvent) => {
           <div className="grid grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-bold">Bank Name</label>
-              <select className="w-full p-2 border border-gray-300 rounded">
-                <option></option>
-              </select>
+              <input type="text" className="w-full p-2 border border-gray-300 rounded">
+              </input>
               
               <label className="block text-sm font-bold mt-4">Bank Branch</label>
               <input type="text" className="w-full p-2 border border-gray-300 rounded" />
@@ -976,13 +1039,14 @@ const handleSubmit = async (e: React.FormEvent) => {
               </div>
               
               <label className="block text-sm font-bold mt-4">Educational Qual.</label>
-              <select className="w-full p-2 border border-gray-300 rounded">
-                <option></option>
-              </select>
+              <input type="text" className="w-full p-2 border border-gray-300 rounded" />
+
+              
               
               <label className="block text-sm font-bold mt-4">Physically Handicap</label>
               <select className="w-full p-2 border border-gray-300 rounded">
                 <option>NO</option>
+                <option>YES</option>
               </select>
               
               <label className="block text-sm font-bold mt-4">Registered in PMRPY</label>
@@ -1065,7 +1129,13 @@ const handleSubmit = async (e: React.FormEvent) => {
             
             <label className="block text-sm font-bold">Employment Status</label>
             <select className="w-full p-2 border border-gray-300 rounded">
-              <option></option>
+              <option>Active</option>
+              <option>Probation</option>
+              <option>Resigned</option>
+              <option>Terminated</option>
+              <option>Retired</option>
+              <option>Deceased</option>
+              <option>Other</option>
             </select>
             
             <label className="block text-sm font-bold">Lap Tops</label>
@@ -1135,7 +1205,11 @@ const handleSubmit = async (e: React.FormEvent) => {
             
             <label className="block text-sm font-bold mt-4">Reason For Leaving</label>
             <select className="w-full p-2 border border-gray-300 rounded">
-              <option></option>
+              <option>Resigned</option>
+              <option>Terminated</option>
+              <option>Retired</option>
+              <option>Deceased</option>
+              <option>Other</option>
             </select>
             
             <label className="block text-sm font-bold mt-4">Service : -</label>
@@ -1217,6 +1291,9 @@ const handleSubmit = async (e: React.FormEvent) => {
                   <td className="border border-gray-300 p-2">
                     <select className="w-full">
                       <option>UnMarried</option>
+                      <option>Married</option>
+                      <option>Widowed</option>
+                      <option>Divorced</option>
                     </select>
                   </td>
                   <td className="border border-gray-300 p-2"><input type="text" className="w-full" /></td>
@@ -1294,20 +1371,12 @@ const handleSubmit = async (e: React.FormEvent) => {
         )}
 
         <div className="flex justify-between mt-6 items-center">
-          <button type="button" className="px-6 py-2 bg-yellow-300 text-black rounded">
-            Import Resigned Employee Detail
+          <button type="submit" className="px-6 py-2 bg-blue-500 text-white rounded">
+            Update
           </button>
-          <div className="flex gap-2">
-            <button type="submit" className="px-6 py-2 bg-blue-500 text-white rounded">
-              Update
-            </button>
-            <button type="button" className="px-6 py-2 bg-gray-500 text-white rounded" onClick={() => onCancel?.()}>
-              Cancel
-            </button>
-            <button type="button" className="px-6 py-2 bg-yellow-300 text-black rounded">
-              Exit
-            </button>
-          </div>
+          <button type="button" className="px-6 py-2 bg-gray-500 text-white rounded" onClick={() => onCancel?.()}>
+            Cancel
+          </button>
         </div>
       </form>
     </div>
