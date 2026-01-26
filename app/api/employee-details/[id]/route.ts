@@ -9,7 +9,7 @@ import { getCompanyId } from "@/app/lib/getCompanyid";
 -------------------------------------------------------------------*/
 export async function GET(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params:{ id: string }}
 ) {
   try {
     const session = await getSession();
@@ -18,7 +18,7 @@ export async function GET(
     }
 
     const companyId = getCompanyId();
-    const { id } = await params;
+    const { id } = params;
 
     if (!id) {
       return NextResponse.json({ error: "Employee ID is required" }, { status: 400 });

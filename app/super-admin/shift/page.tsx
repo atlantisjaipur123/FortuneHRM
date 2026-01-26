@@ -12,6 +12,39 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Checkbox } from "@/components/ui/checkbox"
 import { GlobalLayout } from "@/app/components/global-layout"
 import { api, API } from "@/app/lib/api"
+const enforceRange = (
+  e: React.KeyboardEvent<HTMLInputElement>,
+  min: number,
+  max: number
+) => {
+  const input = e.currentTarget;
+  const currentValue = input.value || "0";
+
+  // Allow control keys
+  if (["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"].includes(e.key)) {
+    return;
+  }
+
+  // Block minus key completely (no negatives)
+  if (e.key === "-" || e.key === "Minus") {
+    e.preventDefault();
+    return;
+  }
+
+  // If it's a digit
+  if (/[0-9]/.test(e.key)) {
+    const selectionStart = input.selectionStart || 0;
+    const selectionEnd = input.selectionEnd || 0;
+    const newValue = currentValue.slice(0, selectionStart) + e.key + currentValue.slice(selectionEnd);
+
+    const numValue = Number(newValue);
+
+    // Block if new value is out of range
+    if (numValue < min || numValue > max) {
+      e.preventDefault();
+    }
+  }
+};
 
 const timeToMinutes = (time: string) => {
   const [h, m] = time.split(":").map(Number);
@@ -453,6 +486,7 @@ export default function ShiftPage() {
                           max="23"
                           value={formData.startTime.split(':')[0] || '09'}
                           onChange={(e) => setFormData({ ...formData, startTime: `${e.target.value.padStart(2, '0')}:${formData.startTime.split(':')[1] || '00'}` })}
+                          onKeyDown={(e) => enforceRange(e, 0, 23)}
                           className="w-20"
                         />
                         <span className="self-center">:</span>
@@ -462,6 +496,7 @@ export default function ShiftPage() {
                           max="59"
                           value={formData.startTime.split(':')[1] || '00'}
                           onChange={(e) => setFormData({ ...formData, startTime: `${formData.startTime.split(':')[0] || '09'}:${e.target.value.padStart(2, '0')}` })}
+                          onKeyDown={(e) => enforceRange(e, 0, 59)}
                           className="w-20"
                         />
                       </div>
@@ -471,14 +506,20 @@ export default function ShiftPage() {
                       <div className="flex space-x-2 mt-1">
                         <Input
                           type="number"
+                          min="0"
+                          max="23"
                           value={formData.firstHalfHours}
                           onChange={(e) => setFormData({ ...formData, firstHalfHours: e.target.value })}
+                          onKeyDown={(e) => enforceRange(e, 0, 23)}
                           className="w-20"
                         />
                         <Input
                           type="number"
+                          min="0"
+                          max="59"
                           value={formData.firstHalfMinutes}
                           onChange={(e) => setFormData({ ...formData, firstHalfMinutes: e.target.value })}
+                          onKeyDown={(e) => enforceRange(e, 0, 59)}
                           className="w-20"
                         />
                       </div>
@@ -488,14 +529,20 @@ export default function ShiftPage() {
                       <div className="flex space-x-2 mt-1">
                         <Input
                           type="number"
+                          min="0"
+                          max="23"
                           value={formData.secondHalfHours}
                           onChange={(e) => setFormData({ ...formData, secondHalfHours: e.target.value })}
+                          onKeyDown={(e) => enforceRange(e, 0, 23)}
                           className="w-20"
                         />
                         <Input
                           type="number"
+                          min="0"
+                          max="59"
                           value={formData.secondHalfMinutes}
                           onChange={(e) => setFormData({ ...formData, secondHalfMinutes: e.target.value })}
+                          onKeyDown={(e) => enforceRange(e, 0, 59)}
                           className="w-20"
                         />
                       </div>
@@ -504,8 +551,11 @@ export default function ShiftPage() {
                       <Label className="text-gray-700">How many minutes before the shift starts is the check-in allowed?</Label>
                       <Input
                         type="number"
+                        min="0"
+                        max="59"
                         value={formData.checkInGrace}
                         onChange={(e) => setFormData({ ...formData, checkInGrace: e.target.value })}
+                        onKeyDown={(e) => enforceRange(e, 0, 59)}
                         className="mt-1 w-20"
                       />
                     </div>
@@ -513,8 +563,11 @@ export default function ShiftPage() {
                       <Label className="text-gray-700">Grace time to come late</Label>
                       <Input
                         type="number"
+                        min="0"
+                        max="59"
                         value={formData.lateGrace}
                         onChange={(e) => setFormData({ ...formData, lateGrace: e.target.value })}
+                        onKeyDown={(e) => enforceRange(e, 0, 59)}
                         className="mt-1 w-20"
                       />
                     </div>
@@ -522,8 +575,11 @@ export default function ShiftPage() {
                       <Label className="text-gray-700">Grace time to go early</Label>
                       <Input
                         type="number"
+                        min="0"
+                        max="59"
                         value={formData.earlyGrace}
                         onChange={(e) => setFormData({ ...formData, earlyGrace: e.target.value })}
+                        onKeyDown={(e) => enforceRange(e, 0, 59)}
                         className="mt-1 w-20"
                       />
                     </div>
@@ -536,6 +592,7 @@ export default function ShiftPage() {
                           max="23"
                           value={formData.breakTime.split(':')[0] || '00'}
                           onChange={(e) => setFormData({ ...formData, breakTime: `${e.target.value.padStart(2, '0')}:${formData.breakTime.split(':')[1] || '00'}` })}
+                          onKeyDown={(e) => enforceRange(e, 0, 23)}
                           className="w-20"
                         />
                         <span className="self-center">:</span>
@@ -545,6 +602,7 @@ export default function ShiftPage() {
                           max="59"
                           value={formData.breakTime.split(':')[1] || '00'}
                           onChange={(e) => setFormData({ ...formData, breakTime: `${formData.breakTime.split(':')[0] || '00'}:${e.target.value.padStart(2, '0')}` })}
+                          onKeyDown={(e) => enforceRange(e, 0, 59)}
                           className="w-20"
                         />
                       </div>
@@ -562,14 +620,20 @@ export default function ShiftPage() {
                       <div className="flex space-x-2 mt-1">
                         <Input
                           type="number"
+                          min="0"
+                          max="23"
                           value={formData.halfDayHours}
                           onChange={(e) => setFormData({ ...formData, halfDayHours: e.target.value })}
+                          onKeyDown={(e) => enforceRange(e, 0, 23)}
                           className="w-20"
                         />
                         <Input
                           type="number"
+                          min="0"
+                          max="59"
                           value={formData.halfDayMinutes}
                           onChange={(e) => setFormData({ ...formData, halfDayMinutes: e.target.value })}
+                          onKeyDown={(e) => enforceRange(e, 0, 59)}
                           className="w-20"
                         />
                       </div>
@@ -579,26 +643,32 @@ export default function ShiftPage() {
                       <div className="flex space-x-2 mt-1">
                         <Input
                           type="number"
+                          min="0"
+                          max="23"
                           value={formData.fullDayHours}
                           onChange={(e) => setFormData({ ...formData, fullDayHours: e.target.value })}
+                          onKeyDown={(e) => enforceRange(e, 0, 23)}
                           className="w-20"
                         />
                         <Input
                           type="number"
+                          min="0"
+                          max="59"
                           value={formData.fullDayMinutes}
                           onChange={(e) => setFormData({ ...formData, fullDayMinutes: e.target.value })}
+                          onKeyDown={(e) => enforceRange(e, 0, 59)}
                           className="w-20"
                         />
                       </div>
                     </div>
                     <div>
-                      <Label className="text-gray-700">If no attendance is recorded for <Input type="number" value={formData.noAttendanceHours} onChange={(e) => setFormData({ ...formData, noAttendanceHours: e.target.value })} className="w-20 inline" /> <Input type="number" value={formData.noAttendanceMinutes} onChange={(e) => setFormData({ ...formData, noAttendanceMinutes: e.target.value })} className="w-20 inline" /> from shift start time then mark "Full day" as absent.</Label>
+                      <Label className="text-gray-700">If no attendance is recorded for <Input type="number" min="0" max="23" value={formData.noAttendanceHours} onKeyDown={(e) => enforceRange(e, 0, 23)} onChange={(e) => setFormData({ ...formData, noAttendanceHours: e.target.value })} className="w-20 inline" /> <Input type="number" min="0" max="59" value={formData.noAttendanceMinutes} onKeyDown={(e) => enforceRange(e, 0, 59)} onChange={(e) => setFormData({ ...formData, noAttendanceMinutes: e.target.value })} className="w-20 inline" /> from shift start time then mark "Full day" as absent.</Label>
                     </div>
                     <div>
-                      <Label className="text-gray-700">If no attendance is recorded for <Input type="number" value={formData.noAttendanceHours} onChange={(e) => setFormData({ ...formData, noAttendanceHours: e.target.value })} className="w-20 inline" /> <Input type="number" value={formData.noAttendanceMinutes} onChange={(e) => setFormData({ ...formData, noAttendanceMinutes: e.target.value })} className="w-20 inline"/> from shift start time then mark "Half day" as absent.</Label>
+                      <Label className="text-gray-700">If no attendance is recorded for <Input type="number" min="0" max= "23" value={formData.noAttendanceHours} onKeyDown={(e) => enforceRange(e, 0, 23)} onChange={(e) => setFormData({ ...formData, noAttendanceHours: e.target.value })} className="w-20 inline" /> <Input type="number" min ="0" max="59" value={formData.noAttendanceMinutes} onKeyDown={(e) => enforceRange(e, 0, 59)} onChange={(e) => setFormData({ ...formData, noAttendanceMinutes: e.target.value })} className="w-20 inline"/> from shift start time then mark "Half day" as absent.</Label>
                     </div>
                     <div>
-                      <Label className="text-gray-700">If check out is recorded for <Input type="number" value={formData.noAttendanceCheckOutHours} onChange={(e) => setFormData({ ...formData, noAttendanceCheckOutHours: e.target.value })} className="w-20 inline" /> <Input type="number" value={formData.noAttendanceCheckOutMinutes} onChange={(e) => setFormData({ ...formData, noAttendanceCheckOutMinutes: e.target.value })} className="w-20 inline" /> before shift end, mark second half as absent.</Label>
+                      <Label className="text-gray-700">If check out is recorded for <Input type="number" min="0" max= "23" value={formData.noAttendanceCheckOutHours} onKeyDown={(e) => enforceRange(e, 0, 23)} onChange={(e) => setFormData({ ...formData, noAttendanceCheckOutHours: e.target.value })} className="w-20 inline" /> <Input type="number" min ="0" max="59" value={formData.noAttendanceCheckOutMinutes} onKeyDown={(e) => enforceRange(e, 0, 59)} onChange={(e) => setFormData({ ...formData, noAttendanceCheckOutMinutes: e.target.value })} className="w-20 inline" /> before shift end, mark second half as absent.</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Checkbox

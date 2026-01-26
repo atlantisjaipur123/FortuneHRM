@@ -38,7 +38,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Briefcase } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { LogOut } from "lucide-react";
 import { SidebarCompanyBadge } from "@/components/sidebar-company-badge";
 
 // Note: These imports are commented out as they might not be available in all contexts
@@ -242,7 +243,7 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
                 isCollapsed && "justify-center"
               )}
             >
-              <Home className={cn("h-4 w-4", !isCollapsed && "mr-3")} />
+              <Home className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
               {!isCollapsed && "Dashboard"}
             </div>
 
@@ -259,7 +260,7 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
                      isCollapsed && "justify-center"
                    )}
                  >
-                   <Building2 className={cn("h-4 w-4", !isCollapsed && "mr-3")} />
+                   <Building2 className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
                    {!isCollapsed && "Companies"}
                  </Link>
                );
@@ -272,11 +273,17 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
                 <CollapsibleTrigger asChild>
                   <Button variant="ghost" className="w-full justify-between px-3 py-2 h-auto">
                     <div className="flex items-center">
-                      <Users className="mr-2 h-4 w-4" />
-                      <span className="font-medium">Employee Management</span>
+                      <Users className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                      {!isCollapsed && <span className="font-medium">Employee Management</span>}
                     </div>
-                    <ChevronRight className={cn("h-4 w-4 transition-transform",
-                      expandedSections.has("employee-management") && "rotate-90")} />
+                    {!isCollapsed && (
+                      <ChevronRight
+                        className={cn(
+                          "h-4 w-4 transition-transform",
+                          expandedSections.has("employee-management") && "rotate-90"
+                        )}
+                      />
+                    )}
                   </Button>
                 </CollapsibleTrigger>
 
@@ -308,15 +315,17 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
                   <CollapsibleTrigger asChild>
                     <Button variant="ghost" className="w-full justify-between px-3 py-2 h-auto">
                       <div className="flex items-center">
-                        <CalendarDays className="mr-2 h-4 w-4" />
-                        <span className="font-medium">Leave & Attendance</span>
+                        <CalendarDays className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                        {!isCollapsed && <span className="font-medium">Leave & Attendance</span>}
                       </div>
-                      <ChevronRight
-                        className={cn(
-                          "h-4 w-4 transition-transform",
-                          expandedSections.has("leave-attendance") && "rotate-90"
-                        )}
-                      />
+                      {!isCollapsed && (
+                        <ChevronRight
+                          className={cn(
+                            "h-4 w-4 transition-transform",
+                            expandedSections.has("leave-attendance") && "rotate-90"
+                          )}
+                        />
+                      )}
                     </Button>
                   </CollapsibleTrigger>
 
@@ -348,19 +357,21 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
                     onOpenChange={() => debouncedToggleSection("organizational-setup")}
                   >
                     <CollapsibleTrigger asChild>
-                      <Button variant="ghost" className="w-full justify-between px-3 py-2 h-auto">
-                        <div className="flex items-center">
-                          <Settings className="mr-2 h-4 w-4" />
-                          <span className="font-medium">Organizational Setup</span>
-                        </div>
+                    <Button variant="ghost" className="w-full justify-between px-3 py-2 h-auto">
+                      <div className="flex items-center">
+                        <Settings className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                        {!isCollapsed && <span className="font-medium">Organizational Setup</span>}
+                      </div>
+                      {!isCollapsed && (
                         <ChevronRight
                           className={cn(
                             "h-4 w-4 transition-transform",
                             expandedSections.has("organizational-setup") && "rotate-90"
                           )}
                         />
-                      </Button>
-                    </CollapsibleTrigger>
+                      )}
+                    </Button>
+                  </CollapsibleTrigger>
 
                     <CollapsibleContent className="ml-4 space-y-1">
                       {organizationalSetup.map((item) => {

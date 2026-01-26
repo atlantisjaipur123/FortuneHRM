@@ -614,31 +614,23 @@ export async function PUT(req: NextRequest) {
 /* ------------------------------------------------------------------
    DELETE → Soft delete employee
 -------------------------------------------------------------------*/
-export async function DELETE(req: NextRequest) {
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
   try {
     const session = await getSession();
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    let companyId: string;
-    try {
-      companyId = getCompanyId();
-    } catch (error: any) {
-      return NextResponse.json(
-        { error: error.message || "Company ID is required. Please select a company." },
-        { status: 400 }
-      );
-    }
-
-    const body = await req.json();
-    const { id } = body;
+    const companyId = getCompanyId();
+    const { id } = params;
 
     if (!id) {
       return NextResponse.json({ error: "Employee ID is required" }, { status: 400 });
     }
 
-    // Check if employee exists and belongs to company
     const existing = await prisma.employee.findFirst({
       where: {
         id,
@@ -651,7 +643,6 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
     }
 
-    // Soft delete
     await prisma.employee.update({
       where: { id },
       data: {
@@ -662,7 +653,7 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("Error in DELETE /api/employee-details:", error);
+    console.error("Error in DELETE /api/employee-details/[id]:", error);
     return NextResponse.json(
       { error: error.message || "Internal server error" },
       { status: 500 }
