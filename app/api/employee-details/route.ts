@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
 
     const companyId = getCompanyId();
     const { searchParams } = new URL(req.url);
-    
+
     // Filter parameters
     const branch = searchParams.get("branch");
     const department = searchParams.get("department");
@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     // Build where clause
     const where: any = {
       companyId,
-      deletedAt: null, // Only active employees
+      deletedAt: null,
     };
 
     // Apply filters
@@ -267,7 +267,7 @@ export async function POST(req: NextRequest) {
       };
 
       // Create employee
-        const createdEmployee = await tx.employee.create({
+      const createdEmployee = await tx.employee.create({
         data: employeeData,
         include: {
           permanentAddress: true,
@@ -377,7 +377,7 @@ export async function PUT(req: NextRequest) {
             deletedAt: null,
           },
         });
-      
+
         if (codeExists) {
           throw new Error("Employee code already exists");
         }
@@ -594,12 +594,12 @@ export async function PUT(req: NextRequest) {
         });
       }
 
-      
-        return {
+
+      return {
         employee: updatedEmployee,
-          salary: salaryResult,
-        };
-      });
+        salary: salaryResult,
+      };
+    });
 
     return NextResponse.json({ success: true, ...result });
   } catch (error: any) {

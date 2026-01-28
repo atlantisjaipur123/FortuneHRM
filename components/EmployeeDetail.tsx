@@ -18,11 +18,20 @@ export function EmployeeDetail() {
   // TODO: Replace with actual selected company id from context or route
   const companyId = "1";
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [employee, setEmployee] = useState<Employee | null>(null);
+  const [formData, setFormData] = useState<Employee>({} as Employee);
 
   useEffect(() => {
     const employeeData = getEmployeesByCompany(companyId);
     setEmployees(employeeData);
   }, [companyId]);
+
+  useEffect(() => {
+    if (employee && Object.keys(employee).length > 0) {
+      setFormData(employee);
+    }
+  }, [employee]);
+
 
   const handleAddNew = () => {
     // Placeholder for future add flow

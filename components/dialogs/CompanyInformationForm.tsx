@@ -326,13 +326,24 @@ export function CompanyInformationForm({
                               }}
                               onBlur={(e) => {
                                 const value = e.target.value.trim()
-
+                              
+                                // If empty → no error (optional field)
                                 if (!value) {
-                                  setErrors((prev) => ({ ...prev, tan: "This field is required" }))
-                                } else if (value.length !== 10) {
-                                  setErrors((prev) => ({ ...prev, tan: "TAN must be exactly 10 characters" }))
+                                  setErrors((prev) => ({ ...prev, tan: "" }))
+                                  return
+                                }
+                              
+                                // If filled → must be exactly 10 chars
+                                if (value.length !== 10) {
+                                  setErrors((prev) => ({
+                                    ...prev,
+                                    tan: "TAN must be exactly 10 characters",
+                                  }))
+                                } else {
+                                  setErrors((prev) => ({ ...prev, tan: "" }))
                                 }
                               }}
+                              
                             />
 
                               {errors.tan && (
@@ -776,7 +787,7 @@ export function CompanyInformationForm({
                           </div>
                           
                           <div className="space-y-2">
-                            <Label className="text-sm font-medium">STD Code - Phone No.</Label>
+                            <Label className="text-sm font-medium">STD Code - Mobile no.</Label>
                             <div className="flex gap-2">
                               <Input 
                                 id="apStdCode" 
@@ -805,10 +816,6 @@ export function CompanyInformationForm({
                               />
                               <Label htmlFor="addressChanged" className="text-sm"></Label>
                             </div>
-                            
-                            <p className="text-red-500 text-xs">
-                              To Enter Mobile No., Enter '91' in STD Code and 10 Digit Mobile No. in Phone No. Box.
-                            </p>
                           </div>
                         </div>
 

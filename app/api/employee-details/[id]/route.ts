@@ -9,7 +9,7 @@ import { getCompanyId } from "@/app/lib/getCompanyid";
 -------------------------------------------------------------------*/
 export async function GET(
   req: NextRequest,
-  { params }: { params:{ id: string }}
+  { params }: { params: { id: string } }
 ) {
   try {
     const session = await getSession();
@@ -33,7 +33,7 @@ export async function GET(
       include: {
         permanentAddress: true,
         correspondenceAddress: true,
-        family: true,
+        familyMembers: true,
         nominees: true,
         witnesses: true,
         experiences: true,
@@ -141,7 +141,7 @@ export async function GET(
       reasonForLeaving: employee.reasonForLeaving || "",
       service: employee.service || "",
       remarks: employee.remarks || "",
-      family: employee.family || [],
+      familyMembers: employee.familyMembers || [],
       nominees: employee.nominees || [],
       witnesses: employee.witnesses || [],
       previousYears: "",
@@ -159,6 +159,50 @@ export async function GET(
     return NextResponse.json({ success: true, employee: transformedEmployee });
   } catch (error: any) {
     console.error("Error in GET /api/employee-details/[id]:", error);
+    return NextResponse.json(
+      { error: error.message || "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const companyId = getCompanyId();
+    const { id } = params;
+    console.log("DELETE DEBUG →", {
+      id,
+      companyId,
+    });
+
+    if (!id) {
+      return NextResponse.json({ error: "Employee ID is required" }, { status: 400 });
+    }
+
+    // Atomic update + company scoping
+    const result = await prisma.employee.updateMany({
+      where: { id, deletedAt: null },
+      data: { deletedAt: new Date(), updatedBy: session.id },
+    });
+
+    if (result.count === 0) {
+      // nothing updated → either not found or already deleted / not in this company
+      return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+    }
+
+    // success — choose either 204 or 200 with JSON depending on frontend expectations.
+    return new NextResponse(null, { status: 204 });
+    // OR, if you prefer JSON:
+    // return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error("Error in DELETE /api/employee-details/[id]:", error);
     return NextResponse.json(
       { error: error.message || "Internal server error" },
       { status: 500 }

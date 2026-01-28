@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
 import * as FileSaver from "file-saver";
 import { api } from "@/app/lib/api";
@@ -201,6 +202,7 @@ interface Employee {
 // ─────────────────────────────────────────────────────────────────────────────
 export default function EmployeeDetailsPage() {
   const { data: setups, loading: setupsLoading } = useCompanySetups()
+  const router = useRouter()
 
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
@@ -218,7 +220,8 @@ export default function EmployeeDetailsPage() {
   const [selectedGrades, setSelectedGrades] = useState<string[]>([])
   const [selectedPtGroups, setSelectedPtGroups] = useState<string[]>([])
   const [selectedShifts, setSelectedShifts] = useState<string[]>([])
-  
+
+
 
 
   // ── Load dropdown options from localStorage (fallback values) ──
@@ -256,7 +259,7 @@ export default function EmployeeDetailsPage() {
   });
 
   // ── Filter states (8 dropdowns) ──
-  
+
 
   // ── Load employees from API ──
   async function loadEmployees() {
@@ -266,43 +269,43 @@ export default function EmployeeDetailsPage() {
       if (selectedBranches.length) {
         selectedBranches.forEach(b => params.append("branch", b))
       }
-      
+
       if (selectedCategories.length) {
         selectedCategories.forEach(c => params.append("category", c))
       }
-      
+
       if (selectedDepartments.length) {
         selectedDepartments.forEach(d => params.append("department", d))
       }
-      
+
       if (selectedDesignations.length) {
         selectedDesignations.forEach(d => params.append("designation", d))
       }
-      
+
       if (selectedLevels.length) {
         selectedLevels.forEach(l => params.append("level", l))
       }
-      
+
       if (selectedGrades.length) {
         selectedGrades.forEach(g => params.append("grade", g))
       }
-      
+
       if (selectedPtGroups.length) {
         selectedPtGroups.forEach(p => params.append("ptGroup", p))
       }
-      
+
       if (selectedShifts.length) {
         selectedShifts.forEach(s => params.append("shift", s))
       }
-      
+
       params.append("includeResigned", includeResigned.toString());
 
       const response = await api.get(`/api/employee-details?${params.toString()}`);
       const backendEmployees = response.employees || [];
-
+      console.log("backendEmployees", backendEmployees)
       // Transform backend data to frontend format
       const transformedEmployees: Employee[] = backendEmployees.map((emp: any) => ({
-        id: parseInt(emp.id) || 0,
+        id: emp.id,
         code: emp.code,
         name: emp.name,
         fatherHusbandName: emp.fatherHusbandName || "",
@@ -433,11 +436,11 @@ export default function EmployeeDetailsPage() {
     selectedShifts,
     includeResigned,
   ]);
-  
+
 
   // ── Filtered employees (real-time) ──
-  
-  
+
+
   // ── CRUD ──
   const handleSubmit = async (updatedEmployee: any) => {
     try {
@@ -445,7 +448,7 @@ export default function EmployeeDetailsPage() {
       const salary = (updatedEmployee as any).salary;
       const employeeData = { ...updatedEmployee };
       delete (employeeData as any).salary;
-      
+
       if (updatedEmployee.id) {
         // Update existing employee
         await api.put("/api/employee-details", {
@@ -474,17 +477,20 @@ export default function EmployeeDetailsPage() {
   const handleEdit = async (employee: Employee) => {
     try {
       setLoading(true)
-  
+
       // Fetch latest employee data from DB
       const res = await api.get(`/api/employee-details/${employee.id}`)
-  
+
       if (!res?.employee) {
         alert("Failed to load employee details")
         return
       }
-  
+      console.log("EDIT EMPLOYEE FROM API:", res.employee)
+
+
       setForm(res.employee) // FULL DB DATA
       setOpen(true)
+      console.log("OPEN SET TO TRUE")
     } catch (err: any) {
       console.error(err)
       alert(err.message || "Error loading employee")
@@ -492,49 +498,50 @@ export default function EmployeeDetailsPage() {
       setLoading(false)
     }
   }
-  
 
-  const handleDelete = async (id: number) => {
+
+  const handleDelete = async (id: string) => {
     if (!confirm("Are you sure you want to delete this employee? This action cannot be undone.")) return;
-  
+
     try {
       const selectedCompany = localStorage.getItem("selectedCompany");
       if (!selectedCompany) {
         alert("Please select a company first");
         return;
       }
-  
+
       const company = JSON.parse(selectedCompany);
       const companyId = company?.id;
-  
+
       if (!companyId) {
         alert("Invalid company selected");
         return;
       }
-  
-      const response = await fetch("/api/employee-details", {
+      console.log("akash id", id)
+      const response = await fetch(`/api/employee-details/${id}`, {
         method: "DELETE",
         headers: {
           "Content-Type": "application/json",
-          "x-company-id": companyId, // 🔥 REQUIRED
+          "x-company-id": companyId,
         },
-        body: JSON.stringify({ id: id.toString() }),
       });
-  
-      const data = await response.json();
-  
+
       if (!response.ok) {
-        throw new Error(data.error || "Failed to delete employee");
+        const text = await response.text();
+        const data = text ? JSON.parse(text) : null;
+        throw new Error(data?.error || "Failed to delete employee");
       }
-  
+
+      // ✅ No JSON parsing here
       alert("Employee deleted successfully");
-      loadEmployees(); // refresh table
+      loadEmployees();
+
     } catch (error: any) {
       console.error("Failed to delete employee:", error);
       alert(error.message || "Failed to delete employee");
     }
   };
-  
+
 
   // ── Import ──
   const normalizeHeader = (header: string) =>
@@ -828,16 +835,16 @@ export default function EmployeeDetailsPage() {
                 <Label>Branch</Label>
 
                 <Popover>
-                <PopoverTrigger asChild>
-                  <button
-                    type="button"
-                    className="w-full justify-start bg-gray-200 p-2 rounded-md text-sm"
-                  >
-                    {selectedBranches.length === 0
-                      ? "All Branches"
-                      : `${selectedBranches.length} selected`}
-                  </button>
-                </PopoverTrigger>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      className="w-full justify-start bg-gray-200 p-2 rounded-md text-sm"
+                    >
+                      {selectedBranches.length === 0
+                        ? "All Branches"
+                        : `${selectedBranches.length} selected`}
+                    </button>
+                  </PopoverTrigger>
 
 
                   <PopoverContent
@@ -1052,7 +1059,7 @@ export default function EmployeeDetailsPage() {
                       {selectedPtGroups.length === 0
                         ? "All PT Groups"
                         : `${selectedPtGroups.length} selected`}
-                      </button>
+                    </button>
                   </PopoverTrigger>
 
                   <PopoverContent className="w-64 max-h-64 overflow-y-auto" align="start">
@@ -1073,7 +1080,7 @@ export default function EmployeeDetailsPage() {
                 </Popover>
               </div>
             </div> {/* END FILTER GRID */}
-              
+
             {/* Checkboxes */}
             <div className="flex flex-wrap items-center gap-4 mt-6">
               <div className="flex items-center space-x-2">
@@ -1137,7 +1144,7 @@ export default function EmployeeDetailsPage() {
                     {employees.length > 0 ? (
                       employees.map((emp, i) => (
                         <TableRow key={emp.id}>
-                          <TableCell>{i + 1}</TableCell>
+                          <TableCell>{emp.id}</TableCell>
                           <TableCell>{emp.code}</TableCell>
                           <TableCell>{emp.name}</TableCell>
                           <TableCell>{emp.fatherHusbandName}</TableCell>
@@ -1169,7 +1176,7 @@ export default function EmployeeDetailsPage() {
                   </TableBody>
                 </Table>
               </div>
-              
+
             )}
           </CardContent>
         </Card>
