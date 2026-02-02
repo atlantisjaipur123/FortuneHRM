@@ -393,8 +393,8 @@ export default function EmployeeDetailsPage() {
         corpCreditCardNo: emp.corpCreditCardNo || "",
         transportRoute: emp.transportRoute || "",
         workLocation: emp.workLocation || "",
-        companyAssets: [],
-        educationalQualifications: [],
+        assets: [],
+        qualifications: [],
         reasonForLeaving: emp.reasonForLeaving || "",
         service: emp.service || "",
         remarks: emp.remarks || "",
@@ -801,7 +801,6 @@ export default function EmployeeDetailsPage() {
         Category: emp.category,
         Designation: emp.designation,
         Department: emp.department,
-        Scale: emp.scale,
         "PT Group": emp.ptGroup,
         Shift: emp.shift,
       }))

@@ -214,37 +214,37 @@ export async function PATCH(req: NextRequest) {
   let companyId: string;
   try {
     companyId = getCompanyId();
-    if (!companyId) throw new Error();
   } catch {
     return NextResponse.json({ error: "Company context required" }, { status: 400 });
   }
 
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  const body = await req.json();
+  const { id, ...updates } = body;
+
+  if (!id) {
+    return NextResponse.json({ error: "Rule ID required" }, { status: 400 });
   }
 
-  const { id, ...updates } = body;
-  if (!id) return NextResponse.json({ error: "Rule ID required" }, { status: 400 });
-
-  const existing = await prisma.pFESIRate.findUnique({
-    where: { id },
-  });
+  const existing = await prisma.pFESIRate.findUnique({ where: { id } });
 
   if (!existing || existing.companyId !== companyId) {
     return NextResponse.json({ error: "Rule not found or access denied" }, { status: 404 });
   }
 
-  const fromDate = updates.effectiveFrom ? parseDate(updates.effectiveFrom) : existing.effectiveFrom;
-  const toDate = updates.effectiveTo !== undefined ? parseDate(updates.effectiveTo) : existing.effectiveTo;
+  const fromDate = updates.effectiveFrom
+    ? parseDate(updates.effectiveFrom)
+    : existing.effectiveFrom;
+
+  const toDate =
+    updates.effectiveTo !== undefined
+      ? parseDate(updates.effectiveTo)
+      : existing.effectiveTo;
 
   if (updates.effectiveFrom && !fromDate) {
     return NextResponse.json({ error: "Invalid effectiveFrom date" }, { status: 400 });
   }
 
-  // Overlap check on update (exclude self)
+  // 🔒 Overlap check (exclude self)
   if (existing.rateType !== "GRATUITY") {
     const overlap = await prisma.pFESIRate.findFirst({
       where: {
@@ -252,14 +252,15 @@ export async function PATCH(req: NextRequest) {
         rateType: existing.rateType,
         id: { not: id },
         isActive: true,
-        OR: [
+        AND: [
           {
             effectiveFrom: { lte: toDate ?? new Date("9999-12-31") },
-            effectiveTo: { gte: fromDate },
           },
           {
-            effectiveTo: null,
-            effectiveFrom: { lte: toDate ?? new Date("9999-12-31") },
+            OR: [
+              { effectiveTo: null },
+              { effectiveTo: { gte: fromDate ?? undefined } },
+            ],
           },
         ],
       },
@@ -273,26 +274,64 @@ export async function PATCH(req: NextRequest) {
     }
   }
 
+  // ✅ Build update object safely
   const updateData: any = {
     updatedBy: user.id,
   };
-  
-  // ✅ FIX GRATUITY
-  if (updates.gratuityPercent !== undefined) {
-    updateData.gratuityPercent =
-      updates.gratuityPercent === ""
-        ? null
-        : Number(updates.gratuityPercent);
-  }
-  
-  if (updates.gratuityBase !== undefined) {
-    updateData.gratuityBase = updates.gratuityBase || null;
-  }
-  
-  // keep existing date handling
+
+  // Dates
   if (updates.effectiveFrom) updateData.effectiveFrom = fromDate;
   if (updates.effectiveTo !== undefined) updateData.effectiveTo = toDate;
-  
+
+  if (updates.remarks !== undefined) {
+    updateData.remarks = updates.remarks || null;
+  }
+
+  // 🔹 ESI
+  if (existing.rateType === "ESI") {
+    if (updates.empShare !== undefined)
+      updateData.empShare = Number(updates.empShare);
+    if (updates.employerShare !== undefined)
+      updateData.employerShare = Number(updates.employerShare);
+    if (updates.esiWageCeiling !== undefined)
+      updateData.esiWageCeiling = Number(updates.esiWageCeiling);
+  }
+
+  // 🔹 PF
+  if (existing.rateType === "PF") {
+    if (updates.empShareAc1 !== undefined)
+      updateData.empShareAc1 = Number(updates.empShareAc1);
+    if (updates.erShareAc2 !== undefined)
+      updateData.erShareAc2 = Number(updates.erShareAc2);
+    if (updates.adminChargesAc10 !== undefined)
+      updateData.adminChargesAc10 = Number(updates.adminChargesAc10);
+    if (updates.epsAc21 !== undefined)
+      updateData.epsAc21 = Number(updates.epsAc21);
+    if (updates.edliChargesAc21 !== undefined)
+      updateData.edliChargesAc21 = Number(updates.edliChargesAc21);
+    if (updates.adminChargesAc22 !== undefined)
+      updateData.adminChargesAc22 = Number(updates.adminChargesAc22);
+    if (updates.calcType !== undefined)
+      updateData.calcType = updates.calcType || null;
+    if (updates.pfWageCeiling !== undefined)
+      updateData.pfWageCeiling = Number(updates.pfWageCeiling);
+    if (updates.epsWageCeiling !== undefined)
+      updateData.epsWageCeiling = Number(updates.epsWageCeiling);
+    if (updates.minEpsContribution !== undefined)
+      updateData.minEpsContribution = Number(updates.minEpsContribution);
+  }
+
+  // 🔹 GRATUITY
+  if (existing.rateType === "GRATUITY") {
+    if (updates.gratuityPercent !== undefined)
+      updateData.gratuityPercent =
+        updates.gratuityPercent === ""
+          ? null
+          : Number(updates.gratuityPercent);
+
+    if (updates.gratuityBase !== undefined)
+      updateData.gratuityBase = updates.gratuityBase || null;
+  }
 
   const rule = await prisma.pFESIRate.update({
     where: { id },
@@ -301,6 +340,7 @@ export async function PATCH(req: NextRequest) {
 
   return NextResponse.json({ success: true, data: rule });
 }
+
 
 // ---------------------------------------------
 // ---------------------------------------------

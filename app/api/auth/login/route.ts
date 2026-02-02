@@ -34,9 +34,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Decide redirect
-    let redirectUrl = "/employee";
+    let redirectUrl = "/super-admin";
     if (user.role === "super_admin") redirectUrl = "/super-admin";
-    if (user.role === "company_admin") redirectUrl = "/company-admin";
+    if (user.role === "company_admin") redirectUrl = "/super-admin";
 
     // Create response FIRST
     const response = NextResponse.json({

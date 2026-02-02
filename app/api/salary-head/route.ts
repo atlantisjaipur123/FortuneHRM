@@ -42,6 +42,7 @@ export async function GET() {
 }
 
 
+
 /* ------------------------------------------------------------------
    POST → Create salary head
 -------------------------------------------------------------------*/
@@ -165,7 +166,7 @@ export async function PUT(req: NextRequest) {
   let updateData: any = {
     updatedBy: user.id,
   };
-  
+
   // 🚨 SYSTEM HEAD: only name editable
   if (existing.isSystem) {
     updateData.name = name;
@@ -183,12 +184,12 @@ export async function PUT(req: NextRequest) {
       updatedBy: user.id,
     };
   }
-  
+
   const updated = await prisma.salaryHead.update({
     where: { id },
     data: updateData,
   });
-  
+
 
   return NextResponse.json({ success: true, salaryHead: updated });
 }
@@ -240,4 +241,4 @@ export async function DELETE(req: NextRequest) {
 }
 
 
-  
+
