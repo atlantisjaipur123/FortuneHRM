@@ -47,9 +47,9 @@ export async function POST(req: NextRequest) {
       startTime: body.startTime,
       endTime: body.endTime,
       // Frontend sends minutes, we store as Int
-      breakDuration: Math.max(0, Number(body.breakDuration || 0)), 
+      breakDuration: Math.max(0, Number(body.breakDuration || 0)),
       // Frontend sends hours as decimal (e.g., 8.5), we store as Float
-      workingHours: Math.max(0, Number(body.workingHours || 0)), 
+      workingHours: Math.max(0, Number(body.workingHours || 0)),
       // Grace periods from Step 2
       checkInAllowedFrom: Math.max(0, Number(body.checkInAllowedFrom || 0)),
       checkOutAllowedFrom: Math.max(0, Number(body.checkOutAllowedFrom || 0)),

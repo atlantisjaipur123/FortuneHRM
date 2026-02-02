@@ -79,20 +79,20 @@ const ReviewChart = ({
   useEffect(() => {
     const canvas = chartRef.current;
     if (!canvas) return;
-  
+
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-  
+
     if (chartInstanceRef.current) {
       chartInstanceRef.current.destroy();
       chartInstanceRef.current = null;
     }
-  
+
     // ✅ MOVE CALCULATIONS OUTSIDE OBJECT
     const shift = Math.max(workingMinutes, 1);
     const checkIn = Math.min(checkInMinutes, shift * 0.25);
     const checkOut = Math.min(checkOutMinutes, shift * 0.25);
-  
+
     chartInstanceRef.current = new Chart(ctx, {
       type: "doughnut",
       data: {
@@ -115,7 +115,7 @@ const ReviewChart = ({
         },
       },
     });
-  
+
     return () => {
       if (chartInstanceRef.current) {
         chartInstanceRef.current.destroy();
@@ -126,8 +126,8 @@ const ReviewChart = ({
   return <canvas ref={chartRef} className="p-4 bg-gray-50 rounded-lg w-full" />;
 };
 
-  
-  
+
+
 
 export default function ShiftPage() {
   const [shifts, setShifts] = useState<any[]>([]);
@@ -164,60 +164,60 @@ export default function ShiftPage() {
   useEffect(() => {
     fetchShifts();
   }, []);
-  
-  
+
+
 
   useEffect(() => {
     if (!selectedShift) return;
-  
+
     const breakMinutes = selectedShift.breakDuration ?? 0;
     const bh = Math.floor(breakMinutes / 60);
     const bm = breakMinutes % 60;
-  
+
     setFormData({
       ...selectedShift,
-  
+
       // UI-derived fields
       breakTime: `${String(bh).padStart(2, "0")}:${String(bm).padStart(2, "0")}`,
-  
+
       checkInGrace: String(selectedShift.checkInAllowedFrom ?? 0),
       earlyGrace: String(selectedShift.checkOutAllowedFrom ?? 0),
-  
+
       startTime: selectedShift.startTime ?? "00:00",
       endTime: selectedShift.endTime ?? "00:00",
 
       defineWeeklyOff: selectedShift.defineWeeklyOff ?? true,
       weeklyOffPattern: Array.isArray(selectedShift.weeklyOffPattern)
-      ? selectedShift.weeklyOffPattern
-      : [{ week: 1, day: "Sun", type: "Full day", time: "" }],
+        ? selectedShift.weeklyOffPattern
+        : [{ week: 1, day: "Sun", type: "Full day", time: "" }],
 
-  
+
       errors: {},
     });
   }, [selectedShift]);
-  
+
 
   // Auto-calculate total hours based on start, end, and break times
   useEffect(() => {
     const firstHalf =
       Number(formData.firstHalfHours) * 60 +
       Number(formData.firstHalfMinutes);
-  
+
     const secondHalf =
       Number(formData.secondHalfHours) * 60 +
       Number(formData.secondHalfMinutes);
-  
+
     const [bh, bm] = formData.breakTime.split(":").map(Number);
     const breakMinutes = bh * 60 + bm;
-  
+
     const totalWorkMinutes = firstHalf + secondHalf;
     const totalShiftMinutes = totalWorkMinutes + breakMinutes;
-  
+
     const calculatedEndTime = addMinutesToTime(
       formData.startTime,
       totalShiftMinutes
     );
-  
+
     setFormData((prev: any) => ({
       ...prev,
       endTime: calculatedEndTime,
@@ -231,9 +231,9 @@ export default function ShiftPage() {
     formData.secondHalfMinutes,
     formData.breakTime,
   ]);
-  
-  
-  
+
+
+
 
   const validateForm = () => {
     const errors: any = {};
@@ -244,14 +244,15 @@ export default function ShiftPage() {
   };
   const mapFormToApiPayload = () => {
     const [bh, bm] = formData.breakTime.split(":").map(Number);
-  
+
     return {
       name: formData.name,
       code: formData.code || null,
       startTime: formData.startTime,
       endTime: formData.endTime,
+      color: formData.color,
       breakDuration: bh * 60 + bm,
-      workingHours: Number(formData.totalHours),
+      workingHours: Number(formData.totalHours) || 0,
       checkInAllowedFrom: Number(formData.checkInGrace),
       checkOutAllowedFrom: Number(formData.earlyGrace),
 
@@ -263,11 +264,11 @@ export default function ShiftPage() {
       restrictHRBackdate: formData.restrictHRBackdate,
       restrictManagerFuture: formData.restrictManagerFuture,
 
-    
+
       isActive: true,
     };
   };
-  
+
 
 
   const handleSave = async () => {
@@ -276,9 +277,9 @@ export default function ShiftPage() {
       setFormData({ ...formData, errors });
       return;
     }
-  
+
     setLoading(true);
-  
+
     try {
       const payload = selectedShift
         ? { id: selectedShift.id, ...mapFormToApiPayload() }
@@ -289,48 +290,48 @@ export default function ShiftPage() {
       } else {
         await api.post("/api/shift", payload);
       }
-    
+
       // ✅ SUCCESS PATH
       setIsPopupOpen(false);
       setSelectedShift(null);
       setStep(1);
       await fetchShifts();
-    
+
     } catch (err: any) {
       console.error("Save shift failed:", err);
       alert(err.message || "Failed to save shift");
     } finally {
       setLoading(false);
     }
-    
+
   };
   const handleAddShift = () => {
     setSelectedShift(null);
-  
+
     setFormData({
       code: "",
       name: "",
       color: "#28a745",
-  
+
       startTime: "00:00",
       endTime: "00:00",
       breakTime: "00:00",
-  
+
       checkInGrace: "0",
       earlyGrace: "0",
-  
+
       totalHours: "0",
-  
+
       weeklyOffPattern: [{ week: 1, day: "Sun", type: "Full day", time: "" }],
-  
+
       errors: {},
     });
-  
+
     setStep(1);
     setIsPopupOpen(true);
   };
-  
-  
+
+
 
   const updateWeeklyPattern = (index: number, field: string, value: any) => {
     const newPattern = formData.weeklyOffPattern.map((p: any, i: number) =>
@@ -344,10 +345,10 @@ export default function ShiftPage() {
     if (direction === "prev" && step > 1) setStep(step - 1);
   };
   const workingMinutes =
-  Number(formData.firstHalfHours) * 60 +
-  Number(formData.firstHalfMinutes) +
-  Number(formData.secondHalfHours) * 60 +
-  Number(formData.secondHalfMinutes);
+    Number(formData.firstHalfHours) * 60 +
+    Number(formData.firstHalfMinutes) +
+    Number(formData.secondHalfHours) * 60 +
+    Number(formData.secondHalfMinutes);
 
 
   return (
@@ -355,10 +356,10 @@ export default function ShiftPage() {
       <div className="min-h-screen bg-white p-6 text-gray-900">
         <h1 className="text-3xl font-bold text-gray-800 mb-6">Shift</h1>
         {loading && (
-            <p className="text-sm text-gray-500 mb-4">
-              Loading shifts…
-            </p>
-          )}
+          <p className="text-sm text-gray-500 mb-4">
+            Loading shifts…
+          </p>
+        )}
         <Button
           variant="default"
           onClick={() => { handleAddShift(); }}
@@ -609,8 +610,8 @@ export default function ShiftPage() {
                     </div>
                     <p className="text-gray-700">Total Hours: {formData.totalHours || "0.0"}</p>
                     <ReviewChart workingMinutes={workingMinutes}
-                    checkInMinutes={Number(formData.checkInGrace)}
-                    checkOutMinutes={Number(formData.earlyGrace)}/>
+                      checkInMinutes={Number(formData.checkInGrace)}
+                      checkOutMinutes={Number(formData.earlyGrace)} />
                   </div>
                 )}
                 {step === 3 && (
@@ -665,10 +666,10 @@ export default function ShiftPage() {
                       <Label className="text-gray-700">If no attendance is recorded for <Input type="number" min="0" max="23" value={formData.noAttendanceHours} onKeyDown={(e) => enforceRange(e, 0, 23)} onChange={(e) => setFormData({ ...formData, noAttendanceHours: e.target.value })} className="w-20 inline" /> <Input type="number" min="0" max="59" value={formData.noAttendanceMinutes} onKeyDown={(e) => enforceRange(e, 0, 59)} onChange={(e) => setFormData({ ...formData, noAttendanceMinutes: e.target.value })} className="w-20 inline" /> from shift start time then mark "Full day" as absent.</Label>
                     </div>
                     <div>
-                      <Label className="text-gray-700">If no attendance is recorded for <Input type="number" min="0" max= "23" value={formData.noAttendanceHours} onKeyDown={(e) => enforceRange(e, 0, 23)} onChange={(e) => setFormData({ ...formData, noAttendanceHours: e.target.value })} className="w-20 inline" /> <Input type="number" min ="0" max="59" value={formData.noAttendanceMinutes} onKeyDown={(e) => enforceRange(e, 0, 59)} onChange={(e) => setFormData({ ...formData, noAttendanceMinutes: e.target.value })} className="w-20 inline"/> from shift start time then mark "Half day" as absent.</Label>
+                      <Label className="text-gray-700">If no attendance is recorded for <Input type="number" min="0" max="23" value={formData.noAttendanceHours} onKeyDown={(e) => enforceRange(e, 0, 23)} onChange={(e) => setFormData({ ...formData, noAttendanceHours: e.target.value })} className="w-20 inline" /> <Input type="number" min="0" max="59" value={formData.noAttendanceMinutes} onKeyDown={(e) => enforceRange(e, 0, 59)} onChange={(e) => setFormData({ ...formData, noAttendanceMinutes: e.target.value })} className="w-20 inline" /> from shift start time then mark "Half day" as absent.</Label>
                     </div>
                     <div>
-                      <Label className="text-gray-700">If check out is recorded for <Input type="number" min="0" max= "23" value={formData.noAttendanceCheckOutHours} onKeyDown={(e) => enforceRange(e, 0, 23)} onChange={(e) => setFormData({ ...formData, noAttendanceCheckOutHours: e.target.value })} className="w-20 inline" /> <Input type="number" min ="0" max="59" value={formData.noAttendanceCheckOutMinutes} onKeyDown={(e) => enforceRange(e, 0, 59)} onChange={(e) => setFormData({ ...formData, noAttendanceCheckOutMinutes: e.target.value })} className="w-20 inline" /> before shift end, mark second half as absent.</Label>
+                      <Label className="text-gray-700">If check out is recorded for <Input type="number" min="0" max="23" value={formData.noAttendanceCheckOutHours} onKeyDown={(e) => enforceRange(e, 0, 23)} onChange={(e) => setFormData({ ...formData, noAttendanceCheckOutHours: e.target.value })} className="w-20 inline" /> <Input type="number" min="0" max="59" value={formData.noAttendanceCheckOutMinutes} onKeyDown={(e) => enforceRange(e, 0, 59)} onChange={(e) => setFormData({ ...formData, noAttendanceCheckOutMinutes: e.target.value })} className="w-20 inline" /> before shift end, mark second half as absent.</Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Checkbox
@@ -726,7 +727,7 @@ export default function ShiftPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {(formData.weeklyOffPattern ??[]).map((row: any, i: number) => (
+                          {(formData.weeklyOffPattern ?? []).map((row: any, i: number) => (
                             <TableRow key={i}>
                               <TableCell>{row.week}</TableCell>
                               <TableCell>
