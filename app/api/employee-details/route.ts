@@ -18,7 +18,6 @@ export async function GET(req: NextRequest) {
     const companyId = getCompanyId();
     const { searchParams } = new URL(req.url);
 
-    // Filter parameters
     const branch = searchParams.get("branch");
     const department = searchParams.get("department");
     const designation = searchParams.get("designation");
@@ -30,13 +29,11 @@ export async function GET(req: NextRequest) {
     const includeResigned = searchParams.get("includeResigned") === "true";
     const search = searchParams.get("search");
 
-    // Build where clause
     const where: any = {
       companyId,
       deletedAt: null,
     };
 
-    // Apply filters
     if (branch && branch !== "all") where.branch = branch;
     if (department && department !== "all") where.department = department;
     if (designation && designation !== "all") where.designation = designation;
@@ -44,15 +41,12 @@ export async function GET(req: NextRequest) {
     if (level && level !== "all") where.scale = level;
     if (grade && grade !== "all") where.grade = grade;
     if (ptGroup && ptGroup !== "all") where.ptGroup = ptGroup;
-    if (shift && shift !== "all") where.shiftId = shift;  // Fixed: use shiftId not shift
+    if (shift && shift !== "all") where.shiftId = shift;
 
-
-    // Filter resigned employees
     if (!includeResigned) {
       where.dor = null;
     }
 
-    // Search filter
     if (search) {
       where.OR = [
         { name: { contains: search, mode: "insensitive" } },
@@ -82,246 +76,225 @@ export async function GET(req: NextRequest) {
 }
 
 /* ------------------------------------------------------------------
-   POST → Create employee
+   POST → Create employee + optional salary calculation
 -------------------------------------------------------------------*/
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession();
-    // if (!session) {
-    //   return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    // }
+    // const session = await getSession();
+    // if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     let companyId: string;
     try {
       companyId = getCompanyId();
-    } catch (error: any) {
+      console.log("comp id", companyId)
+    } catch (err: any) {
       return NextResponse.json(
-        { error: error.message || "Company ID is required. Please select a company." },
+        { error: err.message || "Company ID is required" },
         { status: 400 }
       );
     }
 
+    // Parse request body
     const body = await req.json();
+    console.log("body", body)
+
+    // Destructure employee and salary data
     const { employee, salary } = body;
 
-    if (!employee) {
-      return NextResponse.json({ error: "Employee data is required" }, { status: 400 });
-    }
-
-    // Validate required fields - only code is mandatory
-    if (!employee.code || employee.code.trim() === "") {
+    if (!employee || !employee.code?.trim()) {
       return NextResponse.json(
-        { error: "Employee code is required" },
+        { error: !employee ? "Employee data is required" : "Employee code is required" },
         { status: 400 }
       );
     }
 
-    const result = await prisma.$transaction(async (tx) => {
-      // Check if employee code already exists
-      const existing = await tx.employee.findFirst({
-        where: {
-          companyId,
-          code: employee.code,
-          deletedAt: null,
-        },
-      });
-
-      if (existing) {
-        throw new Error("Employee code already exists");
-      }
-
-      // Handle addresses
-      let permanentAddressId = null;
-      let correspondenceAddressId = null;
-
-      if (employee.permanentAddress && Object.keys(employee.permanentAddress).length > 0) {
-        const permanentAddr = await tx.address.create({
-          data: employee.permanentAddress,
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // 1. Prevent duplicate code
+        const existing = await tx.employee.findFirst({
+          where: { companyId, code: employee.code.trim(), deletedAt: null },
         });
-        permanentAddressId = permanentAddr.id;
-      }
+        if (existing) throw new Error("Employee code already exists");
 
-      if (employee.correspondenceAddress && Object.keys(employee.correspondenceAddress).length > 0) {
-        const correspondenceAddr = await tx.address.create({
-          data: employee.correspondenceAddress,
-        });
-        correspondenceAddressId = correspondenceAddr.id;
-      }
+        // 2. Create addresses if provided
+        let permanentAddressId: string | null = null;
+        let correspondenceAddressId: string | null = null;
 
-      // Helper function to convert undefined to null for Prisma
-      const toNull = (value: any) => (value === undefined || value === "") ? null : value;
-      const toDate = (value: any) => (value && value !== "") ? new Date(value) : null;
-      const toInt = (value: any) => {
-        if (value === undefined || value === "" || value === null) return null;
-        const parsed = parseInt(value);
-        return isNaN(parsed) ? null : parsed;
-      };
-
-      // Prepare employee data - convert undefined to null for optional fields
-      const employeeData: any = {
-        companyId,
-        code: employee.code,
-        name: employee.name || "",
-        fatherHusbandName: toNull(employee.fatherHusbandName),
-        pan: toNull(employee.pan),
-        aadhaar: toNull(employee.aadhaar),
-        uan: toNull(employee.uan),
-        pfAcNo: toNull(employee.pfAcNo),
-        esiNo: toNull(employee.esiNo),
-        email: toNull(employee.email),
-        nasscomRegNo: toNull(employee.nasscomRegNo),
-        gender: employee.gender || "MALE",
-        maritalStatus: employee.maritalStatus || "UNMARRIED",
-        dob: toDate(employee.dob),
-        doj: employee.doj ? new Date(employee.doj) : new Date(),
-        dor: toDate(employee.dor),
-        dateOfMarriage: toDate(employee.dateOfMarriage),
-        fathersName: toNull(employee.fathersName),
-        mothersName: toNull(employee.mothersName),
-        caste: toNull(employee.caste),
-        bloodGroup: toNull(employee.bloodGroup),
-        nationality: toNull(employee.nationality),
-        religion: toNull(employee.religion),
-        noOfDependent: toInt(employee.noOfDependent),
-        spouse: toNull(employee.spouse),
-        photo: toNull(employee.photo),
-        physicallyHandicap: toNull(employee.physicallyHandicap),
-        registeredInPmrpy: employee.registeredInPmrpy || false,
-        emergencyContact: toNull(employee.emergencyContact),
-        emergencyPhone: toNull(employee.emergencyPhone),
-        permanentAddressId,
-        correspondenceAddressId,
-        stdCode: toNull(employee.stdCode),
-        phone: toNull(employee.phone),
-        mobile: toNull(employee.mobile),
-        internalId: toNull(employee.internalId),
-        scale: toNull(employee.scale || employee.level),
-        ptGroup: toNull(employee.ptGroup),
-        noticePeriodMonths: toInt(employee.noticePeriodMonths),
-        probationPeriodMonths: toInt(employee.probationPeriodMonths),
-        confirmationDate: toDate(employee.confirmationDate),
-        resigLetterDate: toDate(employee.resigLetterDate),
-        resigDateLwd: toDate(employee.resigDateLwd),
-        resignationReason: toNull(employee.resignationReason),
-        appraisalDate: toDate(employee.appraisalDate),
-        commitmentCompletionDate: toDate(employee.commitmentCompletionDate),
-        dateOfDeath: toDate(employee.dateOfDeath),
-        identityMark: toNull(employee.identityMark),
-        reimbursementApplicable: employee.reimbursementApplicable || false,
-        branch: toNull(employee.branch),
-        department: toNull(employee.department),
-        designation: toNull(employee.designation),
-        level: toNull(employee.level),
-        grade: toNull(employee.grade),
-        category: toNull(employee.category),
-        attendanceType: toNull(employee.attendanceType),
-        shiftId: toNull(employee.shiftId),
-        bankName: toNull(employee.bankName),
-        bankBranch: toNull(employee.bankBranch),
-        bankIfsc: toNull(employee.bankIfsc),
-        bankAddress: toNull(employee.bankAddress),
-        nameAsPerAc: toNull(employee.nameAsPerAc),
-        salaryAcNumber: toNull(employee.salaryAcNumber),
-        paymentMode: employee.paymentMode || "TRANSFER",
-        acType: employee.acType || "ECS",
-        bankRefNo: toNull(employee.bankRefNo),
-        wardCircleRange: toNull(employee.wardCircleRange),
-        licPolicyNo: toNull(employee.licPolicyNo),
-        policyTerm: toNull(employee.policyTerm),
-        licId: toNull(employee.licId),
-        annualRenewableDate: toDate(employee.annualRenewableDate),
-        hraApplicable: employee.hraApplicable || false,
-        bonusApplicable: employee.bonusApplicable || false,
-        gratuityApplicable: employee.gratuityApplicable || false,
-        lwfApplicable: employee.lwfApplicable || false,
-        pfApplicable: employee.pfApplicable || false,
-        pfJoiningDate: toDate(employee.pfJoiningDate),
-        pfLastDate: toDate(employee.pfLastDate),
-        previousPfNo: toNull(employee.previousPfNo),
-        salaryForPfOption: toNull(employee.salaryForPfOption),
-        salaryForPf: employee.salaryForPf ? parseFloat(employee.salaryForPf) : null,
-        minAmtPf: employee.minAmtPf ? parseFloat(employee.minAmtPf) : null,
-        pensionAppl: employee.pensionAppl || false,
-        pensionJoiningDate: toDate(employee.pensionJoiningDate),
-        pensionOnHigherWages: employee.pensionOnHigherWages || false,
-        noLimit: employee.noLimit || false,
-        esiApplicable: employee.esiApplicable || false,
-        esiJoiningDate: toDate(employee.esiJoiningDate),
-        esiLastDate: toDate(employee.esiLastDate),
-        salaryForEsiOption: toNull(employee.salaryForEsiOption),
-        salaryForEsi: employee.salaryForEsi ? parseFloat(employee.salaryForEsi) : null,
-        minAmtEsiContribution: employee.minAmtEsiContribution ? parseFloat(employee.minAmtEsiContribution) : null,
-        dispensaryOrPanel: toNull(employee.dispensaryOrPanel),
-        recruitmentAgency: toNull(employee.recruitmentAgency),
-        bankMandate: toNull(employee.bankMandate),
-        employmentStatus: employee.employmentStatus || "ACTIVE",
-        lapTops: toNull(employee.lapTops),
-        companyVehicle: toNull(employee.companyVehicle),
-        corpCreditCardNo: toNull(employee.corpCreditCardNo),
-        transportRoute: toNull(employee.transportRoute),
-        workLocation: toNull(employee.workLocation),
-        reasonForLeaving: toNull(employee.reasonForLeaving),
-        service: toNull(employee.service),
-        remarks: toNull(employee.remarks),
-        createdBy: session.id,
-      };
-
-      // Create employee
-      const createdEmployee = await tx.employee.create({
-        data: employeeData,
-        include: {
-          permanentAddress: true,
-          correspondenceAddress: true,
-        },
-      });
-
-      // If salary is provided, calculate and save it
-      // If salary is provided, calculate and save it
-      let salaryResult = null;
-      if (salary && salary.mode && salary.inputAmount !== undefined) {
-        const salaryMode = String(salary.mode).toUpperCase();
-        if (salaryMode !== "CTC" && salaryMode !== "GROSS") {
-          throw new Error(`Invalid salary mode: ${salary.mode}. Must be "CTC" or "GROSS"`);
+        if (employee.permanentAddress && Object.keys(employee.permanentAddress).length > 0) {
+          const addr = await tx.address.create({ data: employee.permanentAddress });
+          permanentAddressId = addr.id;
         }
 
-        const inputAmount = Number(salary.inputAmount);
-        if (isNaN(inputAmount) || inputAmount <= 0) {
-          throw new Error("Invalid salary amount. Must be a positive number");
+        if (employee.correspondenceAddress && Object.keys(employee.correspondenceAddress).length > 0) {
+          const addr = await tx.address.create({ data: employee.correspondenceAddress });
+          correspondenceAddressId = addr.id;
         }
 
-        const selectedHeadIds = Array.isArray(salary.selectedHeadIds)
-          ? salary.selectedHeadIds
-          : [];
+        // Helper functions
+        const toNull = (v: any) => (v == null || v === "") ? null : v;
+        const toDate = (v: any) => (v && v !== "") ? new Date(v) : null;
+        const toNumber = (v: any, asInt = false) => {
+          if (v == null || v === "") return null;
+          const n = asInt ? parseInt(v, 10) : parseFloat(v);
+          return Number.isNaN(n) ? null : n;
+        };
 
-        salaryResult = await calculateEmployeeSalary({
-          tx,
+        // 3. Prepare employee data
+        const employeeData: any = {
           companyId,
-          employeeId: createdEmployee.id,
-          salary: {
-            mode: salaryMode as "CTC" | "GROSS",
-            inputAmount,
-            selectedHeadIds, // ← CAN BE EMPTY
+          code: employee.code.trim(),
+          name: employee.name?.trim() || "",
+          fatherHusbandName: toNull(employee.fatherHusbandName),
+          pan: toNull(employee.pan?.trim()),
+          aadhaar: toNull(employee.aadhaar?.trim()),
+          uan: toNull(employee.uan?.trim()),
+          pfAcNo: toNull(employee.pfAcNo?.trim()),
+          esiNo: toNull(employee.esiNo?.trim()),
+          email: toNull(employee.email?.trim()?.toLowerCase()),
+          nasscomRegNo: toNull(employee.nasscomRegNo),
+          gender: employee.gender || "MALE",
+          maritalStatus: employee.maritalStatus || "UNMARRIED",
+          dob: toDate(employee.dob),
+          doj: employee.doj ? new Date(employee.doj) : new Date(),
+          dor: toDate(employee.dor),
+          dateOfMarriage: toDate(employee.dateOfMarriage),
+          fathersName: toNull(employee.fathersName),
+          mothersName: toNull(employee.mothersName),
+          caste: toNull(employee.caste),
+          bloodGroup: toNull(employee.bloodGroup),
+          nationality: toNull(employee.nationality),
+          religion: toNull(employee.religion),
+          noOfDependent: toNumber(employee.noOfDependent, true),
+          spouse: toNull(employee.spouse),
+          photo: toNull(employee.photo),
+          physicallyHandicap: toNull(employee.physicallyHandicap),
+          registeredInPmrpy: !!employee.registeredInPmrpy,
+          emergencyContact: toNull(employee.emergencyContact),
+          emergencyPhone: toNull(employee.emergencyPhone),
+          permanentAddressId,
+          correspondenceAddressId,
+          stdCode: toNull(employee.stdCode),
+          phone: toNull(employee.phone),
+          mobile: toNull(employee.mobile),
+          internalId: toNull(employee.internalId),
+          scale: toNull(employee.scale || employee.level),
+          ptGroup: toNull(employee.ptGroup),
+          noticePeriodMonths: toNumber(employee.noticePeriodMonths, true),
+          probationPeriodMonths: toNumber(employee.probationPeriodMonths, true),
+          confirmationDate: toDate(employee.confirmationDate),
+          resigLetterDate: toDate(employee.resigLetterDate),
+          resigDateLwd: toDate(employee.resigDateLwd),
+          resignationReason: toNull(employee.resignationReason),
+          appraisalDate: toDate(employee.appraisalDate),
+          commitmentCompletionDate: toDate(employee.commitmentCompletionDate),
+          dateOfDeath: toDate(employee.dateOfDeath),
+          identityMark: toNull(employee.identityMark),
+          reimbursementApplicable: !!employee.reimbursementApplicable,
+          branch: toNull(employee.branch),
+          department: toNull(employee.department),
+          designation: toNull(employee.designation),
+          level: toNull(employee.level),
+          grade: toNull(employee.grade),
+          category: toNull(employee.category),
+          attendanceType: toNull(employee.attendanceType),
+          shiftId: toNull(employee.shiftId),
+          bankName: toNull(employee.bankName),
+          bankBranch: toNull(employee.bankBranch),
+          bankIfsc: toNull(employee.bankIfsc),
+          bankAddress: toNull(employee.bankAddress),
+          nameAsPerAc: toNull(employee.nameAsPerAc),
+          salaryAcNumber: toNull(employee.salaryAcNumber),
+          paymentMode: employee.paymentMode || "TRANSFER",
+          acType: employee.acType || "ECS",
+          bankRefNo: toNull(employee.bankRefNo),
+          wardCircleRange: toNull(employee.wardCircleRange),
+          // LIC fields
+          licPolicyNo: toNull(employee.licPolicyNo),
+          policyTerm: toNull(employee.policyTerm),
+          licId: toNull(employee.licId),
+          annualRenewableDate: toDate(employee.annualRenewableDate),
+          // Flags
+          hraApplicable: !!employee.hraApplicable,
+          bonusApplicable: !!employee.bonusApplicable,
+          gratuityApplicable: !!employee.gratuityApplicable,
+          lwfApplicable: !!employee.lwfApplicable,
+          pfApplicable: !!employee.pfApplicable,
+          pfJoiningDate: toDate(employee.pfJoiningDate),
+          pfLastDate: toDate(employee.pfLastDate),
+          previousPfNo: toNull(employee.previousPfNo),
+          salaryForPfOption: toNull(employee.salaryForPfOption),
+          salaryForPf: toNumber(employee.salaryForPf),
+          minAmtPf: toNumber(employee.minAmtPf),
+          pensionAppl: !!employee.pensionAppl,
+          pensionJoiningDate: toDate(employee.pensionJoiningDate),
+          pensionOnHigherWages: !!employee.pensionOnHigherWages,
+          noLimit: !!employee.noLimit,
+          esiApplicable: !!employee.esiApplicable,
+          esiJoiningDate: toDate(employee.esiJoiningDate),
+          esiLastDate: toDate(employee.esiLastDate),
+          salaryForEsiOption: toNull(employee.salaryForEsiOption),
+          salaryForEsi: toNumber(employee.salaryForEsi),
+          minAmtEsiContribution: toNumber(employee.minAmtEsiContribution),
+          dispensaryOrPanel: toNull(employee.dispensaryOrPanel),
+          recruitmentAgency: toNull(employee.recruitmentAgency),
+          bankMandate: toNull(employee.bankMandate),
+          employmentStatus: employee.employmentStatus || "ACTIVE",
+          // other fields...
+          createdBy: "system", // ← change to session?.id when you enforce auth
+        };
+
+        const createdEmployee = await tx.employee.create({
+          data: employeeData,
+          include: {
+            permanentAddress: true,
+            correspondenceAddress: true,
           },
         });
+
+        // 4. Salary calculation – MUST use tx inside calculateEmployeeSalary!
+        let salaryResult = null;
+
+        if (salary?.mode && salary?.inputAmount != null) {
+          const mode = String(salary.mode).toUpperCase();
+          if (mode !== "CTC" && mode !== "GROSS") {
+            throw new Error(`Invalid salary mode: ${mode}. Must be CTC or GROSS`);
+          }
+
+          const amount = Number(salary.inputAmount);
+          if (Number.isNaN(amount) || amount <= 0) {
+            throw new Error("Salary amount must be a positive number");
+          }
+
+          salaryResult = await calculateEmployeeSalary({
+            tx,                                 // ← This line is critical!
+            companyId,
+            employeeId: createdEmployee.id,
+            salary: {
+              mode: mode as "CTC" | "GROSS",
+              inputAmount: amount,
+              selectedHeadIds: Array.isArray(salary.selectedHeadIds)
+                ? salary.selectedHeadIds
+                : [],
+            },
+          });
+        }
+
+        return { employee: createdEmployee, salary: salaryResult };
+      },
+      {
+        timeout: 45000,   // 45 seconds – increase if salary calc is complex
+        maxWait: 10000,
       }
-
-
-      return {
-        employee: createdEmployee,
-        salary: salaryResult,
-      };
-    });
-
-    return NextResponse.json({ success: true, ...result });
-  } catch (error: any) {
-    console.error("Error in POST /api/employee-details:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
     );
+
+    return NextResponse.json({ success: true, ...result }, { status: 201 });
+  } catch (error: any) {
+    console.error("POST /api/employee-details failed:", error);
+    const message = error.message || "Failed to create employee";
+    const status = error.message?.includes("already exists") ? 409 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }
-
 /* ------------------------------------------------------------------
    PUT → Update employee
 -------------------------------------------------------------------*/

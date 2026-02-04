@@ -1,70 +1,148 @@
-import { NextResponse } from "next/server"
-import { withCompany } from "@/app/lib/api-helpers"
-import { prisma } from "@/app/lib/prisma"
+// app/api/setups/route.ts   (or wherever this file lives)
+
+import { NextResponse } from 'next/server';
+import { withCompany } from '@/app/lib/api-helpers';
+import { prisma } from '@/app/lib/prisma';
+
+// Helper to retry a function on pool timeout
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries = 2,
+  delayMs = 800
+): Promise<T> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      lastError = err;
+      if (
+        attempt < maxRetries + 1 &&
+        (err?.message?.includes('Timed out fetching') ||
+          err?.message?.includes('connection') ||
+          err?.code === 'P2024' ||
+          err?.cause?.code === 10054)
+      ) {
+        console.warn(`Prisma retry ${attempt}/${maxRetries} after:`, err.message);
+        await new Promise((r) => setTimeout(r, delayMs * attempt));
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastError;
+}
 
 // GET all setups for selected company
 export async function GET() {
   return withCompany(async (companyId) => {
-    const [
-      branches,
-      departments,
-      designations,
-      categories,
-      levels,
-      grades,
-      attendanceTypes,
-      shifts,
-    ] = await Promise.all([
-      prisma.branch.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
-      prisma.department.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
-      prisma.designation.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
-      prisma.employeeCategory.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
-      prisma.level.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
-      prisma.grade.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
-      prisma.attendanceTypeConfig.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
-      prisma.shift.findMany({ where: { companyId }, orderBy: { name: "asc" } }),
-    ])
+    try {
+      // Sequential loading to reduce peak connection pressure
+      const branches = await withRetry(() =>
+        prisma.branch.findMany({
+          where: { companyId },
+          orderBy: { name: 'asc' },
+        })
+      );
 
-    // ptGroups is stored as a string field in employees, not a separate model
-    // Extract unique ptGroup values from employees for this company
-    const employeesWithPtGroup = await prisma.employee.findMany({
-      where: { 
-        companyId,
-        ptGroup: { not: null },
-        deletedAt: null,
-      },
-      select: { ptGroup: true },
-    })
+      const departments = await withRetry(() =>
+        prisma.department.findMany({
+          where: { companyId },
+          orderBy: { name: 'asc' },
+        })
+      );
 
-    // Get unique ptGroup values
-    const uniquePtGroups = Array.from(new Set(employeesWithPtGroup.map(emp => emp.ptGroup).filter(Boolean)))
-    const ptGroups = uniquePtGroups
-      .map(ptGroup => ({ id: ptGroup!, name: ptGroup! }))
-      .sort((a, b) => a.name.localeCompare(b.name))
+      const designations = await withRetry(() =>
+        prisma.designation.findMany({
+          where: { companyId },
+          orderBy: { name: 'asc' },
+        })
+      );
 
-    // Return data directly (not wrapped) for compatibility with setups page
-    // The hook will handle both formats
-    return NextResponse.json({
-      branches,
-      departments,
-      designations,
-      categories,
-      levels,
-      grades,
-      attendanceTypes,
-      shifts,
-      ptGroups,
-    })
-  })
+      const categories = await withRetry(() =>
+        prisma.employeeCategory.findMany({
+          where: { companyId },
+          orderBy: { name: 'asc' },
+        })
+      );
+
+      const levels = await withRetry(() =>
+        prisma.level.findMany({
+          where: { companyId },
+          orderBy: { name: 'asc' },
+        })
+      );
+
+      const grades = await withRetry(() =>
+        prisma.grade.findMany({
+          where: { companyId },
+          orderBy: { name: 'asc' },
+        })
+      );
+
+      const attendanceTypes = await withRetry(() =>
+        prisma.attendanceTypeConfig.findMany({
+          where: { companyId },
+          orderBy: { name: 'asc' },
+        })
+      );
+
+      const shifts = await withRetry(() =>
+        prisma.shift.findMany({
+          where: { companyId },
+          orderBy: { name: 'asc' },
+        })
+      );
+
+      // ptGroups from employees
+      const employeesWithPtGroup = await withRetry(() =>
+        prisma.employee.findMany({
+          where: {
+            companyId,
+            ptGroup: { not: null },
+            deletedAt: null,
+          },
+          select: { ptGroup: true },
+        })
+      );
+
+      const uniquePtGroups = Array.from(
+        new Set(employeesWithPtGroup.map((emp) => emp.ptGroup).filter(Boolean))
+      );
+      const ptGroups = uniquePtGroups
+        .map((ptGroup) => ({ id: ptGroup!, name: ptGroup! }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      return NextResponse.json({
+        branches,
+        departments,
+        designations,
+        categories,
+        levels,
+        grades,
+        attendanceTypes,
+        shifts,
+        ptGroups,
+      });
+    } catch (error: any) {
+      console.error('GET /setups failed:', error);
+      return NextResponse.json(
+        { error: 'Failed to load setup data', details: error.message },
+        { status: 500 }
+      );
+    }
+  });
 }
 
-// ADD setup item
+// ADD setup item  (unchanged except better error logging)
 export async function POST(req: Request) {
   return withCompany(async (companyId) => {
-    const { type, name } = await req.json()
+    const { type, name } = await req.json();
 
     if (!type || !name?.trim()) {
-      return NextResponse.json({ error: "Type and name required" }, { status: 400 })
+      return NextResponse.json({ error: 'Type and name required' }, { status: 400 });
     }
 
     const models = {
@@ -75,60 +153,58 @@ export async function POST(req: Request) {
       level: prisma.level,
       grade: prisma.grade,
       attendanceType: prisma.attendanceTypeConfig,
-    } as const
+    } as const;
 
-    const model = models[type as keyof typeof models]
+    const model = models[type as keyof typeof models];
     if (!model) {
-      return NextResponse.json({ error: "Invalid setup type" }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid setup type' }, { status: 400 });
     }
 
     try {
-      // Branch requires a code field - generate from name
-      if (type === "branch") {
-        const code = name.trim().toUpperCase().replace(/\s+/g, "_").substring(0, 50)
-        const created = await model.create({
-          data: { 
-            name: name.trim(), 
+      let created;
+
+      if (type === 'branch') {
+        const code = name.trim().toUpperCase().replace(/\s+/g, '_').substring(0, 50);
+        created = await model.create({
+          data: {
+            name: name.trim(),
             companyId,
             code,
             isHeadOffice: false,
           },
-        })
-        return NextResponse.json(created)
+        });
+      } else {
+        created = await model.create({
+          data: { name: name.trim(), companyId },
+        });
       }
 
-      // Other models just need name and companyId
-      const created = await model.create({
-        data: { name: name.trim(), companyId },
-      })
-
-      return NextResponse.json(created)
+      return NextResponse.json(created);
     } catch (error: any) {
-      console.error("Database error:", error)
-      // Handle unique constraint violations
-      if (error.code === "P2002") {
+      console.error('POST setup error:', error);
+      if (error.code === 'P2002') {
         return NextResponse.json(
           { error: `${name.trim()} already exists for this company` },
           { status: 409 }
-        )
+        );
       }
       return NextResponse.json(
-        { error: error.message || "Failed to create setup item" },
+        { error: error.message || 'Failed to create setup item' },
         { status: 500 }
-      )
+      );
     }
-  })
+  });
 }
 
-// DELETE setup item
+// DELETE setup item  (unchanged except logging)
 export async function DELETE(req: Request) {
   return withCompany(async (companyId) => {
-    const { searchParams } = new URL(req.url)
-    const id = searchParams.get("id")
-    const type = searchParams.get("type")
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    const type = searchParams.get('type');
 
     if (!id || !type) {
-      return NextResponse.json({ error: "Missing id or type" }, { status: 400 })
+      return NextResponse.json({ error: 'Missing id or type' }, { status: 400 });
     }
 
     const models = {
@@ -139,44 +215,37 @@ export async function DELETE(req: Request) {
       level: prisma.level,
       grade: prisma.grade,
       attendanceType: prisma.attendanceTypeConfig,
-    } as const
+    } as const;
 
-    const model = models[type as keyof typeof models]
+    const model = models[type as keyof typeof models];
     if (!model) {
-      return NextResponse.json({ error: "Invalid setup type" }, { status: 400 })
+      return NextResponse.json({ error: 'Invalid setup type' }, { status: 400 });
     }
 
     try {
-      // First verify the record belongs to this company
       const record = await model.findFirst({
         where: { id, companyId },
-      })
+      });
 
       if (!record) {
         return NextResponse.json(
-          { error: "Record not found or does not belong to this company" },
+          { error: 'Record not found or does not belong to this company' },
           { status: 404 }
-        )
+        );
       }
 
-      // Delete the record
-      await model.delete({
-        where: { id },
-      })
+      await model.delete({ where: { id } });
 
-      return NextResponse.json({ success: true })
+      return NextResponse.json({ success: true });
     } catch (error: any) {
-      console.error("Delete error:", error)
-      if (error.code === "P2025") {
-        return NextResponse.json(
-          { error: "Record not found" },
-          { status: 404 }
-        )
+      console.error('DELETE setup error:', error);
+      if (error.code === 'P2025') {
+        return NextResponse.json({ error: 'Record not found' }, { status: 404 });
       }
       return NextResponse.json(
-        { error: error.message || "Failed to delete setup item" },
+        { error: error.message || 'Failed to delete setup item' },
         { status: 500 }
-      )
+      );
     }
-  })
+  });
 }

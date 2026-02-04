@@ -25,7 +25,7 @@ function getSelectedCompany(): { id: string; name: string } | null {
   try {
     const stored = localStorage.getItem("selectedCompany")
     if (!stored) return null
-    
+
     const company = JSON.parse(stored)
     if (company?.id && company?.name) {
       return company
@@ -122,7 +122,7 @@ export async function API(
       if (res.status === 400 && data.error?.includes("company")) {
         throw new Error("Company validation failed. Please select a company.")
       }
-      
+
       throw new Error(data.error || data.message || `Request failed with status ${res.status}`)
     }
 
@@ -143,16 +143,16 @@ export async function API(
 export const api = {
   get: (endpoint: string, options?: Omit<ApiOptions, "method">) =>
     API(endpoint, { ...options, method: "GET" }),
-  
+
   post: (endpoint: string, body?: any, options?: Omit<ApiOptions, "method" | "body">) =>
     API(endpoint, { ...options, method: "POST", body }),
-  
+
   put: (endpoint: string, body?: any, options?: Omit<ApiOptions, "method" | "body">) =>
     API(endpoint, { ...options, method: "PUT", body }),
-  
+
   patch: (endpoint: string, body?: any, options?: Omit<ApiOptions, "method" | "body">) =>
     API(endpoint, { ...options, method: "PATCH", body }),
-  
+
   delete: (endpoint: string, options?: Omit<ApiOptions, "method">) =>
     API(endpoint, { ...options, method: "DELETE" }),
 }

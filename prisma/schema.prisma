@@ -270,6 +270,7 @@ model SalaryHead {
   shortName           String?
   form16Field         String?
   fieldType           String
+  isActive            Boolean              @default(true) 
   calcBase            String?
   isPercentage        Boolean              @default(false)
   value               Float?
@@ -757,7 +758,7 @@ model Shift {
   checkInAllowedFrom      Int?
   checkOutAllowedFrom     Int?
   shiftAllowance          Boolean         @default(false)
-  weeklyOffPattern        String[]
+  weeklyOffPattern        Json
   restrictManagerBackdate Boolean         @default(false)
   restrictHRBackdate      Boolean         @default(false)
   restrictManagerFuture   Boolean         @default(false)

@@ -36,6 +36,7 @@ export async function GET() {
     systemCode: head.systemCode || null,
     createdAt: head.createdAt,
     updatedAt: head.updatedAt,
+    isActive: head.isActive,
   }));
 
   return NextResponse.json({ success: true, salaryHeads: mappedHeads });
@@ -119,6 +120,7 @@ export async function POST(req: NextRequest) {
 /* ------------------------------------------------------------------
    PUT → Update salary head
 -------------------------------------------------------------------*/
+
 export async function PUT(req: NextRequest) {
   const user = await getSession();
   if (!user) {
@@ -138,6 +140,7 @@ export async function PUT(req: NextRequest) {
     value,
     form16Field,
     applicableFor,
+    active,
   } = body;
 
   if (!id) {
@@ -154,6 +157,17 @@ export async function PUT(req: NextRequest) {
       { error: "Salary head not found" },
       { status: 404 }
     );
+  }
+  if (typeof active === "boolean") {
+    const updated = await prisma.salaryHead.update({
+      where: { id },
+      data: {
+        isActive: active,
+        updatedBy: user.id,
+      },
+    });
+
+    return NextResponse.json({ success: true, salaryHead: updated });
   }
 
   if (isPercentage && percentageOf === shortName) {
@@ -233,12 +247,31 @@ export async function DELETE(req: NextRequest) {
   }
 
   // ✅ Safe to delete normal heads
-  await prisma.salaryHead.delete({
-    where: { id },
-  });
+  try {
+    await prisma.salaryHead.delete({
+      where: { id },
+    });
 
-  return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    if (error.code === "P2003") {
+      return NextResponse.json(
+        {
+          error:
+            "This salary head is already used and cannot be deleted.",
+        },
+        { status: 400 }
+      );
+    }
+
+    console.error("Delete salary head failed:", error);
+    return NextResponse.json(
+      { error: "Failed to delete salary head" },
+      { status: 500 }
+    );
+  }
 }
+
 
 
 

@@ -226,10 +226,11 @@ export async function PATCH(req: NextRequest) {
   }
 
   const existing = await prisma.pFESIRate.findUnique({ where: { id } });
-
-  if (!existing || existing.companyId !== companyId) {
-    return NextResponse.json({ error: "Rule not found or access denied" }, { status: 404 });
-  }
+  console.log("akash", existing)
+  console.log("rahul", companyId, id)
+  // if (!existing || existing.companyId !== companyId) {
+  //   return NextResponse.json({ error: "Rule not found or access denied" }, { status: 404 });
+  // }
 
   const fromDate = updates.effectiveFrom
     ? parseDate(updates.effectiveFrom)
