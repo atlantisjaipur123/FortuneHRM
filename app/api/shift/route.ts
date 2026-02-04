@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
     });
     return NextResponse.json({ success: true, shifts });
   } catch (error: any) {
+    console.error("Shift GET error:", error);
     return NextResponse.json({ error: "Company context required" }, { status: 400 });
   }
 }
@@ -33,42 +34,49 @@ export async function POST(req: NextRequest) {
     const companyId = getCompanyId();
     const body = await req.json();
 
-    // Validation: Required fields from Step 1 & 2
     if (!body.name || !body.startTime || !body.endTime) {
-      return NextResponse.json({ error: "Name, Start Time, and End Time are required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Name, Start Time, and End Time are required" },
+        { status: 400 }
+      );
     }
 
-    // SANITIZATION: Prevents NaN and Negative values [cite: 454-455]
-    // We use Math.max(0, ...) to ensure no negative time is ever stored.
-    const payload = {
-      companyId,
-      name: body.name,
-      code: body.code || null,
-      startTime: body.startTime,
-      endTime: body.endTime,
-      // Frontend sends minutes, we store as Int
-      breakDuration: Math.max(0, Number(body.breakDuration || 0)),
-      // Frontend sends hours as decimal (e.g., 8.5), we store as Float
-      workingHours: Math.max(0, Number(body.workingHours || 0)),
-      // Grace periods from Step 2
-      checkInAllowedFrom: Math.max(0, Number(body.checkInAllowedFrom || 0)),
-      checkOutAllowedFrom: Math.max(0, Number(body.checkOutAllowedFrom || 0)),
-      // Additional Step 3-5 fields
-      shiftAllowance: !!body.shiftAllowance,
-      weeklyOffPattern: body.weeklyOffPattern || [], // Note: Ensure this is a Json field in Prisma
-      restrictManagerBackdate: !!body.restrictManagerBackdate,
-      restrictHRBackdate: !!body.restrictHRBackdate,
-      restrictManagerFuture: !!body.restrictManagerFuture,
-      createdBy: user.id,
-      isActive: true,
-    };
+    const shift = await prisma.shift.create({
+      data: {
+        companyId,
+        name: body.name,
+        code: body.code || null,
+        startTime: String(body.startTime),
+        endTime: String(body.endTime),
+        breakDuration: Math.max(0, Number(body.breakDuration || 0)),
+        workingHours: Math.max(0, Number(body.workingHours || 0)),
+        checkInAllowedFrom: Math.max(0, Number(body.checkInAllowedFrom || 0)),
+        checkOutAllowedFrom: Math.max(0, Number(body.checkOutAllowedFrom || 0)),
+        shiftAllowance: !!body.shiftAllowance,
+        weeklyOffPattern: body.weeklyOffPattern ?? [],
+        restrictManagerBackdate: !!body.restrictManagerBackdate,
+        restrictHRBackdate: !!body.restrictHRBackdate,
+        restrictManagerFuture: !!body.restrictManagerFuture,
+        createdBy: user.id,
+        isActive: true,
+      },
+    });
 
-    const shift = await prisma.shift.create({ data: payload });
     return NextResponse.json({ success: true, shift });
   } catch (error: any) {
-    if (error.code === "P2002") return NextResponse.json({ error: "Shift code/name already exists" }, { status: 409 });
     console.error("Shift POST error:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+
+    if (error.code === "P2002") {
+      return NextResponse.json(
+        { error: "Shift name already exists for this company" },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: error.message ?? "Internal Server Error" },
+      { status: 500 }
+    );
   }
 }
 

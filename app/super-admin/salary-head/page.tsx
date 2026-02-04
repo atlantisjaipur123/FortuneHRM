@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
 import { GlobalLayout } from "@/app/components/global-layout";
-import { Plus, Trash2, Edit} from "lucide-react";
+import { Plus, Trash2, Edit } from "lucide-react";
 import { api, API } from "@/app/lib/api";
 
 
@@ -124,7 +124,7 @@ export default function SalaryHeadPage() {
     async function loadSalaryHeads() {
       try {
         const res = await api.get("/api/salary-head");
-  
+
         const heads: SalaryHead[] = (res.salaryHeads || []).map(
           (h: any, index: number) => ({
             id: h.id,
@@ -132,10 +132,10 @@ export default function SalaryHeadPage() {
             description: h.name,
             shortName: h.shortName || "",
             form16Field: h.form16Field || "Salary u/s 17(1)",
-            group: "Standard", 
-            type: "Regular",   
+            group: "Standard",
+            type: "Regular",
             fieldType: h.fieldType || "Earnings",
-            active: true, 
+            active: h.isActive,
             value: h.value || 0,
             amountType: h.isPercentage ? "Percentage" : "Fixed",
             percentBase: h.percentageOf || "Amount",
@@ -147,25 +147,25 @@ export default function SalaryHeadPage() {
               Gratuity: false,
               LeaveEncashment: false,
               PF: false,
-              
+
             },
             isSystem: h.isSystem,
             systemCode: h.systemCode || "",
           })
         );
-        
-  
+
+
         setSalaryHeads(heads);
       } catch (error) {
         console.error("Failed to load salary heads", error);
         alert("Failed to load salary heads");
       }
     }
-  
+
     loadSalaryHeads();
   }, []);
-  
-  
+
+
 
 
 
@@ -182,43 +182,44 @@ export default function SalaryHeadPage() {
     }
     setOpen(true);
   };
-  
+
 
   const handleSubmit = async () => {
     if (!form.description || !form.shortName) {
       alert("Fill all required fields");
       return;
     }
-  
+
     const payload = {
       name: form.description,
       shortName: form.shortName,
       fieldType: form.fieldType,
-    
+
       isPercentage: form.amountType === "Percentage",
       percentageOf:
         form.amountType === "Percentage" ? form.percentBase : null,
-    
+
       value: form.value, // ✅ ADD THIS
-    
+
       form16Field: form.form16Field,
       applicableFor: form.applicable,
     };
-    
-  
+
+
     try {
       if (isEditing && form.id) {
         await api.put("/api/salary-head", {
           id: form.id,
+          active: form.active,
           ...payload,
         });
       } else {
         await api.post("/api/salary-head", payload);
       }
-  
+
       // reload from backend
       const res = await api.get("/api/salary-head");
-  
+
       const heads: SalaryHead[] = (res.salaryHeads || []).map(
         (h: any, index: number) => ({
           id: h.id,
@@ -229,7 +230,7 @@ export default function SalaryHeadPage() {
           group: "Standard",
           type: "Regular",
           fieldType: h.fieldType || "Earnings",
-          active: true,
+          active: h.isActive,
           amountType: h.isPercentage ? "Percentage" : "Fixed",
           percentBase: h.percentageOf || "Amount",
           applicable: (h.applicableFor && typeof h.applicableFor === 'object') ? h.applicableFor : {},
@@ -237,7 +238,7 @@ export default function SalaryHeadPage() {
           systemCode: h.systemCode || "",
         })
       );
-  
+
       setSalaryHeads(heads);
       setOpen(false);
       setForm(defaultForm);
@@ -246,17 +247,17 @@ export default function SalaryHeadPage() {
       alert(err.message || "Failed to save salary head");
     }
   };
-  
-  
+
+
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete permanently?")) return;
-  
+
     try {
       await API("/api/salary-head", { method: "DELETE", body: { id } });
-  
+
       const res = await api.get("/api/salary-head");
-  
+
       const heads: SalaryHead[] = (res.salaryHeads || []).map((h: any, index: number) => ({
         id: h.id,
         sno: index + 1,
@@ -266,21 +267,21 @@ export default function SalaryHeadPage() {
         group: "Standard",
         type: "Regular",
         fieldType: h.fieldType || "Earnings",
-        active: true,
+        active: h.isActive,
         amountType: h.isPercentage ? "Percentage" : "Fixed",
         percentBase: h.percentageOf || "Amount",
         applicable: (h.applicableFor && typeof h.applicableFor === 'object') ? h.applicableFor : {},
         isSystem: h.isSystem,
         systemCode: h.systemCode || "",
       }));
-  
+
       setSalaryHeads(heads);
     } catch (err: any) {
       console.error("Delete failed", err);
       alert(err.message || "Failed to delete salary head");
     }
   };
-  
+
 
 
   const addForm16Field = () => {
@@ -323,66 +324,67 @@ export default function SalaryHeadPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             {/* Add Salary Head Button */}
-              <Button onClick={() => handleOpenDialog()}>
-                <Plus className="w-4 h-4 mr-2" /> Add Salary Head
-              </Button>
+            <Button onClick={() => handleOpenDialog()}>
+              <Plus className="w-4 h-4 mr-2" /> Add Salary Head
+            </Button>
 
-              {/* Salary Heads Table */}
-              <div className="rounded-lg border overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>S.No</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Short</TableHead>
-                      <TableHead>Group</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Field Type</TableHead>
-                      <TableHead>Active</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
+            {/* Salary Heads Table */}
+            <div className="rounded-lg border overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>S.No</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Short</TableHead>
+                    <TableHead>Group</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Field Type</TableHead>
+                    <TableHead>Active</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
 
-                  <TableBody>
-                    {salaryHeads.map((head) => (
-                      <TableRow
-                        key={head.id}
-                        className={!head.active ? "opacity-50" : ""}
-                      >
-                        <TableCell className="font-bold">{head.sno}</TableCell>
-                        <TableCell>
-                          {head.description}
-                          {head.isSystem && (
-                            <span className="ml-2 px-2 py-0.5 text-xs rounded bg-gray-200">
-                              System
-                            </span>
-                          )}
-                        </TableCell>
-
-                        <TableCell>{head.shortName}</TableCell>
-                        <TableCell>{head.group}</TableCell>
-
-                        <TableCell>
-                          <span
-                            className={`px-2 py-1 rounded text-xs font-medium ${
-                              head.type === "Regular"
-                                ? "bg-blue-100 text-blue-800"
-                                : "bg-orange-100 text-orange-800"
-                            }`}
-                          >
-                            {head.type}
+                <TableBody>
+                  {salaryHeads.map((head) => (
+                    <TableRow
+                      key={head.id}
+                      className={!head.active ? "opacity-50" : ""}
+                    >
+                      <TableCell className="font-bold">{head.sno}</TableCell>
+                      <TableCell>
+                        {head.description}
+                        {head.isSystem && (
+                          <span className="ml-2 px-2 py-0.5 text-xs rounded bg-gray-200">
+                            System
                           </span>
-                        </TableCell>
+                        )}
+                      </TableCell>
 
-                        <TableCell>{head.fieldType}</TableCell>
+                      <TableCell>{head.shortName}</TableCell>
+                      <TableCell>{head.group}</TableCell>
 
-                        <TableCell>
+                      <TableCell>
+                        <span
+                          className={`px-2 py-1 rounded text-xs font-medium ${head.type === "Regular"
+                            ? "bg-blue-100 text-blue-800"
+                            : "bg-orange-100 text-orange-800"
+                            }`}
+                        >
+                          {head.type}
+                        </span>
+                      </TableCell>
+
+                      <TableCell>{head.fieldType}</TableCell>
+
+                      <TableCell>
                         <Switch
                           checked={head.active}
                           onCheckedChange={async (v) => {
                             try {
-                              // Note: Schema doesn't have isActive field, so we'll just update UI state
-                              // If you need to persist this, add isActive field to SalaryHead model
+                              await api.put("/api/salary-head", {
+                                id: head.id,
+                                active: v
+                              })
                               setSalaryHeads((prev) =>
                                 prev.map((h) =>
                                   h.id === head.id ? { ...h, active: v } : h
@@ -394,41 +396,41 @@ export default function SalaryHeadPage() {
                           }}
                         />
 
-                        </TableCell>
+                      </TableCell>
 
-                        <TableCell>
-                          <div className="flex gap-2 items-center">
-                            {/* Edit is always allowed */}
+                      <TableCell>
+                        <div className="flex gap-2 items-center">
+                          {/* Edit is always allowed */}
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => handleOpenDialog(head)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+
+                          {/* Delete ONLY if not system head */}
+                          {!head.isSystem ? (
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => handleOpenDialog(head)}
+                              onClick={() => handleDelete(head.id)}
                             >
-                              <Edit className="w-4 h-4" />
+                              <Trash2 className="w-4 h-4 text-red-600" />
                             </Button>
+                          ) : (
+                            <span className="text-xs text-gray-400 select-none">
+                              System
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
 
-                            {/* Delete ONLY if not system head */}
-                            {!head.isSystem ? (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDelete(head.id)}
-                              >
-                                <Trash2 className="w-4 h-4 text-red-600" />
-                              </Button>
-                            ) : (
-                              <span className="text-xs text-gray-400 select-none">
-                                System
-                              </span>
-                            )}
-                          </div>
-                        </TableCell>
-
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
 
           </CardContent>
         </Card>
@@ -438,11 +440,11 @@ export default function SalaryHeadPage() {
             <DialogHeader>
               <DialogTitle>{isEditing ? "Edit" : "Add"} Salary Head</DialogTitle>
             </DialogHeader>
-          {form.isSystem && (
-            <p className="text-sm text-gray-500 mt-1">
-              This is a system salary head. Only the name can be edited.
-            </p>
-          )}
+            {form.isSystem && (
+              <p className="text-sm text-gray-500 mt-1">
+                This is a system salary head. Only the name can be edited.
+              </p>
+            )}
 
 
             <div className="grid grid-cols-2 gap-6 py-4">
@@ -589,6 +591,17 @@ export default function SalaryHeadPage() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="flex items-center gap-3 mt-2">
+                <Label>Active</Label>
+                <Switch
+                  checked={form.active}
+                  disabled={isSystemHead}
+                  onCheckedChange={(v) =>
+                    setForm({ ...form, active: v })
+                  }
+                />
+              </div>
+
 
               <div>
                 <Label>Amount Type</Label>

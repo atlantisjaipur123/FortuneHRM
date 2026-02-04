@@ -1,18 +1,36 @@
-import { PrismaClient } from "@prisma/client"
+// lib/prisma.ts
+import { PrismaClient } from "@prisma/client";
 
-const globalForPrisma = global as unknown as {
-  prisma: PrismaClient | undefined
+declare global {
+  // eslint-disable-next-line no-var
+  var prisma: PrismaClient | undefined;
 }
 
-const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
-    log: ["error", "warn"],
-  })
+const prismaClientSingleton = () => {
+  const client = new PrismaClient({
+    log: process.env.NODE_ENV === "development"
+      ? ["query", "info", "warn", "error"]
+      : ["warn", "error"],  // In prod, reduce noise but keep warnings/errors
+  });
+
+  // Listen for Prisma engine errors (helpful for pool/connection issues)
+  client.$on("error", (e) => {
+    console.error("[Prisma Error Event]:", e);
+  });
+
+  // Optional: query logging in dev to see slow queries or connection usage
+  // client.$on("query", (e) => {
+  //   console.log("[Query]", e.query, "Duration:", e.duration, "ms");
+  // });
+
+  return client;
+};
+
+const prisma = global.prisma ?? prismaClientSingleton();
 
 if (process.env.NODE_ENV !== "production") {
-  globalForPrisma.prisma = prisma
+  global.prisma = prisma;
 }
 
-export { prisma }
-export default prisma
+export { prisma };
+export default prisma;
