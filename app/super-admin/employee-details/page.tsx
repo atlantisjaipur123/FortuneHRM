@@ -22,6 +22,51 @@ import {
 } from "@/components/ui/dialog";
 import { GlobalLayout } from "@/app/components/global-layout";
 import { useCompanySetups } from "@/hooks/useCompanySetups"
+const sanitizeForPrisma = (data: any) => {
+  const sanitized = { ...data };
+
+  // 1. Force UPPERCASE for Enums (Prisma/Postgres requirement)
+  const enums = ['gender', 'maritalStatus', 'bloodGroup', 'religion', 'paymentMode', 'acType', 'employmentStatus'];
+  enums.forEach(key => {
+    if (sanitized[key]) sanitized[key] = sanitized[key].toUpperCase();
+  });
+
+  // 2. Map Blood Group Special Cases
+  if (sanitized.bloodGroup) {
+    sanitized.bloodGroup = sanitized.bloodGroup.replace('+', '_POSITIVE').replace('-', '_NEGATIVE');
+  }
+
+  // 3. Convert Strings to Numbers for Int/Float fields
+  const numbers = ['noOfDependent', 'noticePeriodMonths', 'probationPeriodMonths', 'salaryForPf', 'minAmtPf', 'salaryForEsi', 'minAmtEsiContribution'];
+  numbers.forEach(key => {
+    if (sanitized[key]) sanitized[key] = Number(sanitized[key]);
+  });
+  // 4. FIX: Convert Date Strings to ISO format
+  const dateFields = ['dob', 'doj', 'dor', 'dateOfMarriage', 'confirmationDate', 'pfJoiningDate', 'esiJoiningDate', 'annualRenewableDate'];
+  dateFields.forEach(field => {
+    if (sanitized[field] && sanitized[field] !== "") {
+      sanitized[field] = new Date(sanitized[field]).toISOString();
+    } else {
+      delete sanitized[field]; // Don't send empty strings to Date fields
+    }
+  });
+  // 5. FIX: Ensure Booleans are actual booleans
+  const boolFields = ['reimbursementApplicable', 'hraApplicable', 'bonusApplicable', 'gratuityApplicable', 'lwfApplicable', 'pfApplicable', 'pensionAppl', 'esiApplicable'];
+  boolFields.forEach(field => {
+    if (sanitized[field] !== undefined) sanitized[field] = sanitized[field] === true || sanitized[field] === 'true';
+  });
+  const cleanAddr = (addr: any) => {
+    if (addr && addr.state) {
+      addr.state = addr.state.toUpperCase().replace(/\s+/g, '_');
+    }
+    return addr;
+  };
+
+  if (sanitized.permanentAddress) sanitized.permanentAddress = cleanAddr(sanitized.permanentAddress);
+  if (sanitized.correspondenceAddress) sanitized.correspondenceAddress = cleanAddr(sanitized.correspondenceAddress);
+
+  return sanitized;
+};
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,15 +123,15 @@ interface Asset {
 }
 
 interface Education {
-  qualification?: string;
-  universityCollege?: string;
+  degree?: string;
+  college?: string;
   subject?: string;
   year?: string;
   percentage?: string;
 }
 
 interface Employee {
-  id: number;
+  id: string;
   code: string;
   name: string;
   fatherHusbandName: string;
@@ -175,8 +220,8 @@ interface Employee {
   corpCreditCardNo: string;
   transportRoute: string;
   workLocation: string;
-  companyAssets: Asset[];
-  educationalQualifications: Education[];
+  assets: Asset[];
+  qualifications: Education[];
   reasonForLeaving: string;
   service: string;
   remarks: string;
@@ -192,7 +237,7 @@ interface Employee {
   department: string;
   level: string;
   ptGroup: string;
-  shift: string;
+  shiftId: string;
 }
 
 
@@ -218,7 +263,8 @@ export default function EmployeeDetailsPage() {
   const [selectedDesignations, setSelectedDesignations] = useState<string[]>([])
   const [selectedLevels, setSelectedLevels] = useState<string[]>([])
   const [selectedGrades, setSelectedGrades] = useState<string[]>([])
-  const [selectedPtGroups, setSelectedPtGroups] = useState<string[]>([])
+  const [search, setSearch] = useState("");
+
   const [selectedShifts, setSelectedShifts] = useState<string[]>([])
 
 
@@ -290,9 +336,6 @@ export default function EmployeeDetailsPage() {
         selectedGrades.forEach(g => params.append("grade", g))
       }
 
-      if (selectedPtGroups.length) {
-        selectedPtGroups.forEach(p => params.append("ptGroup", p))
-      }
 
       if (selectedShifts.length) {
         selectedShifts.forEach(s => params.append("shift", s))
@@ -317,14 +360,14 @@ export default function EmployeeDetailsPage() {
         pfAcNo: emp.pfAcNo || "",
         email: emp.email || "",
         nasscomRegNo: emp.nasscomRegNo || "",
-        gender: emp.gender || "Male",
-        maritalStatus: emp.maritalStatus || "UnMarried",
+        gender: emp.gender || "MALE",
+        maritalStatus: emp.maritalStatus || "UNMARRIED",
         fathersName: emp.fathersName || "",
         mothersName: emp.mothersName || "",
         caste: emp.caste || "GEN",
         bloodGroup: emp.bloodGroup || "",
         nationality: emp.nationality || "Resident",
-        religion: emp.religion || "Hindu",
+        religion: emp.religion || "HINDU",
         dateOfMarriage: emp.dateOfMarriage ? new Date(emp.dateOfMarriage).toISOString().split("T")[0] : "",
         noOfDependent: emp.noOfDependent?.toString() || "",
         spouse: emp.spouse || "",
@@ -410,7 +453,7 @@ export default function EmployeeDetailsPage() {
         department: emp.department || "",
         level: emp.level || "",
         ptGroup: emp.ptGroup || "",
-        shift: emp.shiftId || "",
+        shiftId: emp.shiftId || "",
       }));
 
       setEmployees(transformedEmployees as unknown as Employee[]);
@@ -432,115 +475,210 @@ export default function EmployeeDetailsPage() {
     selectedDesignations,
     selectedLevels,
     selectedGrades,
-    selectedPtGroups,
     selectedShifts,
     includeResigned,
   ]);
+  const filteredEmployees = useMemo(() => {
+    if (!search.trim()) return employees;
+
+    const term = search.toLowerCase();
+
+    return employees.filter(emp =>
+      emp.name?.toLowerCase().includes(term) ||
+      emp.code?.toLowerCase().includes(term)
+    );
+  }, [employees, search]);
+
 
 
   // ── Filtered employees (real-time) ──
 
+  const cleanArray = (v: any) => Array.isArray(v) ? v : [];
+
+  const cleanAddress = (v: any) =>
+    v && typeof v === "object" && Object.keys(v).length > 0 ? v : null;
+
+  const cleanSalary = (s: any) =>
+    s && s.mode && s.inputAmount
+      ? {
+        mode: String(s.mode).toUpperCase(),
+        inputAmount: Number(s.inputAmount),
+        selectedHeadIds: Array.isArray(s.selectedHeadIds) ? s.selectedHeadIds : []
+      }
+      : null;
 
   // ── CRUD ──
-  const handleSubmit = async (updatedEmployee: any) => {
-    try {
-      // Extract salary if present (salary is not part of Employee interface)
-      const salary = (updatedEmployee as any).salary;
-      const employeeData = { ...updatedEmployee };
-      delete (employeeData as any).salary;
+  // ================= DEBUG INSPECTOR =================
+  const inspect = (label: string, data: any) => {
+    console.log(`\n================ ${label} ================`);
+    console.log("TYPE:", typeof data);
+    console.log("IS ARRAY:", Array.isArray(data));
+    console.dir(data, { depth: null });
+  };
+  // ===================================================
 
-      if (updatedEmployee.id) {
-        // Update existing employee
-        await api.put("/api/employee-details", {
-          id: updatedEmployee.id.toString(),
-          employee: employeeData,
-          salary: salary, // Include salary if provided
-        });
-        alert("Employee updated successfully");
+
+  const handleSubmit = async (formData: any) => {
+    console.log("🚀 Starting Submission...");
+
+    try {
+      setLoading(true);
+
+      // 1. Destructure all tabs from the form state
+      const {
+        salary,
+        qualifications,
+        experiences,
+        family,           // UI usually calls this 'family'
+        nominees,
+        witnesses,
+        assets,           // UI usually calls this 'assets'
+        permanentAddress,
+        correspondenceAddress,
+        ...basicInfo
+      } = formData;
+
+      // 2. Sanitize the main employee object (Dates, Enums, Numbers)
+      const employeeData = sanitizeForPrisma(basicInfo);
+
+      // 3. Build the "Relations" object (Mapping UI keys to Prisma keys)
+      const relations = {
+        salaryConfig: salary ? cleanSalary(salary) : null,
+
+        // We strip 'id' so Prisma generates new database IDs
+        qualifications: cleanArray(qualifications).map(({ id, ...rest }: any) => rest),
+
+        experiences: cleanArray(experiences).map(({ id, ...rest }: any) => ({
+          ...rest,
+          from: rest.from ? new Date(rest.from).toISOString() : null,
+          to: rest.to ? new Date(rest.to).toISOString() : null,
+        })),
+
+        familyMembers: cleanArray(family).map(({ id, ...rest }: any) => rest),
+
+        nominees: cleanArray(nominees).map(({ id, ...rest }: any) => ({
+          ...rest,
+          gratuityShare: rest.gratuityShare ? parseFloat(rest.gratuityShare) : null,
+        })),
+
+        witnesses: cleanArray(witnesses).map(({ id, ...rest }: any) => rest),
+
+        // Note: Your schema calls this 'companyAssets' in relations
+        assets: cleanArray(assets).map(({ id, ...rest }: any) => rest),
+
+        permanentAddress: cleanAddress(permanentAddress),
+        correspondenceAddress: cleanAddress(correspondenceAddress),
+      };
+
+      const finalPayload = {
+        employee: employeeData,
+        relations: relations
+      };
+
+      // 4. TERMINAL CHECK: Log this to see exactly what goes to the API
+      console.log("📦 FINAL PAYLOAD:", JSON.stringify(finalPayload, null, 2));
+
+      if (formData.id) {
+        // Update
+        await api.put("/api/employee-details", { id: formData.id, ...finalPayload });
       } else {
-        // Create new employee
-        await api.post("/api/employee-details", {
-          employee: employeeData,
-          salary: salary, // Include salary if provided
-        });
-        alert("Employee created successfully");
+        // Create - Ensure no ID is inside the employee object for POST
+        const postData = { ...finalPayload };
+        delete (postData.employee as any).id;
+        await api.post("/api/employee-details", postData);
       }
+
+      alert("Employee saved successfully!");
       setOpen(false);
-      setForm({}); // Reset form
-      loadEmployees(); // Reload employees
+      loadEmployees(); // Refresh the table
     } catch (error: any) {
-      console.error("Failed to save employee:", error);
-      alert(error.message || "Failed to save employee");
+      console.error("❌ Submission Failed:", error);
+      alert(error.response?.data?.error || "Check terminal for error details");
+    } finally {
+      setLoading(false);
     }
   };
-
-  const handleEdit = async (employee: Employee) => {
+  // ================= MODIFY EMPLOYEE (REAL DB FETCH) =================
+  const handleEdit = async (id: string) => {
     try {
-      setLoading(true)
+      setLoading(true);
 
-      // Fetch latest employee data from DB
-      const res = await api.get(`/api/employee-details/${employee.id}`)
+      // 🔥 1. FETCH FULL EMPLOYEE FROM DATABASE
+      const res = await api.get(`/api/employee-details/${id}`);
 
       if (!res?.employee) {
-        alert("Failed to load employee details")
-        return
-      }
-      console.log("EDIT EMPLOYEE FROM API:", res.employee)
-
-
-      setForm(res.employee) // FULL DB DATA
-      setOpen(true)
-      console.log("OPEN SET TO TRUE")
-    } catch (err: any) {
-      console.error(err)
-      alert(err.message || "Error loading employee")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this employee? This action cannot be undone.")) return;
-
-    try {
-      const selectedCompany = localStorage.getItem("selectedCompany");
-      if (!selectedCompany) {
-        alert("Please select a company first");
+        alert("Employee not found in database");
         return;
       }
 
-      const company = JSON.parse(selectedCompany);
-      const companyId = company?.id;
+      const emp = res.employee;
+      console.log("FULL EMPLOYEE FROM DB:", emp);
 
-      if (!companyId) {
-        alert("Invalid company selected");
-        return;
-      }
-      console.log("akash id", id)
-      const response = await fetch(`/api/employee-details/${id}`, {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          "x-company-id": companyId,
-        },
-      });
+      // 🔥 2. Convert DB data → Form format
+      const formatted: any = {
+        ...emp,
 
-      if (!response.ok) {
-        const text = await response.text();
-        const data = text ? JSON.parse(text) : null;
-        throw new Error(data?.error || "Failed to delete employee");
-      }
+        // Dates for input fields
+        dob: emp.dob || "",
+        doj: emp.doj || "",
+        dor: emp.dor || "",
+        dateOfMarriage: emp.dateOfMarriage || "",
+        confirmationDate: emp.confirmationDate || "",
+        pfJoiningDate: emp.pfJoiningDate || "",
+        esiJoiningDate: emp.esiJoiningDate || "",
 
-      // ✅ No JSON parsing here
-      alert("Employee deleted successfully");
-      loadEmployees();
+        // Relations
+        family: emp.familyMembers || [],
+        nominees: emp.nominees || [],
+        witnesses: emp.witnesses || [],
+        assets: emp.assets || [],
+        qualifications: emp.qualifications || [],
+        experiences: emp.experiences || [],
+
+        // Address
+        permanentAddress: emp.permanentAddress || {},
+        correspondenceAddress: emp.correspondenceAddress || {},
+
+        // 🔥 Salary Prefill
+        salary: emp.salaryConfig
+          ? {
+            mode: emp.salaryConfig.salaryMode,
+            inputAmount: emp.salaryConfig.inputAmount,
+            selectedHeadIds: emp.salaryBreakdown?.map((s: any) => s.salaryHeadId) || [],
+            breakdown: emp.salaryBreakdown || [],
+          }
+          : null,
+      };
+
+      // 🔥 3. Put into form state
+      setForm(formatted);
+
+      // 🔥 4. Open modal
+      setOpen(true);
 
     } catch (error: any) {
-      console.error("Failed to delete employee:", error);
-      alert(error.message || "Failed to delete employee");
+      console.error("Modify Load Failed:", error);
+      alert(error.response?.data?.error || "Failed to load employee");
+    } finally {
+      setLoading(false);
     }
   };
+
+
+  // ================= DELETE EMPLOYEE =================
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this employee?")) return;
+
+    try {
+      await api.delete(`/api/employee-details/${id}`);
+      alert("Employee deleted successfully");
+      loadEmployees();
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.error || "Delete failed");
+    }
+  };
+
 
 
   // ── Import ──
@@ -565,7 +703,7 @@ export default function EmployeeDetailsPage() {
       }
 
       const headers = importedData[0].map(normalizeHeader);
-      const lastId = Math.max(...employees.map((e) => e.id), 0);
+      const lastId = Math.max(...employees.map((e) => parseInt(e.id, 10)), 0);
       const toBoolean = (v: any) => v === "true" || v === true;
 
       const importedEmployees = importedData
@@ -674,8 +812,8 @@ export default function EmployeeDetailsPage() {
             shift: obj.shift || "",
             permanentAddress: {},
             correspondenceAddress: {},
-            companyAssets: [],
-            educationalQualifications: [],
+            assets: [],
+            qualifications: [],
             family: [],
             nominees: [],
             witnesses: [],
@@ -802,7 +940,7 @@ export default function EmployeeDetailsPage() {
         Designation: emp.designation,
         Department: emp.department,
         "PT Group": emp.ptGroup,
-        Shift: emp.shift,
+        ShiftId: emp.shiftId,
       }))
     );
     const wb = { Sheets: { data: ws }, SheetNames: ["data"] };
@@ -1049,35 +1187,7 @@ export default function EmployeeDetailsPage() {
                   </PopoverContent>
                 </Popover>
               </div>
-              <div>
-                <Label>PT Group</Label>
 
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <button type="button" className="w-full justify-start bg-gray-200 p-2 rounded-md text-sm">
-                      {selectedPtGroups.length === 0
-                        ? "All PT Groups"
-                        : `${selectedPtGroups.length} selected`}
-                    </button>
-                  </PopoverTrigger>
-
-                  <PopoverContent className="w-64 max-h-64 overflow-y-auto" align="start">
-                    {setups?.ptGroups?.map((p: any) => (
-                      <div key={p.id} className="flex items-center gap-2">
-                        <Checkbox
-                          checked={selectedPtGroups.includes(p.name)}
-                          onCheckedChange={(v) =>
-                            setSelectedPtGroups(prev =>
-                              v ? [...prev, p.name] : prev.filter(x => x !== p.name)
-                            )
-                          }
-                        />
-                        <span className="text-sm">{p.name}</span>
-                      </div>
-                    ))}
-                  </PopoverContent>
-                </Popover>
-              </div>
             </div> {/* END FILTER GRID */}
 
             {/* Checkboxes */}
@@ -1104,20 +1214,34 @@ export default function EmployeeDetailsPage() {
 
         {/* ── MAIN TABLE CARD ── */}
         <Card>
-          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <CardTitle className="text-lg sm:text-2xl">Employee Details</CardTitle>
-            <div className="flex gap-2 flex-wrap">
-              <Button onClick={() => setShowImportModal(true)} variant="outline">
-                Import
-              </Button>
-              <Button onClick={exportToExcel} variant="outline">
-                Export
-              </Button>
-              <Button onClick={() => { setForm({}); setOpen(true); }}>
-                + Add Employee
-              </Button>
+          <CardHeader className="flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <CardTitle className="text-lg sm:text-2xl">Employee Details</CardTitle>
+
+              <div className="flex gap-2 flex-wrap">
+                <Button onClick={() => setShowImportModal(true)} variant="outline">
+                  Import
+                </Button>
+                <Button onClick={exportToExcel} variant="outline">
+                  Export
+                </Button>
+                <Button onClick={() => { setForm({}); setOpen(true); }}>
+                  + Add Employee
+                </Button>
+              </div>
+            </div>
+
+            {/* 🔍 SEARCH BAR */}
+            <div className="max-w-md">
+              <Input
+                placeholder="Search by Employee Name or Code..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="bg-white"
+              />
             </div>
           </CardHeader>
+
           <CardContent>
             {loading ? (
               <div className="text-center py-8 text-gray-500">Loading employees...</div>
@@ -1140,8 +1264,8 @@ export default function EmployeeDetailsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {employees.length > 0 ? (
-                      employees.map((emp, i) => (
+                    {filteredEmployees.length > 0 ? (
+                      filteredEmployees.map((emp, i) => (
                         <TableRow key={emp.id}>
                           <TableCell>{emp.id}</TableCell>
                           <TableCell>{emp.code}</TableCell>
@@ -1155,7 +1279,7 @@ export default function EmployeeDetailsPage() {
                           <TableCell>{emp.pfAcNo}</TableCell>
                           <TableCell>
                             <div className="flex gap-2">
-                              <Button size="sm" variant="outline" onClick={() => handleEdit(emp)}>
+                              <Button size="sm" variant="outline" onClick={() => handleEdit(emp.id)}>
                                 Modify
                               </Button>
                               <Button size="sm" variant="destructive" onClick={() => handleDelete(emp.id)}>

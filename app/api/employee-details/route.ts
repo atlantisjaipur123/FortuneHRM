@@ -8,6 +8,19 @@ import { calculateEmployeeSalary } from "@/app/lib/calculateSalary";
 /* ------------------------------------------------------------------
    GET → List employees (company scoped)
 -------------------------------------------------------------------*/
+// Helper utilities
+const toTrimmedString = (v: any): string | null => (typeof v === 'string' && v.trim()) ? v.trim() : null;
+const toLowerEmail = (v: any): string | null => typeof v === 'string' ? v.trim().toLowerCase() : null;
+const toDate = (v: any): Date | null => (v && !isNaN(Date.parse(v))) ? new Date(v) : null;
+const toNumber = (v: any): number | null => {
+  const n = Number(v);
+  return isNaN(n) ? null : n;
+};
+const toInt = (v: any): number | null => {
+  const n = Number(v);
+  return (isNaN(n) || !Number.isInteger(n)) ? null : n;
+};
+const toBoolean = (v: any): boolean => !!v;
 export async function GET(req: NextRequest) {
   try {
     const session = await getSession();
@@ -61,6 +74,13 @@ export async function GET(req: NextRequest) {
       include: {
         permanentAddress: true,
         correspondenceAddress: true,
+        qualifications: true,
+        experiences: true,
+        familyMembers: true,
+        nominees: true,
+        witnesses: true,
+        assets: true,
+        salaryConfig: true,
       },
       orderBy: { createdAt: "desc" },
     });
@@ -78,15 +98,13 @@ export async function GET(req: NextRequest) {
 /* ------------------------------------------------------------------
    POST → Create employee + optional salary calculation
 -------------------------------------------------------------------*/
+
 export async function POST(req: NextRequest) {
   try {
-    // const session = await getSession();
-    // if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
     let companyId: string;
     try {
       companyId = getCompanyId();
-      console.log("comp id", companyId)
+      console.log("[POST] Company ID:", companyId);
     } catch (err: any) {
       return NextResponse.json(
         { error: err.message || "Company ID is required" },
@@ -94,43 +112,41 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Parse request body
     const body = await req.json();
-    console.log("body", body)
+    console.log("[POST] Raw received body:", JSON.stringify(body, null, 2));
 
-    // Destructure employee and salary data
-    const { employee, salary } = body;
+    // Support both possible structures: { employee: {...}, salary: {...} } or root-level
+    const payload = body.employee || body;
 
-    if (!employee || !employee.code?.trim()) {
+    if (!payload || !payload.code?.toString().trim()) {
       return NextResponse.json(
-        { error: !employee ? "Employee data is required" : "Employee code is required" },
+        { error: "Employee code is required" },
         { status: 400 }
       );
     }
+
+    const salaryInput = body.salary || payload.salary || null;
 
     const result = await prisma.$transaction(
       async (tx) => {
         // 1. Prevent duplicate code
         const existing = await tx.employee.findFirst({
-          where: { companyId, code: employee.code.trim(), deletedAt: null },
+          where: { companyId, code: payload.code.trim(), deletedAt: null },
         });
         if (existing) throw new Error("Employee code already exists");
 
-        // 2. Create addresses if provided
         let permanentAddressId: string | null = null;
         let correspondenceAddressId: string | null = null;
 
-        if (employee.permanentAddress && Object.keys(employee.permanentAddress).length > 0) {
-          const addr = await tx.address.create({ data: employee.permanentAddress });
+        if (body.permanentAddress && Object.keys(body.permanentAddress).length > 0) {
+          const addr = await tx.address.create({ data: body.permanentAddress });
           permanentAddressId = addr.id;
         }
-
-        if (employee.correspondenceAddress && Object.keys(employee.correspondenceAddress).length > 0) {
-          const addr = await tx.address.create({ data: employee.correspondenceAddress });
+        if (body.correspondenceAddress && Object.keys(body.correspondenceAddress).length > 0) {
+          const addr = await tx.address.create({ data: body.correspondenceAddress });
           correspondenceAddressId = addr.id;
         }
 
-        // Helper functions
         const toNull = (v: any) => (v == null || v === "") ? null : v;
         const toDate = (v: any) => (v && v !== "") ? new Date(v) : null;
         const toNumber = (v: any, asInt = false) => {
@@ -139,108 +155,104 @@ export async function POST(req: NextRequest) {
           return Number.isNaN(n) ? null : n;
         };
 
-        // 3. Prepare employee data
         const employeeData: any = {
           companyId,
-          code: employee.code.trim(),
-          name: employee.name?.trim() || "",
-          fatherHusbandName: toNull(employee.fatherHusbandName),
-          pan: toNull(employee.pan?.trim()),
-          aadhaar: toNull(employee.aadhaar?.trim()),
-          uan: toNull(employee.uan?.trim()),
-          pfAcNo: toNull(employee.pfAcNo?.trim()),
-          esiNo: toNull(employee.esiNo?.trim()),
-          email: toNull(employee.email?.trim()?.toLowerCase()),
-          nasscomRegNo: toNull(employee.nasscomRegNo),
-          gender: employee.gender || "MALE",
-          maritalStatus: employee.maritalStatus || "UNMARRIED",
-          dob: toDate(employee.dob),
-          doj: employee.doj ? new Date(employee.doj) : new Date(),
-          dor: toDate(employee.dor),
-          dateOfMarriage: toDate(employee.dateOfMarriage),
-          fathersName: toNull(employee.fathersName),
-          mothersName: toNull(employee.mothersName),
-          caste: toNull(employee.caste),
-          bloodGroup: toNull(employee.bloodGroup),
-          nationality: toNull(employee.nationality),
-          religion: toNull(employee.religion),
-          noOfDependent: toNumber(employee.noOfDependent, true),
-          spouse: toNull(employee.spouse),
-          photo: toNull(employee.photo),
-          physicallyHandicap: toNull(employee.physicallyHandicap),
-          registeredInPmrpy: !!employee.registeredInPmrpy,
-          emergencyContact: toNull(employee.emergencyContact),
-          emergencyPhone: toNull(employee.emergencyPhone),
+          code: payload.code.trim(),
+          name: payload.name?.trim() || "",
+          fatherHusbandName: toNull(payload.fatherHusbandName),
+          pan: toNull(payload.pan?.trim()),
+          aadhaar: toNull(payload.aadhaar?.trim()),
+          uan: toNull(payload.uan?.trim()),
+          pfAcNo: toNull(payload.pfAcNo?.trim()),
+          esiNo: toNull(payload.esiNo?.trim()),
+          email: toNull(payload.email?.trim()?.toLowerCase()),
+          nasscomRegNo: toNull(payload.nasscomRegNo),
+          gender: payload.gender || "MALE",
+          maritalStatus: payload.maritalStatus || "UNMARRIED",
+          dob: toDate(payload.dob),
+          doj: payload.doj ? new Date(payload.doj) : new Date(),
+          dor: toDate(payload.dor),
+          dateOfMarriage: toDate(payload.dateOfMarriage),
+          fathersName: toNull(payload.fathersName),
+          mothersName: toNull(payload.mothersName),
+          caste: toNull(payload.caste),
+          bloodGroup: toNull(payload.bloodGroup),
+          nationality: toNull(payload.nationality),
+          religion: toNull(payload.religion),
+          noOfDependent: toNumber(payload.noOfDependent, true),
+          spouse: toNull(payload.spouse),
+          photo: toNull(payload.photo),
+          physicallyHandicap: toNull(payload.physicallyHandicap),
+          registeredInPmrpy: !!payload.registeredInPmrpy,
+          emergencyContact: toNull(payload.emergencyContact),
+          emergencyPhone: toNull(payload.emergencyPhone),
           permanentAddressId,
           correspondenceAddressId,
-          stdCode: toNull(employee.stdCode),
-          phone: toNull(employee.phone),
-          mobile: toNull(employee.mobile),
-          internalId: toNull(employee.internalId),
-          scale: toNull(employee.scale || employee.level),
-          ptGroup: toNull(employee.ptGroup),
-          noticePeriodMonths: toNumber(employee.noticePeriodMonths, true),
-          probationPeriodMonths: toNumber(employee.probationPeriodMonths, true),
-          confirmationDate: toDate(employee.confirmationDate),
-          resigLetterDate: toDate(employee.resigLetterDate),
-          resigDateLwd: toDate(employee.resigDateLwd),
-          resignationReason: toNull(employee.resignationReason),
-          appraisalDate: toDate(employee.appraisalDate),
-          commitmentCompletionDate: toDate(employee.commitmentCompletionDate),
-          dateOfDeath: toDate(employee.dateOfDeath),
-          identityMark: toNull(employee.identityMark),
-          reimbursementApplicable: !!employee.reimbursementApplicable,
-          branch: toNull(employee.branch),
-          department: toNull(employee.department),
-          designation: toNull(employee.designation),
-          level: toNull(employee.level),
-          grade: toNull(employee.grade),
-          category: toNull(employee.category),
-          attendanceType: toNull(employee.attendanceType),
-          shiftId: toNull(employee.shiftId),
-          bankName: toNull(employee.bankName),
-          bankBranch: toNull(employee.bankBranch),
-          bankIfsc: toNull(employee.bankIfsc),
-          bankAddress: toNull(employee.bankAddress),
-          nameAsPerAc: toNull(employee.nameAsPerAc),
-          salaryAcNumber: toNull(employee.salaryAcNumber),
-          paymentMode: employee.paymentMode || "TRANSFER",
-          acType: employee.acType || "ECS",
-          bankRefNo: toNull(employee.bankRefNo),
-          wardCircleRange: toNull(employee.wardCircleRange),
-          // LIC fields
-          licPolicyNo: toNull(employee.licPolicyNo),
-          policyTerm: toNull(employee.policyTerm),
-          licId: toNull(employee.licId),
-          annualRenewableDate: toDate(employee.annualRenewableDate),
-          // Flags
-          hraApplicable: !!employee.hraApplicable,
-          bonusApplicable: !!employee.bonusApplicable,
-          gratuityApplicable: !!employee.gratuityApplicable,
-          lwfApplicable: !!employee.lwfApplicable,
-          pfApplicable: !!employee.pfApplicable,
-          pfJoiningDate: toDate(employee.pfJoiningDate),
-          pfLastDate: toDate(employee.pfLastDate),
-          previousPfNo: toNull(employee.previousPfNo),
-          salaryForPfOption: toNull(employee.salaryForPfOption),
-          salaryForPf: toNumber(employee.salaryForPf),
-          minAmtPf: toNumber(employee.minAmtPf),
-          pensionAppl: !!employee.pensionAppl,
-          pensionJoiningDate: toDate(employee.pensionJoiningDate),
-          pensionOnHigherWages: !!employee.pensionOnHigherWages,
-          noLimit: !!employee.noLimit,
-          esiApplicable: !!employee.esiApplicable,
-          esiJoiningDate: toDate(employee.esiJoiningDate),
-          esiLastDate: toDate(employee.esiLastDate),
-          salaryForEsiOption: toNull(employee.salaryForEsiOption),
-          salaryForEsi: toNumber(employee.salaryForEsi),
-          minAmtEsiContribution: toNumber(employee.minAmtEsiContribution),
-          dispensaryOrPanel: toNull(employee.dispensaryOrPanel),
-          recruitmentAgency: toNull(employee.recruitmentAgency),
-          bankMandate: toNull(employee.bankMandate),
-          employmentStatus: employee.employmentStatus || "ACTIVE",
-          // other fields...
-          createdBy: "system", // ← change to session?.id when you enforce auth
+          stdCode: toNull(payload.stdCode),
+          phone: toNull(payload.phone),
+          mobile: toNull(payload.mobile),
+          internalId: toNull(payload.internalId),
+          scale: toNull(payload.scale || payload.level),
+          ptGroup: toNull(payload.ptGroup),
+          noticePeriodMonths: toNumber(payload.noticePeriodMonths, true),
+          probationPeriodMonths: toNumber(payload.probationPeriodMonths, true),
+          confirmationDate: toDate(payload.confirmationDate),
+          resigLetterDate: toDate(payload.resigLetterDate),
+          resigDateLwd: toDate(payload.resigDateLwd),
+          resignationReason: toNull(payload.resignationReason),
+          appraisalDate: toDate(payload.appraisalDate),
+          commitmentCompletionDate: toDate(payload.commitmentCompletionDate),
+          dateOfDeath: toDate(payload.dateOfDeath),
+          identityMark: toNull(payload.identityMark),
+          reimbursementApplicable: !!payload.reimbursementApplicable,
+          branch: toNull(payload.branch),
+          department: toNull(payload.department),
+          designation: toNull(payload.designation),
+          level: toNull(payload.level),
+          grade: toNull(payload.grade),
+          category: toNull(payload.category),
+          attendanceType: toNull(payload.attendanceType),
+          shiftId: toNull(payload.shiftId),
+          bankName: toNull(payload.bankName),
+          bankBranch: toNull(payload.bankBranch),
+          bankIfsc: toNull(payload.bankIfsc),
+          bankAddress: toNull(payload.bankAddress),
+          nameAsPerAc: toNull(payload.nameAsPerAc),
+          salaryAcNumber: toNull(payload.salaryAcNumber),
+          paymentMode: payload.paymentMode || "TRANSFER",
+          acType: payload.acType || "ECS",
+          bankRefNo: toNull(payload.bankRefNo),
+          wardCircleRange: toNull(payload.wardCircleRange),
+          licPolicyNo: toNull(payload.licPolicyNo),
+          policyTerm: toNull(payload.policyTerm),
+          licId: toNull(payload.licId),
+          annualRenewableDate: toDate(payload.annualRenewableDate),
+          hraApplicable: !!payload.hraApplicable,
+          bonusApplicable: !!payload.bonusApplicable,
+          gratuityApplicable: !!payload.gratuityApplicable,
+          lwfApplicable: !!payload.lwfApplicable,
+          pfApplicable: !!payload.pfApplicable,
+          pfJoiningDate: toDate(payload.pfJoiningDate),
+          pfLastDate: toDate(payload.pfLastDate),
+          previousPfNo: toNull(payload.previousPfNo),
+          salaryForPfOption: toNull(payload.salaryForPfOption),
+          salaryForPf: toNumber(payload.salaryForPf),
+          minAmtPf: toNumber(payload.minAmtPf),
+          pensionAppl: !!payload.pensionAppl,
+          pensionJoiningDate: toDate(payload.pensionJoiningDate),
+          pensionOnHigherWages: !!payload.pensionOnHigherWages,
+          noLimit: !!payload.noLimit,
+          esiApplicable: !!payload.esiApplicable,
+          esiJoiningDate: toDate(payload.esiJoiningDate),
+          esiLastDate: toDate(payload.esiLastDate),
+          salaryForEsiOption: toNull(payload.salaryForEsiOption),
+          salaryForEsi: toNumber(payload.salaryForEsi),
+          minAmtEsiContribution: toNumber(payload.minAmtEsiContribution),
+          dispensaryOrPanel: toNull(payload.dispensaryOrPanel),
+          recruitmentAgency: toNull(payload.recruitmentAgency),
+          bankMandate: toNull(payload.bankMandate),
+          employmentStatus: payload.employmentStatus || "ACTIVE",
+          createdBy: "system", // ← replace with session.id when auth ready
         };
 
         const createdEmployee = await tx.employee.create({
@@ -251,29 +263,132 @@ export async function POST(req: NextRequest) {
           },
         });
 
-        // 4. Salary calculation – MUST use tx inside calculateEmployeeSalary!
+        // ── Related records with field name mapping ─────────────────────
+
+        // Qualifications
+        if (payload.qualifications?.length) {
+          await tx.qualification.createMany({
+            data: payload.qualifications
+              .map((q: any) => {
+                const { id, from, to, score, degreeValidityYear, uploadCertification, ...rest } = q;
+                return {
+                  ...rest,
+                  employeeId: createdEmployee.id,
+                  fromYear: from ? new Date(from).getFullYear() : null,
+                  toYear: to ? new Date(to).getFullYear() : null,
+                  percentage: score != null ? String(score) : null,
+                  validityYear: degreeValidityYear ? toNumber(degreeValidityYear, true) : null,
+                  certificate: uploadCertification?.trim() || null,
+                };
+              })
+              .filter((q: any) => q.college?.trim() || q.degree?.trim() || q.fromYear || q.toYear),
+          });
+        }
+
+        // Family members – important rename: residing → residingWith
+        if (payload.family?.length) {
+          await tx.familyMember.createMany({
+            data: payload.family
+              .map((f: any) => {
+                const { id, residing, ...rest } = f;
+                return {
+                  ...rest,
+                  employeeId: createdEmployee.id,
+                  residingWith: residing !== undefined ? Boolean(residing) : true,
+                };
+              })
+              .filter((f: any) => f.name?.trim() || f.relationship?.trim()),
+          });
+        }
+
+        // Experiences (expects from/to as dates)
+        if (payload.experiences?.length) {
+          await tx.experience.createMany({
+            data: payload.experiences
+              .map((e: any) => {
+                const { id, ...rest } = e;
+                return {
+                  ...rest,
+                  from: e.from ? new Date(e.from) : null,
+                  to: e.to ? new Date(e.to) : null,
+                  employeeId: createdEmployee.id,
+                };
+              })
+              .filter((e: any) => e.companyName?.trim() || e.designation?.trim()),
+          });
+        }
+
+        // Nomineess
+        if (payload.nominees?.length) {
+          await tx.nominee.createMany({
+            data: payload.nominees
+              .map((n: any) => {
+                const { id, gratuityShare, ...rest } = n;
+
+                return {
+                  ...rest,
+                  employeeId: createdEmployee.id,
+
+                  gratuityShare:
+                    gratuityShare === "" ||
+                      gratuityShare === undefined ||
+                      gratuityShare === null
+                      ? null
+                      : Number(gratuityShare),
+                };
+              })
+              .filter((n: any) => n.name?.trim() || n.relationship?.trim()),
+          });
+        }
+
+
+        // Witnesses
+        if (payload.witnesses?.length) {
+          await tx.witness.createMany({
+            data: payload.witnesses
+              .map((w: any) => {
+                const { id, ...rest } = w;
+                return { ...rest, employeeId: createdEmployee.id };
+              })
+              .filter((w: any) => w.name?.trim() || w.relationship?.trim()),
+          });
+        }
+
+        // Company Assets
+        if (payload.companyAssets?.length) {
+          await tx.companyAsset.createMany({
+            data: payload.companyAssets
+              .map((a: any) => {
+                const { id, ...rest } = a;
+                return { ...rest, employeeId: createdEmployee.id };
+              })
+              .filter((a: any) => a.particular?.trim() || a.value?.trim()),
+          });
+        }
+
+        // Salary calculation
         let salaryResult = null;
 
-        if (salary?.mode && salary?.inputAmount != null) {
-          const mode = String(salary.mode).toUpperCase();
+        if (salaryInput?.mode && salaryInput?.inputAmount != null) {
+          const mode = String(salaryInput.mode).toUpperCase();
           if (mode !== "CTC" && mode !== "GROSS") {
             throw new Error(`Invalid salary mode: ${mode}. Must be CTC or GROSS`);
           }
 
-          const amount = Number(salary.inputAmount);
+          const amount = Number(salaryInput.inputAmount);
           if (Number.isNaN(amount) || amount <= 0) {
             throw new Error("Salary amount must be a positive number");
           }
 
           salaryResult = await calculateEmployeeSalary({
-            tx,                                 // ← This line is critical!
+            tx,
             companyId,
             employeeId: createdEmployee.id,
             salary: {
               mode: mode as "CTC" | "GROSS",
               inputAmount: amount,
-              selectedHeadIds: Array.isArray(salary.selectedHeadIds)
-                ? salary.selectedHeadIds
+              selectedHeadIds: Array.isArray(salaryInput.selectedHeadIds)
+                ? salaryInput.selectedHeadIds
                 : [],
             },
           });
@@ -281,10 +396,7 @@ export async function POST(req: NextRequest) {
 
         return { employee: createdEmployee, salary: salaryResult };
       },
-      {
-        timeout: 45000,   // 45 seconds – increase if salary calc is complex
-        maxWait: 10000,
-      }
+      { timeout: 45000, maxWait: 10000 }
     );
 
     return NextResponse.json({ success: true, ...result }, { status: 201 });
@@ -577,56 +689,6 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ success: true, ...result });
   } catch (error: any) {
     console.error("Error in PUT /api/employee-details:", error);
-    return NextResponse.json(
-      { error: error.message || "Internal server error" },
-      { status: 500 }
-    );
-  }
-}
-
-/* ------------------------------------------------------------------
-   DELETE → Soft delete employee
--------------------------------------------------------------------*/
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const session = await getSession();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const companyId = getCompanyId();
-    const { id } = params;
-
-    if (!id) {
-      return NextResponse.json({ error: "Employee ID is required" }, { status: 400 });
-    }
-
-    const existing = await prisma.employee.findFirst({
-      where: {
-        id,
-        companyId,
-        deletedAt: null,
-      },
-    });
-
-    if (!existing) {
-      return NextResponse.json({ error: "Employee not found" }, { status: 404 });
-    }
-
-    await prisma.employee.update({
-      where: { id },
-      data: {
-        deletedAt: new Date(),
-        updatedBy: session.id,
-      },
-    });
-
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("Error in DELETE /api/employee-details/[id]:", error);
     return NextResponse.json(
       { error: error.message || "Internal server error" },
       { status: 500 }

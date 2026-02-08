@@ -39,6 +39,12 @@ export async function GET(
         experiences: true,
         qualifications: true,
         assets: true,
+        salaryConfig: true,
+        salaryBreakdown: {
+          include: {
+            salaryHead: true
+          }
+        }
       },
     });
 
@@ -153,6 +159,30 @@ export async function GET(
       level: employee.scale || "",
       ptGroup: employee.ptGroup || "",
       shift: employee.shiftId || "",
+      salaryConfig: employee.salaryConfig
+        ? {
+          salaryMode: employee.salaryConfig.salaryMode,
+          inputAmount: employee.salaryConfig.inputAmount,
+          grossSalary: employee.salaryConfig.grossSalary,
+          netSalary: employee.salaryConfig.netSalary,
+          annualCtc: employee.salaryConfig.annualCtc,
+        }
+        : null,
+
+      salaryBreakdown: employee.salaryBreakdown?.map((s) => ({
+        id: s.id,
+        salaryHeadId: s.salaryHeadId,
+        headName: s.headName,
+        headType: s.headType,
+        baseAmount: s.baseAmount,
+        netAmount: s.netAmount,
+        pfEmployee: s.pfEmployee,
+        pfEmployer: s.pfEmployer,
+        esiEmployee: s.esiEmployee,
+        esiEmployer: s.esiEmployer,
+        gratuityEmployer: s.gratuityEmployer,
+      })) || [],
+
     };
 
     return NextResponse.json({ success: true, employee: transformedEmployee });
@@ -187,10 +217,10 @@ export async function DELETE(
 
     // Atomic update + company scoping
     const result = await prisma.employee.updateMany({
-      where: { id, deletedAt: null },
+      where: { id, companyId, deletedAt: null },
       data: { deletedAt: new Date(), updatedBy: session.id },
     });
-
+    console.log(companyId)
     if (result.count === 0) {
       // nothing updated → either not found or already deleted / not in this company
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
