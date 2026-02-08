@@ -424,19 +424,6 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
               />
 
               <label className="block text-sm font-bold mt-4">Permanent Address Details : -</label>
-              <input
-                type="text"
-                value={employee.permanentAddress?.flat || ""}
-                onChange={(e) =>
-                  setEmployee((prev: any) => ({
-                    ...prev,
-                    permanentAddress: {
-                      ...prev.permanentAddress,
-                      flat: e.target.value
-                    }
-                  }))
-                }
-              />
 
               <input type="text" value={employee.permanentAddress?.building || ""} onChange={(e) =>
                 setEmployee((prev: any) => ({
@@ -1392,27 +1379,6 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
             <label className="block text-sm font-bold">Work Location</label>
             <input type="text" value={employee.workLocation || ""} onChange={(e) => handleFieldChange("workLocation", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
-            <label className="block text-sm font-bold">Company Assets : -</label>
-            <table className="w-full border-collapse border border-gray-300">
-              <thead>
-                <tr>
-                  <th className="border border-gray-300 p-2">S.N.</th>
-                  <th className="border border-gray-300 p-2">Particular</th>
-                  <th className="border border-gray-300 p-2">Remark</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="border border-gray-300 p-2">1</td>
-                  <td className="border border-gray-300 p-2"><input type="text" value={employee.companyAssets || ""} onChange={(e) => handleFieldChange("companyAssets", e.target.value)} className="w-full" /></td>
-                  <td className="border border-gray-300 p-2"><input type="text" value={employee.companyAssetsRemark || ""} onChange={(e) => handleFieldChange("companyAssetsRemark", e.target.value)} className="w-full" /></td>
-                </tr>
-              </tbody>
-            </table>
-            <div className="flex gap-2 mt-2">
-              <button className="px-4 py-2 bg-yellow-300 rounded">Add Row</button>
-              <button className="px-4 py-2 bg-yellow-300 rounded">Delete Row</button>
-            </div>
 
             <label className="block text-sm font-bold mt-4">Reason For Leaving</label>
             <select className="w-full p-2 border border-gray-300 rounded">
