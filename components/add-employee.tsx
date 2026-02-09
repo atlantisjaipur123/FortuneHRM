@@ -52,6 +52,14 @@ type AddEmployeeProps = {
 
 const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployeeProps) => {
   const [activeTab, setActiveTab] = useState("Personal");
+  const { data: setups, loading: setupsLoading } = useCompanySetups();
+  useEffect(() => {
+    if (setups) {
+      console.log("------- REAL DB SETUPS -------");
+      console.log(setups);
+      console.log("------------------------------");
+    }
+  }, [setups]);
 
   const tabs = [
     "Personal",
@@ -68,15 +76,7 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
   // DEMO SALARY HEADS (No DB, No API)
 
   // DEMO OFFICE SETUP DATA (No DB, No API)
-  const officeSetups = {
-    branches: ["Head Office", "Delhi Branch", "Mumbai Branch", "Bangalore Branch"],
-    departments: ["Human Resources", "Information Technology", "Finance", "Operations", "Marketing"],
-    designations: ["Software Engineer", "HR Manager", "Accountant", "Team Lead", "Intern"],
-    levels: ["L1 - Entry", "L2 - Junior", "L3 - Mid", "L4 - Senior", "L5 - Lead"],
-    grades: ["Grade A", "Grade B", "Grade C", "Grade D"],
-    categories: ["Permanent", "Contract", "Probation", "Freelance"],
-    attendanceTypes: ["Biometric", "Manual Punch", "Mobile App", "Web Login"]
-  };
+
   const tableInput =
     "w-full h-9 px-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400";
 
@@ -701,11 +701,11 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                 <select
                   value={employee.branch || ""}
                   onChange={(e) => handleFieldChange("branch", e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Select Branch</option>
-                  {officeSetups.branches.map((b) => (
-                    <option key={b} value={b}>{b}</option>
+                  <option value="">{setupsLoading ? "Loading..." : "Select Branch"}</option>
+                  {setups?.branches?.map((b: any) => (
+                    <option key={b.id} value={b.name}>{b.name}</option>
                   ))}
                 </select>
               </div>
@@ -718,9 +718,9 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                   onChange={(e) => handleFieldChange("department", e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Select Department</option>
-                  {officeSetups.departments.map((d) => (
-                    <option key={d} value={d}>{d}</option>
+                  <option value="">{setupsLoading ? "Loading..." : "Select Department"}</option>
+                  {setups?.departments?.map((d: any) => (
+                    <option key={d.id} value={d.name}>{d.name}</option>
                   ))}
                 </select>
               </div>
@@ -733,9 +733,9 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                   onChange={(e) => handleFieldChange("designation", e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Select Designation</option>
-                  {officeSetups.designations.map((d) => (
-                    <option key={d} value={d}>{d}</option>
+                  <option value="">{setupsLoading ? "Loading..." : "Select Designation"}</option>
+                  {setups?.designations?.map((d: any) => (
+                    <option key={d.id} value={d.name}>{d.name}</option>
                   ))}
                 </select>
               </div>
@@ -748,9 +748,9 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                   onChange={(e) => handleFieldChange("level", e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Select Level</option>
-                  {officeSetups.levels.map((l) => (
-                    <option key={l} value={l}>{l}</option>
+                  <option value="">{setupsLoading ? "Loading..." : "Select Level"}</option>
+                  {setups?.levels?.map((l: any) => (
+                    <option key={l.id} value={l.name}>{l.name}</option>
                   ))}
                 </select>
               </div>
@@ -763,9 +763,9 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                   onChange={(e) => handleFieldChange("grade", e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Select Grade</option>
-                  {officeSetups.grades.map((g) => (
-                    <option key={g} value={g}>{g}</option>
+                  <option value="">{setupsLoading ? "Loading..." : "Select Grade"}</option>
+                  {setups?.grades?.map((g: any) => (
+                    <option key={g.id} value={g.name}>{g.name}</option>
                   ))}
                 </select>
               </div>
@@ -778,14 +778,14 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                   onChange={(e) => handleFieldChange("category", e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Select Category</option>
-                  {officeSetups.categories.map((c) => (
-                    <option key={c} value={c}>{c}</option>
+                  <option value="">{setupsLoading ? "Loading..." : "Select Category"}</option>
+                  {setups?.categories?.map((c: any) => (
+                    <option key={c.id} value={c.name}>{c.name}</option>
                   ))}
                 </select>
               </div>
 
-              {/* Attendance Type */}
+              {/* Attendance Type (MISSING FIELD ADDED HERE) */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Attendance Type</label>
                 <select
@@ -793,9 +793,9 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                   onChange={(e) => handleFieldChange("attendanceType", e.target.value)}
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="">Select Type</option>
-                  {officeSetups.attendanceTypes.map((t) => (
-                    <option key={t} value={t}>{t}</option>
+                  <option value="">{setupsLoading ? "Loading..." : "Select Type"}</option>
+                  {setups?.attendanceTypes?.map((at: any) => (
+                    <option key={at.id} value={at.name}>{at.name}</option>
                   ))}
                 </select>
               </div>

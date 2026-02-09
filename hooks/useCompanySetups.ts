@@ -3,15 +3,34 @@
 import { useEffect, useState } from "react"
 import { api } from "@/app/lib/api"
 
+// 🌍 Global cache (shared across entire app)
+let setupsCache: any = null
+let pendingRequest: Promise<any> | null = null
+
 export function useCompanySetups() {
-  const [data, setData] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<any>(setupsCache)
+  const [loading, setLoading] = useState(!setupsCache)
 
   useEffect(() => {
-    api.get("/api/setups")
-      .then((res) => {
-        // Handle both formats: direct data or wrapped in { data: {...} }
-        setData(res.data || res)
+    // If already cached → instant render
+    if (setupsCache) {
+      setData(setupsCache)
+      setLoading(false)
+      return
+    }
+
+    // Prevent multiple parallel API calls
+    if (!pendingRequest) {
+      pendingRequest = api.get("/api/setups").then((res) => {
+        const result = res.data || res
+        setupsCache = result
+        return result
+      })
+    }
+
+    pendingRequest
+      .then((result) => {
+        setData(result)
         setLoading(false)
       })
       .catch((err) => {
@@ -20,8 +39,5 @@ export function useCompanySetups() {
       })
   }, [])
 
-  return {
-    data,
-    loading,
-  }
+  return { data, loading }
 }
