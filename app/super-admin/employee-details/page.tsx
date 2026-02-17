@@ -571,8 +571,18 @@ export default function EmployeeDetailsPage() {
       };
 
       const finalPayload = {
-        employee: employeeData,
-        relations: relations
+        employee: {
+          ...employeeData,
+          permanentAddress: relations.permanentAddress,
+          correspondenceAddress: relations.correspondenceAddress,
+        },
+        salary: relations.salaryConfig,
+        qualifications: relations.qualifications,
+        experiences: relations.experiences,
+        family: relations.familyMembers,
+        nominees: relations.nominees,
+        witnesses: relations.witnesses,
+        companyAssets: relations.assets
       };
 
       // 4. TERMINAL CHECK: Log this to see exactly what goes to the API

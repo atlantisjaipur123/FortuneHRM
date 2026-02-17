@@ -650,13 +650,13 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
 
                 <label className="block text-sm font-bold mt-4">Religion</label>
                 <select value={employee.religion || ""} onChange={(e) => handleFieldChange("religion", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
-                  <option>Hindu</option>
-                  <option>Muslim</option>
-                  <option>Christian</option>
-                  <option>Sikh</option>
-                  <option>Buddhist</option>
-                  <option>Jain</option>
-                  <option>Others</option>
+                  <option>HINDU</option>
+                  <option>MUSLIM</option>
+                  <option>CHRISTIAN</option>
+                  <option>SIKH</option>
+                  <option>BUDDHIST</option>
+                  <option>JAIN</option>
+                  <option>OTHERS</option>
                 </select>
 
                 <label className="block text-sm font-bold mt-4">Spouse</label>

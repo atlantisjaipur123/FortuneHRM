@@ -9,6 +9,14 @@ import { calculateEmployeeSalary } from "@/app/lib/calculateSalary";
    GET → List employees (company scoped)
 -------------------------------------------------------------------*/
 // Helper utilities
+/* ---------------- ENUM NORMALIZER ---------------- */
+
+const toEnum = (v: any) => {
+  if (v === undefined) return undefined; // do not touch missing fields
+  if (v === null || v === "") return null;
+  return String(v).trim().toUpperCase();
+};
+
 const toTrimmedString = (v: any): string | null => (typeof v === 'string' && v.trim()) ? v.trim() : null;
 const toLowerEmail = (v: any): string | null => typeof v === 'string' ? v.trim().toLowerCase() : null;
 const toDate = (v: any): Date | null => (v && !isNaN(Date.parse(v))) ? new Date(v) : null;
@@ -167,8 +175,8 @@ export async function POST(req: NextRequest) {
           esiNo: toNull(payload.esiNo?.trim()),
           email: toNull(payload.email?.trim()?.toLowerCase()),
           nasscomRegNo: toNull(payload.nasscomRegNo),
-          gender: payload.gender || "MALE",
-          maritalStatus: payload.maritalStatus || "UNMARRIED",
+          gender: toEnum(payload.gender) || "MALE",
+          maritalStatus: toEnum(payload.maritalStatus) || "UNMARRIED",
           dob: toDate(payload.dob),
           doj: payload.doj ? new Date(payload.doj) : new Date(),
           dor: toDate(payload.dor),
@@ -178,7 +186,7 @@ export async function POST(req: NextRequest) {
           caste: toNull(payload.caste),
           bloodGroup: toNull(payload.bloodGroup),
           nationality: toNull(payload.nationality),
-          religion: toNull(payload.religion),
+          religion: toEnum(payload.religion),
           noOfDependent: toNumber(payload.noOfDependent, true),
           spouse: toNull(payload.spouse),
           photo: toNull(payload.photo),
@@ -219,8 +227,8 @@ export async function POST(req: NextRequest) {
           bankAddress: toNull(payload.bankAddress),
           nameAsPerAc: toNull(payload.nameAsPerAc),
           salaryAcNumber: toNull(payload.salaryAcNumber),
-          paymentMode: payload.paymentMode || "TRANSFER",
-          acType: payload.acType || "ECS",
+          paymentMode: toEnum(payload.paymentMode) || "TRANSFER",
+          acType: toEnum(payload.acType) || "ECS",
           bankRefNo: toNull(payload.bankRefNo),
           wardCircleRange: toNull(payload.wardCircleRange),
           licPolicyNo: toNull(payload.licPolicyNo),
@@ -251,7 +259,7 @@ export async function POST(req: NextRequest) {
           dispensaryOrPanel: toNull(payload.dispensaryOrPanel),
           recruitmentAgency: toNull(payload.recruitmentAgency),
           bankMandate: toNull(payload.bankMandate),
-          employmentStatus: payload.employmentStatus || "ACTIVE",
+          employmentStatus: toEnum(payload.employmentStatus) || "ACTIVE",
           createdBy: "system", // ← replace with session.id when auth ready
         };
 
@@ -537,14 +545,14 @@ export async function PUT(req: NextRequest) {
       if (employee.dateOfMarriage !== undefined) updateData.dateOfMarriage = toDate(employee.dateOfMarriage);
 
       // Update other fields
-      if (employee.gender) updateData.gender = employee.gender;
-      if (employee.maritalStatus) updateData.maritalStatus = employee.maritalStatus;
+      if (employee.gender !== undefined) updateData.gender = toEnum(employee.gender);
+      if (employee.maritalStatus !== undefined) updateData.maritalStatus = toEnum(employee.maritalStatus);
       if (employee.fathersName !== undefined) updateData.fathersName = toNull(employee.fathersName);
       if (employee.mothersName !== undefined) updateData.mothersName = toNull(employee.mothersName);
       if (employee.caste !== undefined) updateData.caste = toNull(employee.caste);
       if (employee.bloodGroup !== undefined) updateData.bloodGroup = toNull(employee.bloodGroup);
       if (employee.nationality !== undefined) updateData.nationality = toNull(employee.nationality);
-      if (employee.religion !== undefined) updateData.religion = toNull(employee.religion);
+      if (employee.religion !== undefined) updateData.religion = toEnum(employee.religion);
       if (employee.noOfDependent !== undefined) updateData.noOfDependent = toInt(employee.noOfDependent);
       if (employee.spouse !== undefined) updateData.spouse = toNull(employee.spouse);
       if (employee.photo !== undefined) updateData.photo = toNull(employee.photo);
@@ -583,8 +591,8 @@ export async function PUT(req: NextRequest) {
       if (employee.bankAddress !== undefined) updateData.bankAddress = toNull(employee.bankAddress);
       if (employee.nameAsPerAc !== undefined) updateData.nameAsPerAc = toNull(employee.nameAsPerAc);
       if (employee.salaryAcNumber !== undefined) updateData.salaryAcNumber = toNull(employee.salaryAcNumber);
-      if (employee.paymentMode !== undefined) updateData.paymentMode = employee.paymentMode;
-      if (employee.acType !== undefined) updateData.acType = employee.acType;
+      if (employee.paymentMode !== undefined) updateData.paymentMode = toEnum(employee.paymentMode);
+      if (employee.acType !== undefined) updateData.acType = toEnum(employee.acType);
       if (employee.bankRefNo !== undefined) updateData.bankRefNo = toNull(employee.bankRefNo);
       if (employee.wardCircleRange !== undefined) updateData.wardCircleRange = toNull(employee.wardCircleRange);
       if (employee.licPolicyNo !== undefined) updateData.licPolicyNo = toNull(employee.licPolicyNo);
@@ -615,7 +623,7 @@ export async function PUT(req: NextRequest) {
       if (employee.dispensaryOrPanel !== undefined) updateData.dispensaryOrPanel = toNull(employee.dispensaryOrPanel);
       if (employee.recruitmentAgency !== undefined) updateData.recruitmentAgency = toNull(employee.recruitmentAgency);
       if (employee.bankMandate !== undefined) updateData.bankMandate = toNull(employee.bankMandate);
-      if (employee.employmentStatus !== undefined) updateData.employmentStatus = employee.employmentStatus;
+      if (employee.employmentStatus !== undefined) updateData.employmentStatus = toEnum(employee.employmentStatus);
       if (employee.lapTops !== undefined) updateData.lapTops = toNull(employee.lapTops);
       if (employee.companyVehicle !== undefined) updateData.companyVehicle = toNull(employee.companyVehicle);
       if (employee.corpCreditCardNo !== undefined) updateData.corpCreditCardNo = toNull(employee.corpCreditCardNo);
@@ -627,6 +635,7 @@ export async function PUT(req: NextRequest) {
 
       // Update employee
       const updatedEmployee = await tx.employee.update({
+
         where: { id },
         data: updateData,
         include: {
@@ -634,39 +643,31 @@ export async function PUT(req: NextRequest) {
           correspondenceAddress: true,
         },
       });
-
-      // Update salary if provided
-      // Update salary if provided
       let salaryResult = null;
+
       if (salary && salary.mode && salary.inputAmount !== undefined) {
+
         const salaryMode = String(salary.mode).toUpperCase();
         if (salaryMode !== "CTC" && salaryMode !== "GROSS") {
-          throw new Error(`Invalid salary mode: ${salary.mode}. Must be "CTC" or "GROSS"`);
+          throw new Error(`Invalid salary mode: ${salary.mode}`);
         }
 
         const inputAmount = Number(salary.inputAmount);
         if (isNaN(inputAmount) || inputAmount <= 0) {
-          throw new Error("Invalid salary amount. Must be a positive number");
+          throw new Error("Invalid salary amount");
         }
 
         const selectedHeadIds = Array.isArray(salary.selectedHeadIds)
           ? salary.selectedHeadIds
           : [];
 
-        // Delete old salary
-        await tx.employeeSalaryHead.deleteMany({
-          where: { employeeId: id },
-        });
+        // 1️⃣ Delete OLD salary first (VERY IMPORTANT)
+        // remove any existing salary breakdown + config in one go
+        await tx.employeeSalaryHead.deleteMany({ where: { employeeId: id } });
+        await tx.employeeSalaryConfig.deleteMany({ where: { employeeId: id } });
 
-        const existingConfig = await (tx as any).employeeSalaryConfig.findFirst({
-          where: { employeeId: id },
-        });
-        if (existingConfig) {
-          await (tx as any).employeeSalaryConfig.delete({
-            where: { id: existingConfig.id },
-          });
-        }
 
+        // 2️⃣ Recalculate salary
         salaryResult = await calculateEmployeeSalary({
           tx,
           companyId,
@@ -674,7 +675,7 @@ export async function PUT(req: NextRequest) {
           salary: {
             mode: salaryMode as "CTC" | "GROSS",
             inputAmount,
-            selectedHeadIds, // ← CAN BE EMPTY
+            selectedHeadIds,
           },
         });
       }
@@ -685,8 +686,12 @@ export async function PUT(req: NextRequest) {
         salary: salaryResult,
       };
     });
+    return NextResponse.json({
+      success: true,
+      employee: result.employee,
+      salary: result.salary,
+    });
 
-    return NextResponse.json({ success: true, ...result });
   } catch (error: any) {
     console.error("Error in PUT /api/employee-details:", error);
     return NextResponse.json(
