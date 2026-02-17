@@ -13,38 +13,36 @@ import { GlobalLayout } from '@/app/components/global-layout'
 
 type LeaveTypeConfig = {
   id: string
-  name: string
-  code?: string
-  type?: 'Full Day' | 'Half Day'
-  payConsume?: boolean
-  allowApply?: boolean
-  halfDay?: boolean
+  name: string                  // required
+  code: string                  // make required or '' 
 
-  // Accrued rules
-  accrueRule?: 'None' | 'Fixed' | 'Attendance'
-  fixedDays?: number
-  fixedPeriod?: 'Yearly' | 'Monthly'
-  plPer?: number
-  plBasis?: string
-  minAttendance?: number
+  type: 'FULL DAY' | 'HALF DAY'
+  payConsume: boolean
+  allowApply: boolean
+  halfDay: boolean
 
-  // Limits
-  maxPerMonth?: number
-  availedFrom?: string
-  autoAllot?: boolean
-  restrictDays?: number
-  mandatoryDocDays?: number
+  accrueRule: 'None' | 'Fixed' | 'Attendance'
+  fixedDays: number
+  fixedPeriod: 'Yearly' | 'Monthly'
+  plPer: number
+  plBasis: 'Attendance' | 'Performance' | ''
+  minAttendance: number         // usually 0–100 (percentage) or days
 
-  // Encash / Reimburse
-  allowEncash?: boolean
-  minEncash?: number
-  maxEncash?: number
+  maxPerMonth: number           // 0 = no limit
+  availedFrom: string           // e.g. '1st', '15th', 'Immediate'
+  autoAllot: boolean
 
-  // Carry-forward
-  cfOption?: string
-  cfMaxLimit?: number
+  restrictDays: number          // min consecutive days to apply
+  mandatoryDocDays: number      // after how many days doc is mandatory
 
-  // Legacy (kept for compatibility)
+  allowEncash: boolean
+  minEncash: number
+  maxEncash: number
+
+  cfOption: string
+  cfMaxLimit: number
+
+  // Optional: remove or mark as @deprecated
   totalPerYear?: number
 }
 
@@ -75,22 +73,20 @@ function Stepper({
       {steps.map((s, i) => (
         <div key={s.number} className="flex items-center flex-1">
           <div
-            className={`w-10 h-10 rounded-full flex items-center justify-center font-medium text-sm ${
-              s.completed || s.number === current
-                ? 'bg-green-600 text-white'
-                : 'bg-gray-200 text-gray-600'
-            }`}
+            className={`w-10 h-10 rounded-full flex items-center justify-center font-medium text-sm ${s.completed || s.number === current
+              ? 'bg-green-600 text-white'
+              : 'bg-gray-200 text-gray-600'
+              }`}
           >
             {s.number}
           </div>
           <div className="ml-2 text-sm">{s.label}</div>
           {i < steps.length - 1 && (
             <div
-              className={`flex-1 h-px mx-2 ${
-                s.completed || s.number < current
-                  ? 'bg-green-600'
-                  : 'bg-gray-300'
-              }`}
+              className={`flex-1 h-px mx-2 ${s.completed || s.number < current
+                ? 'bg-green-600'
+                : 'bg-gray-300'
+                }`}
             />
           )}
         </div>
@@ -102,8 +98,8 @@ function Stepper({
 /* -------------------------- Main Page -------------------------- */
 export default function LeavePolicyPage() {
   /* ---------- Policies (from API) ---------- */
-const [policies, setPolicies] = useState<LeavePolicy[]>([])
-const [loading, setLoading] = useState(true)
+  const [policies, setPolicies] = useState<LeavePolicy[]>([])
+  const [loading, setLoading] = useState(true)
 
 
   /* ---------- Modal & Form ---------- */
@@ -121,16 +117,16 @@ const [loading, setLoading] = useState(true)
   useEffect(() => {
     const fetchPolicies = async () => {
       try {
-        const res = await fetch('/api/leave',{
+        const res = await fetch('/api/leave', {
           credentials: 'include',
         })
         const json = await res.json()
-  
+
         if (!res.ok) {
           alert(json.error || 'Failed to load leave policies')
           return
         }
-  
+
         setPolicies(json.data)
       } catch (err) {
         console.error(err)
@@ -139,10 +135,10 @@ const [loading, setLoading] = useState(true)
         setLoading(false)
       }
     }
-  
+
     fetchPolicies()
   }, [])
-  
+
 
   const resetForm = () => {
     setStep(1)
@@ -157,7 +153,7 @@ const [loading, setLoading] = useState(true)
   const openEdit = (name: string) => {
     const policy = policies.find(p => p.name === name)
     if (!policy) return
-  
+
     setEditPolicyName(policy.name)
     setPolicyName(policy.name)
     setDescription(policy.description || '')
@@ -168,11 +164,11 @@ const [loading, setLoading] = useState(true)
         id: lt.id || crypto.randomUUID(),
       }))
     )
-    
+
     setShowModal(true)
   }
-  
-  
+
+
   const closeModal = () => { setShowModal(false); resetForm() }
 
   const nextStep = () => setStep(s => Math.min(s + 1, 3))
@@ -185,14 +181,21 @@ const [loading, setLoading] = useState(true)
   ]
 
   /* ---------- Save ---------- */
+  // add at top of component
+  const [saving, setSaving] = useState(false);
+
   const handleSave = async () => {
     if (!policyName.trim()) return alert('Policy name is required.')
     if (leaveTypes.length === 0) return alert('Add at least one leave type.')
-  
+
+    const method = editPolicyName ? 'PUT' : 'POST'
+
+    setSaving(true)
     try {
       const res = await fetch('/api/leave', {
-        method: 'POST',
+        method,
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // include cookies/session consistently
         body: JSON.stringify({
           name: policyName,
           description,
@@ -201,27 +204,28 @@ const [loading, setLoading] = useState(true)
           ...(editPolicyName && { originalPolicyName: editPolicyName }),
         }),
       })
-  
+
       const json = await res.json()
       if (!res.ok) {
         alert(json.error || 'Failed to save policy')
         return
       }
-  
-      // reload list
-      const refresh = await fetch('/api/leave',{
-        credentials: 'include',
-      })
+
+      // reload list (keep credentials)
+      const refresh = await fetch('/api/leave', { credentials: 'include' })
       const refreshed = await refresh.json()
       setPolicies(refreshed.data)
-  
+
       closeModal()
     } catch (err) {
       console.error(err)
       alert('Network error while saving')
+    } finally {
+      setSaving(false)
     }
   }
-  
+
+
 
   /* ---------- Leave Type Helpers ---------- */
   const addLeaveType = () => {
@@ -231,27 +235,35 @@ const [loading, setLoading] = useState(true)
         id: crypto.randomUUID(),
         name: '',
         code: '',
-        type: 'Full Day',
-        payConsume: false,
+        type: 'FULL DAY',
+
+        // More realistic defaults for most organizations
+        payConsume: true,          // usually yes
         allowApply: true,
-        halfDay: false,
+        halfDay: false,            // ← keep false, common
+
         accrueRule: 'None',
         fixedDays: 0,
         fixedPeriod: 'Yearly',
         plPer: 0,
-        plBasis: 'Select',
+        plBasis: '',
         minAttendance: 0,
-        maxPerMonth: 0,
+
+        maxPerMonth: 0,            // 0 = unlimited
         availedFrom: '1st',
         autoAllot: false,
+
         restrictDays: 0,
-        mandatoryDocDays: 0,
+        mandatoryDocDays: 3,       // common default: documents after 3 days
+
         allowEncash: false,
         minEncash: 0,
         maxEncash: 0,
+
         cfOption: 'Lapse at the end of Year',
         cfMaxLimit: 0,
-        totalPerYear: 0,
+
+        totalPerYear: 0,           // consider deprecating this field
       },
     ])
   }
@@ -265,32 +277,32 @@ const [loading, setLoading] = useState(true)
       prev.map(lt => (lt.id === id ? { ...lt, [field]: value } : lt))
     )
   }
-  
+
   const removeLeaveType = (id: string) => {
     setLeaveTypes(prev => prev.filter(lt => lt.id !== id))
   }
-  
+
 
   /* ---------- Delete ---------- */
   const handleDelete = async (name: string) => {
     if (!confirm('Delete this policy?')) return
-  
+
     const res = await fetch('/api/leave', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ policyName: name }),
       credentials: 'include',
     })
-  
+
     const json = await res.json()
     if (!res.ok) {
       alert(json.error || 'Delete failed')
       return
     }
-  
+
     setPolicies(prev => prev.filter(p => p.name !== name))
   }
-  
+
 
   /* ---------- Applicability Helpers ---------- */
   const toggleApplicability = (type: Applicability['type']) => {
@@ -300,7 +312,7 @@ const [loading, setLoading] = useState(true)
       setApplicability({ type, ids: [] })
     }
   }
-  
+
   const toggleId = (id: string) => {
     if (applicability.type === 'All') return
     setApplicability(prev => {
@@ -313,7 +325,7 @@ const [loading, setLoading] = useState(true)
       }
     })
   }
-  
+
 
   // Demo data (replace with API)
   const branches = ['HQ', 'North', 'South', 'East', 'West']
@@ -722,7 +734,7 @@ const [loading, setLoading] = useState(true)
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-600">
-                                Mandatory to upload document if leave days 
+                                Mandatory to upload document if leave days
                               </label>
                               <div className="flex items-center gap-2">
                                 <input
@@ -944,11 +956,10 @@ const [loading, setLoading] = useState(true)
                       <p className="mt-1">
                         {applicability.type === 'All'
                           ? 'All'
-                          : `${applicability.type}: ${
-                              (applicability as { ids: string[] }).ids.length
-                                ? applicability.ids.join(', ')
-                                : '—'
-                            }`}
+                          : `${applicability.type}: ${(applicability as { ids: string[] }).ids.length
+                            ? applicability.ids.join(', ')
+                            : '—'
+                          }`}
                       </p>
                     </div>
                   </div>
@@ -990,10 +1001,12 @@ const [loading, setLoading] = useState(true)
               ) : (
                 <button
                   onClick={handleSave}
-                  className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium"
+                  disabled={saving}
+                  className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium disabled:opacity-50"
                 >
                   {editPolicyName ? 'UPDATE' : 'CREATE'}
                 </button>
+
               )}
             </div>
           </div>

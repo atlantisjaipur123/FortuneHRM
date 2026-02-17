@@ -73,7 +73,7 @@ export async function GET(
       caste: employee.caste || "GEN",
       bloodGroup: employee.bloodGroup || "",
       nationality: employee.nationality || "Resident",
-      religion: employee.religion || "Hindu",
+      religion: employee.religion || "HINDU",
       dateOfMarriage: employee.dateOfMarriage ? new Date(employee.dateOfMarriage).toISOString().split("T")[0] : "",
       noOfDependent: employee.noOfDependent?.toString() || "",
       spouse: employee.spouse || "",
