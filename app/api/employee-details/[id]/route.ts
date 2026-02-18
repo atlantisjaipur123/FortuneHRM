@@ -23,6 +23,15 @@ export async function GET(
     if (!id) {
       return NextResponse.json({ error: "Employee ID is required" }, { status: 400 });
     }
+    const normalizeAddress = (addr: any) => ({
+      address1: addr?.address1 ?? "",
+      address2: addr?.address2 ?? "",
+      city: addr?.city ?? "",
+      state: addr?.state ?? "",
+      country: addr?.country ?? "",
+      pincode: addr?.pincode ?? "",
+    });
+
 
     const employee = await prisma.employee.findFirst({
       where: {
