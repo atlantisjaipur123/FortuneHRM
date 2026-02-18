@@ -4,42 +4,43 @@ import { useState, useEffect } from "react";
 import { calculateSalary } from "@/app/lib/calculateSalary";
 import { useCompanySetups } from "@/hooks/useCompanySetups";
 const INDIAN_STATES: string[] = [
-  "Andhra Pradesh",
-  "Arunachal Pradesh",
-  "Assam",
-  "Bihar",
-  "Chhattisgarh",
-  "Goa",
-  "Gujarat",
-  "Haryana",
-  "Himachal Pradesh",
-  "Jharkhand",
-  "Karnataka",
-  "Kerala",
-  "Madhya Pradesh",
-  "Maharashtra",
-  "Manipur",
-  "Meghalaya",
-  "Mizoram",
-  "Nagaland",
-  "Odisha",
-  "Punjab",
-  "Rajasthan",
-  "Sikkim",
-  "Tamil Nadu",
-  "Telangana",
-  "Tripura",
-  "Uttar Pradesh",
-  "Uttarakhand",
-  "West Bengal",
-  "Andaman and Nicobar Islands",
-  "Chandigarh",
-  "Dadra and Nagar Haveli and Daman and Diu",
-  "Delhi",
-  "Jammu and Kashmir",
-  "Ladakh",
-  "Lakshadweep",
-  "Puducherry",
+  "ANDHRA_PRADESH",
+  "ARUNACHAL_PRADESH",
+  "ASSAM",
+  "BIHAR",
+  "CHHATTISGARH",
+  "GOA",
+  "GUJARAT",
+  "HARYANA",
+  "HIMACHAL_PRADESH",
+  "JHARKHAND",
+  "KARNATAKA",
+  "KERALA",
+  "MADHYA_PRADESH",
+  "MAHARASHTRA",
+  "MANIPUR",
+  "MEGHALAYA",
+  "MIZORAM",
+  "NAGALAND",
+  "ODISHA",
+  "PUNJAB",
+  "RAJASTHAN",
+  "SIKKIM",
+  "TAMIL_NADU",
+  "TELANGANA",
+  "TRIPURA",
+  "UTTAR_PRADESH",
+  "UTTARAKHAND",
+  "WEST_BENGAL",
+  "DELHI",
+  "JAMMU_AND_KASHMIR",
+  "LADAKH",
+  "CHANDIGARH",
+  "PUDUCHERRY",
+  "LAKSHADWEEP",
+  "ANDAMAN_AND_NICOBAR_ISLANDS",
+  "DADRA_AND_NAGAR_HAVELI_AND_DAMAN_AND_DIU"
+
 ];
 
 
@@ -76,19 +77,28 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
   // DEMO SALARY HEADS (No DB, No API)
 
   // DEMO OFFICE SETUP DATA (No DB, No API)
-
-  const tableInput =
-    "w-full h-9 px-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400";
-
-  const tableTextarea =
-    "w-full px-2 py-1 text-sm border border-gray-300 rounded resize-none focus:outline-none focus:ring-1 focus:ring-blue-400";
-  const [totalExperience, setTotalExperience] = useState({
-    years: "",
-    months: "",
-  });
+  const [isSameAsAbove, setIsSameAsAbove] = useState(false);
 
   const MAX_UPLOAD_SIZE = 50 * 1024; // 50 KB
   const [employee, setEmployee] = useState<any>({
+    permanentAddress: {
+      building: "",
+      area: "",
+      road: "",
+      city: "",
+      pin: "",
+      district: "",
+      state: "",
+    },
+    correspondenceAddress: {
+      building: "",
+      area: "",
+      road: "",
+      city: "",
+      pin: "",
+      district: "",
+      state: "",
+    },
     family: [],
     nominees: [],
     qualifications: [],
@@ -96,6 +106,45 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
     experiences: [],
     companyAssets: [],
   });
+
+  const [totalExperience, setTotalExperience] = useState({
+    years: "",
+    months: "",
+  });
+
+  // Helper to update nested address fields
+  const handleAddressChange = (type: "permanentAddress" | "correspondenceAddress", field: string, value: string) => {
+    setEmployee((prev: typeof employee) => ({
+      ...prev,
+      [type]: { ...prev[type], [field]: value },
+    }));
+  };
+
+  // Sync Logic: Watch ONLY the checkbox and the permanentAddress object
+  useEffect(() => {
+    if (!isSameAsAbove) return;
+
+    setEmployee((prev: typeof employee) => {
+      const same =
+        JSON.stringify(prev.correspondenceAddress) ===
+        JSON.stringify(prev.permanentAddress);
+
+      if (same) return prev; // STOP LOOP
+
+      return {
+        ...prev,
+        correspondenceAddress: { ...prev.permanentAddress },
+      };
+    });
+  }, [isSameAsAbove, employee.permanentAddress]);
+
+
+
+  const tableInput =
+    "w-full h-9 px-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400";
+
+  const tableTextarea =
+    "w-full px-2 py-1 text-sm border border-gray-300 rounded resize-none focus:outline-none focus:ring-1 focus:ring-blue-400";
 
 
   // Load employee data when prop changes (for editing)
@@ -114,6 +163,24 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
       }
     } else {
       setEmployee({
+        permanentAddress: {
+          building: "",
+          area: "",
+          road: "",
+          city: "",
+          pin: "",
+          district: "",
+          state: "",
+        },
+        correspondenceAddress: {
+          building: "",
+          area: "",
+          road: "",
+          city: "",
+          pin: "",
+          district: "",
+          state: "",
+        },
         family: [],
         nominees: [],
         qualifications: [],
@@ -127,6 +194,17 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
     }
 
   }, [employeeProp]);
+  // Detect if addresses are same when editing employee
+  useEffect(() => {
+    if (!employee?.permanentAddress || !employee?.correspondenceAddress) return;
+
+    const same =
+      JSON.stringify(employee.permanentAddress) ===
+      JSON.stringify(employee.correspondenceAddress);
+
+    setIsSameAsAbove(same);
+  }, [employee]);
+
 
 
   type SalaryMode = "CTC" | "GROSS";
@@ -262,29 +340,30 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
 
 
   const handleFieldChange = (field: string, value: any) => {
-    setEmployee((prev: any) => ({ ...prev, [field]: value }));
+    setEmployee((prev: typeof employee) => ({ ...prev, [field]: value }));
   };
   const addRow = (key: string, emptyRow: any) => {
-    setEmployee((prev: any) => ({
+    setEmployee((prev: typeof employee) => ({
       ...prev,
       [key]: [...(prev[key] || []), emptyRow],
     }));
   };
 
   const deleteRow = (key: string, index: number) => {
-    setEmployee((prev: any) => ({
+    setEmployee((prev: typeof employee) => ({
       ...prev,
       [key]: prev[key].filter((_: any, i: number) => i !== index),
     }));
   };
 
   const updateRow = (key: string, index: number, field: string, value: any) => {
-    setEmployee((prev: any) => {
+    setEmployee((prev: typeof employee) => {
       const updated = [...prev[key]];
       updated[index] = { ...updated[index], [field]: value };
       return { ...prev, [key]: updated };
     });
   };
+
 
 
   // ---------------- SALARY CALCULATION ENGINE ----------------
@@ -422,76 +501,171 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                 value={employee.name || ""}
                 onChange={(e) => handleFieldChange("name", e.target.value)}
               />
+              <div className="col-span-2 flex flex-col space-y-4 mt-4">
 
-              <label className="block text-sm font-bold mt-4">Permanent Address Details : -</label>
+                {/* Permanent Address */}
+                <label className="block text-sm font-bold mt-4">
+                  Permanent Address Details :-
+                </label>
 
-              <input type="text" value={employee.permanentAddress?.building || ""} onChange={(e) =>
-                setEmployee((prev: any) => ({
-                  ...prev,
-                  permanentAddress: {
-                    ...prev.permanentAddress,
-                    building: e.target.value
-                  }
-                }))
-              } placeholder="Building" className="w-full p-2 border border-gray-300 rounded mt-1" />
-              <input type="text" value={employee.permanentAddress?.area || ""} onChange={(e) =>
-                setEmployee((prev: any) => ({
-                  ...prev,
-                  permanentAddress: {
-                    ...prev.permanentAddress,
-                    area: e.target.value
-                  }
-                }))
-              } placeholder="Area" className="w-full p-2 border border-gray-300 rounded mt-1" />
-              <input type="text" value={employee.permanentAddress?.road || ""} onChange={(e) =>
-                setEmployee((prev: any) => ({
-                  ...prev,
-                  permanentAddress: {
-                    ...prev.permanentAddress,
-                    road: e.target.value
-                  }
-                }))
-              } placeholder="Road" className="w-full p-2 border border-gray-300 rounded mt-1" />
-              <input type="text" value={employee.permanentAddress?.city || ""} onChange={(e) =>
-                setEmployee((prev: any) => ({
-                  ...prev,
-                  permanentAddress: {
-                    ...prev.permanentAddress,
-                    city: e.target.value
-                  }
-                }))
-              } placeholder="City" className="w-full p-2 border border-gray-300 rounded mt-1" />
-              <input type="text" value={employee.permanentAddress?.pin || ""} onChange={(e) =>
-                setEmployee((prev: any) => ({
-                  ...prev,
-                  permanentAddress: {
-                    ...prev.permanentAddress,
-                    pin: e.target.value
-                  }
-                }))
-              } placeholder="PIN" className="w-full p-2 border border-gray-300 rounded mt-1" />
-              <input type="text" value={employee.permanentAddress?.district || ""} onChange={(e) =>
-                setEmployee((prev: any) => ({
-                  ...prev,
-                  permanentAddress: {
-                    ...prev.permanentAddress,
-                    district: e.target.value
-                  }
-                }))
-              } placeholder="District" className="w-full p-2 border border-gray-300 rounded mt-1" />
-              <select
-                className="w-full p-2 border border-gray-300 rounded mt-1"
-                value={employee.permanentState ?? ""}
-                onChange={(e) => handleFieldChange("permanentState", e.target.value)}
-              >
-                <option value="">Select State</option>
-                {INDIAN_STATES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
+                <input
+                  type="text"
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  placeholder="Building"
+                  value={employee.permanentAddress?.building || ""}
+                  onChange={(e) => handleAddressChange("permanentAddress", "building", e.target.value)}
+                />
 
-              </select>
+                <input
+                  type="text"
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  placeholder="Area"
+                  value={employee.permanentAddress?.area || ""}
+                  onChange={(e) => handleAddressChange("permanentAddress", "area", e.target.value)}
+                />
+
+                <input
+                  type="text"
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  placeholder="Road"
+                  value={employee.permanentAddress?.road || ""}
+                  onChange={(e) => handleAddressChange("permanentAddress", "road", e.target.value)}
+                />
+
+                <input
+                  type="text"
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  placeholder="City"
+                  value={employee.permanentAddress?.city || ""}
+                  onChange={(e) => handleAddressChange("permanentAddress", "city", e.target.value)}
+                />
+
+                <input
+                  type="text"
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  placeholder="District"
+                  value={employee.permanentAddress?.district || ""}
+                  onChange={(e) => handleAddressChange("permanentAddress", "district", e.target.value)}
+                />
+
+                <select
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  value={employee.permanentAddress?.state || ""}
+                  onChange={(e) => handleAddressChange("permanentAddress", "state", e.target.value)}
+                >
+                  <option value="">Select State</option>
+                  {INDIAN_STATES.map((s) => (
+                    <option key={s} value={s}>{s.replaceAll("_", " ")}</option>
+                  ))}
+                </select>
+
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  pattern="[0-9]{6}"
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  placeholder="PIN"
+                  value={employee.permanentAddress?.pin || ""}
+                  onChange={(e) => {
+                    let value = e.target.value.replace(/\D/g, "");
+                    handleAddressChange("permanentAddress", "pin", value)
+                  }}
+                />
+
+
+                {/* Same as Above Checkbox */}
+                <div className="flex items-center mt-3">
+                  <input
+                    type="checkbox"
+                    className="mr-2"
+                    checked={isSameAsAbove}
+                    onChange={(e) => setIsSameAsAbove(e.target.checked)}
+                  />
+                  <span className="text-sm font-medium text-gray-700">
+                    Correspondence address is same as above
+                  </span>
+                </div>
+
+
+                {/* Correspondence Address */}
+                <label className="block text-sm font-bold mt-4">
+                  Correspondence Address Details :-
+                </label>
+
+                <input
+                  disabled={isSameAsAbove}
+                  type="text"
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  placeholder="Building"
+                  value={employee.correspondenceAddress?.building || ""}
+                  onChange={(e) => handleAddressChange("correspondenceAddress", "building", e.target.value)}
+                />
+
+                <input
+                  disabled={isSameAsAbove}
+                  type="text"
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  placeholder="Area"
+                  value={employee.correspondenceAddress?.area || ""}
+                  onChange={(e) => handleAddressChange("correspondenceAddress", "area", e.target.value)}
+                />
+
+                <input
+                  disabled={isSameAsAbove}
+                  type="text"
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  placeholder="Road"
+                  value={employee.correspondenceAddress?.road || ""}
+                  onChange={(e) => handleAddressChange("correspondenceAddress", "road", e.target.value)}
+                />
+
+                <input
+                  disabled={isSameAsAbove}
+                  type="text"
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  placeholder="City"
+                  value={employee.correspondenceAddress?.city || ""}
+                  onChange={(e) => handleAddressChange("correspondenceAddress", "city", e.target.value)}
+                />
+
+                <input
+                  disabled={isSameAsAbove}
+                  type="text"
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  placeholder="District"
+                  value={employee.correspondenceAddress?.district || ""}
+                  onChange={(e) => handleAddressChange("correspondenceAddress", "district", e.target.value)}
+                />
+
+                <select
+                  disabled={isSameAsAbove}
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  value={employee.correspondenceAddress?.state || ""}
+                  onChange={(e) => handleAddressChange("correspondenceAddress", "state", e.target.value)}
+                >
+                  <option value="">Select State</option>
+                  {INDIAN_STATES.map((s) => (
+                    <option key={s} value={s}>{s.replaceAll("_", " ")}</option>
+                  ))}
+                </select>
+
+                <input
+                  disabled={isSameAsAbove}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  pattern="[0-9]{6}"
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  placeholder="PIN"
+                  value={employee.correspondenceAddress?.pin || ""}
+                  onChange={(e) => {
+                    let value = e.target.value.replace(/\D/g, "");
+                    handleAddressChange("correspondenceAddress", "pin", value)
+                  }}
+                />
+              </div>
+
 
               <label className="block text-sm font-bold mt-4">E-Mail</label>
               <input
@@ -527,7 +701,7 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
             </div>
 
             <div>
-              <label className="block text-sm font-bold">Addhar No.</label>
+              <label className="block text-sm font-bold">Aadhaar No.</label>
               <input type="text" value={employee.aadharNo || ""} onChange={(e) => handleFieldChange("aadharNo", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">Mobile No.</label>
@@ -665,26 +839,6 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                 <div className="mt-4">
                   <input type="checkbox" /> Reimbursement Applicable
                 </div>
-
-                <label className="block text-sm font-bold mt-4">Correspondence Address Details : -</label>
-
-                <input type="text" value={employee.correspondenceAddress || ""} onChange={(e) => handleFieldChange("correspondenceAddress", e.target.value)} placeholder="Address" className="w-full p-2 border border-gray-300 rounded mt-1" />
-                <input type="text" value={employee.correspondenceCity || ""} onChange={(e) => handleFieldChange("correspondenceCity", e.target.value)} placeholder="City" className="w-full p-2 border border-gray-300 rounded mt-1" />
-                <input type="text" value={employee.correspondenceDistrict || ""} onChange={(e) => handleFieldChange("correspondenceDistrict", e.target.value)} placeholder="District" className="w-full p-2 border border-gray-300 rounded mt-1" />
-                <select
-                  className="w-full p-2 border border-gray-300 rounded mt-1"
-                  value={employee.correspondenceState ?? ""}
-                  onChange={(e) => handleFieldChange("correspondenceState", e.target.value)}
-                >
-                  <option value="">Select State</option>
-                  {INDIAN_STATES.map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-
-                </select>
-                <input type="text" value={employee.correspondencePIN || ""} onChange={(e) => handleFieldChange("correspondencePIN", e.target.value)} placeholder="PIN" className="w-full p-2 border border-gray-300 rounded mt-1" />
               </div>
             </div>
           </div>

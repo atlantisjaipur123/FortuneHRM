@@ -10,6 +10,9 @@ import { calculateEmployeeSalary } from "@/app/lib/calculateSalary";
 -------------------------------------------------------------------*/
 // Helper utilities
 /* ---------------- ENUM NORMALIZER ---------------- */
+const hasAddressData = (addr: any) =>
+  addr && Object.values(addr).some(v => v && String(v).trim() !== "");
+
 
 const toEnum = (v: any) => {
   if (v === undefined) return undefined; // do not touch missing fields
@@ -92,8 +95,32 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { createdAt: "desc" },
     });
+    const normalizedEmployees = employees.map((emp) => ({
+      ...emp,
 
-    return NextResponse.json({ success: true, employees });
+      permanentAddress: emp.permanentAddress ?? {
+        address1: "",
+        address2: "",
+        city: "",
+        state: "",
+        country: "",
+        pincode: "",
+      },
+
+      correspondenceAddress: emp.correspondenceAddress ?? {
+        address1: "",
+        address2: "",
+        city: "",
+        state: "",
+        country: "",
+        pincode: "",
+      },
+    }));
+
+    return NextResponse.json({ success: true, employees: normalizedEmployees });
+
+
+
   } catch (error: any) {
     console.error("Error in GET /api/employee-details:", error);
     return NextResponse.json(
@@ -146,12 +173,12 @@ export async function POST(req: NextRequest) {
         let permanentAddressId: string | null = null;
         let correspondenceAddressId: string | null = null;
 
-        if (body.permanentAddress && Object.keys(body.permanentAddress).length > 0) {
-          const addr = await tx.address.create({ data: body.permanentAddress });
+        if (hasAddressData(payload.permanentAddress)) {
+          const addr = await tx.address.create({ data: payload.permanentAddress });
           permanentAddressId = addr.id;
         }
-        if (body.correspondenceAddress && Object.keys(body.correspondenceAddress).length > 0) {
-          const addr = await tx.address.create({ data: body.correspondenceAddress });
+        if (hasAddressData(payload.correspondenceAddress)) {
+          const addr = await tx.address.create({ data: payload.correspondenceAddress });
           correspondenceAddressId = addr.id;
         }
 
@@ -196,7 +223,6 @@ export async function POST(req: NextRequest) {
           emergencyPhone: toNull(payload.emergencyPhone),
           permanentAddressId,
           correspondenceAddressId,
-          stdCode: toNull(payload.stdCode),
           phone: toNull(payload.phone),
           mobile: toNull(payload.mobile),
           internalId: toNull(payload.internalId),
@@ -480,13 +506,16 @@ export async function PUT(req: NextRequest) {
       let permanentAddressId = existing.permanentAddressId;
       let correspondenceAddressId = existing.correspondenceAddressId;
 
-      if (employee.permanentAddress) {
+      if (hasAddressData(employee.permanentAddress)) {
         if (permanentAddressId) {
+          const { id: _pid, ...permanentAddressData } = employee.permanentAddress;
+
           await tx.address.update({
             where: { id: permanentAddressId },
-            data: employee.permanentAddress,
+            data: permanentAddressData,
           });
-        } else if (Object.keys(employee.permanentAddress).length > 0) {
+
+        } else {
           const permanentAddr = await tx.address.create({
             data: employee.permanentAddress,
           });
@@ -494,19 +523,23 @@ export async function PUT(req: NextRequest) {
         }
       }
 
-      if (employee.correspondenceAddress) {
+
+      if (hasAddressData(employee.correspondenceAddress)) {
         if (correspondenceAddressId) {
+          const { id: _cid, ...correspondenceAddressData } = employee.correspondenceAddress;
+
           await tx.address.update({
             where: { id: correspondenceAddressId },
-            data: employee.correspondenceAddress,
+            data: correspondenceAddressData,
           });
-        } else if (Object.keys(employee.correspondenceAddress).length > 0) {
+        } else {
           const correspondenceAddr = await tx.address.create({
             data: employee.correspondenceAddress,
           });
           correspondenceAddressId = correspondenceAddr.id;
         }
       }
+
 
       // Helper functions for PUT route
       const toNull = (value: any) => (value === undefined || value === "") ? null : value;
@@ -685,7 +718,7 @@ export async function PUT(req: NextRequest) {
         employee: updatedEmployee,
         salary: salaryResult,
       };
-    });
+    }, { timeout: 45000, maxWait: 10000 });
     return NextResponse.json({
       success: true,
       employee: result.employee,
