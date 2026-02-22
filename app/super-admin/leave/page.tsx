@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   Plus,
   X,
@@ -10,14 +10,31 @@ import {
   Edit3,
 } from 'lucide-react'
 import { GlobalLayout } from '@/app/components/global-layout'
+import { useCompanySetups } from '@/hooks/useCompanySetups'
+import { api } from '@/app/lib/api'
 
-type LeaveTypeConfig = {
+type Applicability = {
+  all: boolean
+  branches: string[]
+  departments: string[]
+  designations: string[]
+  levels: string[]
+  categories: string[]
+  grades: string[]
+  attendanceTypes: string[]
+}
+
+type LeaveConfig = {
   id: string
-  name: string                  // required
-  code: string                  // make required or '' 
+  name: string
+  code: string
+  description?: string
+  applicability: Applicability
+  status: 'Active' | 'Inactive'
 
-  type: 'FULL DAY' | 'HALF DAY'
+  type: 'FULL_DAY' | 'HALF_DAY'
   payConsume: boolean
+  leaveValue: number
   allowApply: boolean
   halfDay: boolean
 
@@ -26,14 +43,14 @@ type LeaveTypeConfig = {
   fixedPeriod: 'Yearly' | 'Monthly'
   plPer: number
   plBasis: 'Attendance' | 'Performance' | ''
-  minAttendance: number         // usually 0–100 (percentage) or days
+  minAttendance: number
 
-  maxPerMonth: number           // 0 = no limit
-  availedFrom: string           // e.g. '1st', '15th', 'Immediate'
+  maxPerMonth: number
+  availedFrom: string
   autoAllot: boolean
 
-  restrictDays: number          // min consecutive days to apply
-  mandatoryDocDays: number      // after how many days doc is mandatory
+  restrictDays: number
+  mandatoryDocDays: number
 
   allowEncash: boolean
   minEncash: number
@@ -45,21 +62,6 @@ type LeaveTypeConfig = {
   // Optional: remove or mark as @deprecated
   totalPerYear?: number
 }
-
-type Applicability =
-  | { type: 'All' }
-  | { type: 'Branch'; ids: string[] }
-  | { type: 'Department'; ids: string[] }
-  | { type: 'Level'; ids: string[] }
-
-type LeavePolicy = {
-  name: string
-  description?: string
-  applicability: Applicability
-  leaveTypes: LeaveTypeConfig[]
-  status: 'Active' | 'Inactive'
-}
-
 /* -------------------------- Stepper -------------------------- */
 function Stepper({
   current,
@@ -95,260 +97,434 @@ function Stepper({
   )
 }
 
+const initialLeave: LeaveConfig = {
+  id: '',
+  name: '',
+  code: '',
+  description: '',
+  applicability: { all: true, branches: [], departments: [], designations: [], levels: [], categories: [], grades: [], attendanceTypes: [] },
+  status: 'Active',
+
+  type: 'FULL_DAY',
+  leaveValue: 1,
+  payConsume: true,
+  allowApply: true,
+  halfDay: false,
+
+  accrueRule: 'None',
+  fixedDays: 0,
+  fixedPeriod: 'Yearly',
+  plPer: 0,
+  plBasis: '',
+  minAttendance: 0,
+
+  maxPerMonth: 0,
+  availedFrom: '1st',
+  autoAllot: false,
+
+  restrictDays: 0,
+  mandatoryDocDays: 3,
+
+  allowEncash: false,
+  minEncash: 0,
+  maxEncash: 0,
+
+  cfOption: 'Lapse at the end of Year',
+  cfMaxLimit: 0,
+
+  totalPerYear: 0,
+}
+
 /* -------------------------- Main Page -------------------------- */
-export default function LeavePolicyPage() {
-  /* ---------- Policies (from API) ---------- */
-  const [policies, setPolicies] = useState<LeavePolicy[]>([])
+export default function LeavePage() {
+  const { data: setups, loading: setupsLoading } = useCompanySetups();
+
+  useEffect(() => {
+    if (setups) {
+      console.log("------- REAL DB SETUPS -------");
+      console.log(setups);
+      console.log("------------------------------");
+    }
+  }, [setups]);
+
+  /* ---------- Leaves (from API) ---------- */
+  const [leaves, setLeaves] = useState<LeaveConfig[]>([])
   const [loading, setLoading] = useState(true)
-
-
   /* ---------- Modal & Form ---------- */
   const [showModal, setShowModal] = useState(false)
-  const [editPolicyName, setEditPolicyName] = useState<string | null>(null)
+  const [editLeaveId, setEditLeaveId] = useState<string | null>(null)
 
-  const [step, setStep] = useState(1)
+  const [step, setStep] = useState<number>(1)
+  const [currentLeave, setCurrentLeave] = useState<LeaveConfig>(initialLeave)
+  const [errors, setErrors] = useState({
+    leaveName: '',
+    leaveCode: '',
+    applicability: '',
+  })
 
-  const [policyName, setPolicyName] = useState('')
-  const [description, setDescription] = useState('')
-  const [applicability, setApplicability] = useState<Applicability>({ type: 'All' })
-  const [leaveTypes, setLeaveTypes] = useState<LeaveTypeConfig[]>([])
+  const branchSelectAllRef = useRef<HTMLInputElement>(null)
+  const departmentSelectAllRef = useRef<HTMLInputElement>(null)
+  const designationSelectAllRef = useRef<HTMLInputElement>(null)
+  const levelSelectAllRef = useRef<HTMLInputElement>(null)
+  const categorySelectAllRef = useRef<HTMLInputElement>(null)
+  const gradeSelectAllRef = useRef<HTMLInputElement>(null)
+  const attendanceTypeSelectAllRef = useRef<HTMLInputElement>(null)
 
-  // Load edit data
+  // Load data
   useEffect(() => {
-    const fetchPolicies = async () => {
-      try {
-        const res = await fetch('/api/leave', {
-          credentials: 'include',
-        })
-        const json = await res.json()
-
-        if (!res.ok) {
-          alert(json.error || 'Failed to load leave policies')
-          return
-        }
-
-        setPolicies(json.data)
-      } catch (err) {
-        console.error(err)
-        alert('Network error while loading leave policies')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchPolicies()
+    loadLeaves()
   }, [])
 
+  useEffect(() => {
+    if (branchSelectAllRef.current) {
+      const app = currentLeave.applicability
+      const allBranches = setups?.branches?.map((b: any) => b.name) || []
+      const isAll = app.branches.length === allBranches.length && allBranches.every((id: string) => app.branches.includes(id))
+      branchSelectAllRef.current.checked = isAll
+      const isPartial = app.branches.length > 0 && !isAll
+      branchSelectAllRef.current.indeterminate = isPartial
+    }
+    if (departmentSelectAllRef.current) {
+      const app = currentLeave.applicability
+      const allDepartments = setups?.departments?.map((d: any) => d.name) || []
+      const isAll = app.departments.length === allDepartments.length && allDepartments.every((id: string) => app.departments.includes(id))
+      departmentSelectAllRef.current.checked = isAll
+      const isPartial = app.departments.length > 0 && !isAll
+      departmentSelectAllRef.current.indeterminate = isPartial
+    }
+    if (designationSelectAllRef.current) {
+      const app = currentLeave.applicability
+      const allDesignations = setups?.designations?.map((d: any) => d.name) || []
+      const isAll = app.designations.length === allDesignations.length && allDesignations.every((id: string) => app.designations.includes(id))
+      designationSelectAllRef.current.checked = isAll
+      const isPartial = app.designations.length > 0 && !isAll
+      designationSelectAllRef.current.indeterminate = isPartial
+    }
+    if (levelSelectAllRef.current) {
+      const app = currentLeave.applicability
+      const allLevels = setups?.levels?.map((l: any) => l.name) || []
+      const isAll = app.levels.length === allLevels.length && allLevels.every((id: string) => app.levels.includes(id))
+      levelSelectAllRef.current.checked = isAll
+      const isPartial = app.levels.length > 0 && !isAll
+      levelSelectAllRef.current.indeterminate = isPartial
+    }
+    if (categorySelectAllRef.current) {
+      const app = currentLeave.applicability
+      const allCategories = setups?.categories?.map((c: any) => c.name) || []
+      const isAll = app.categories.length === allCategories.length && allCategories.every((id: string) => app.categories.includes(id))
+      categorySelectAllRef.current.checked = isAll
+      const isPartial = app.categories.length > 0 && !isAll
+      categorySelectAllRef.current.indeterminate = isPartial
+    }
+    if (gradeSelectAllRef.current) {
+      const app = currentLeave.applicability
+      const allGrades = setups?.grades?.map((g: any) => g.name) || []
+      const isAll = app.grades.length === allGrades.length && allGrades.every((id: string) => app.grades.includes(id))
+      gradeSelectAllRef.current.checked = isAll
+      const isPartial = app.grades.length > 0 && !isAll
+      gradeSelectAllRef.current.indeterminate = isPartial
+    }
+    if (attendanceTypeSelectAllRef.current) {
+      const app = currentLeave.applicability
+      const allAttendanceTypes = setups?.attendanceTypes?.map((a: any) => a.name) || []
+      const isAll = app.attendanceTypes.length === allAttendanceTypes.length && allAttendanceTypes.every((id: string) => app.attendanceTypes.includes(id))
+      attendanceTypeSelectAllRef.current.checked = isAll
+      const isPartial = app.attendanceTypes.length > 0 && !isAll
+      attendanceTypeSelectAllRef.current.indeterminate = isPartial
+    }
+  }, [currentLeave.applicability, setups])
+
+  async function loadLeaves() {
+    try {
+      const json = await api.get('/api/leave')
+      if (!json.success) {
+        alert(json.error || 'Failed to load leave policies')
+        return
+      }
+      setLeaves(json.policies)
+    } catch (err) {
+      console.error(err)
+      alert('Network error while loading leave policies')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const resetForm = () => {
     setStep(1)
-    setPolicyName('')
-    setDescription('')
-    setApplicability({ type: 'All' })
-    setLeaveTypes([])
-    setEditPolicyName(null)
+    setCurrentLeave(initialLeave)
+    setEditLeaveId(null)
+    setErrors({ leaveName: '', leaveCode: '', applicability: '' })
   }
 
-  const openCreate = () => { resetForm(); setShowModal(true) }
-  const openEdit = (name: string) => {
-    const policy = policies.find(p => p.name === name)
-    if (!policy) return
-
-    setEditPolicyName(policy.name)
-    setPolicyName(policy.name)
-    setDescription(policy.description || '')
-    setApplicability(policy.applicability)
-    setLeaveTypes(
-      policy.leaveTypes.map(lt => ({
-        ...lt,
-        id: lt.id || crypto.randomUUID(),
-      }))
-    )
-
+  const openCreate = () => {
+    resetForm()
     setShowModal(true)
   }
 
+  const openEdit = (id: string) => {
+    let policy = leaves.find(p => p.id === id)
+
+    if (!policy) return
+
+    // Compat old applicability
+    let app: any = policy.applicability
+    if (app.type) {
+      if (app.type === 'All') {
+        app = { all: true, branches: [], departments: [], designations: [], levels: [], categories: [], grades: [], attendanceTypes: [] }
+      } else {
+        let key = ''
+        if (app.type === 'Branch') key = 'branches'
+        if (app.type === 'Department') key = 'departments'
+        if (app.type === 'Designation') key = 'designations'
+        if (app.type === 'Level') key = 'levels'
+        if (app.type === 'Category') key = 'categories'
+        if (app.type === 'Grade') key = 'grades'
+        if (app.type === 'Attendance Type') key = 'attendanceTypes'
+        app = { all: false, branches: [], departments: [], designations: [], levels: [], categories: [], grades: [], attendanceTypes: [], [key]: app.ids || [] }
+      }
+      policy = { ...policy, applicability: app }
+    }
+
+    setEditLeaveId(policy.id)
+    setCurrentLeave(policy)
+    setShowModal(true)
+  }
 
   const closeModal = () => { setShowModal(false); resetForm() }
 
-  const nextStep = () => setStep(s => Math.min(s + 1, 3))
+  const nextStep = () => {
+    if (step === 1 && !validateLeave()) return
+    if (step === 2 && !validateLeave()) return
+    setStep(s => Math.min(s + 1, 3))
+  }
+
   const prevStep = () => setStep(s => Math.max(s - 1, 1))
 
   const stepsDef = [
-    { number: 1, label: 'Leave Types & Rules', completed: step > 1 },
+    { number: 1, label: 'Leave Rules', completed: step > 1 },
     { number: 2, label: 'Applicability', completed: step > 2 },
     { number: 3, label: 'Review', completed: false },
   ]
 
   /* ---------- Save ---------- */
-  // add at top of component
   const [saving, setSaving] = useState(false);
 
   const handleSave = async () => {
-    if (!policyName.trim()) return alert('Policy name is required.')
-    if (leaveTypes.length === 0) return alert('Add at least one leave type.')
+    if (!validateLeave()) {
+      setStep(1);
+      return;
+    }
 
-    const method = editPolicyName ? 'PUT' : 'POST'
+    const payload = { ...currentLeave, id: editLeaveId || undefined };
+    const method = payload.id ? 'patch' : 'post';
 
-    setSaving(true)
+    setSaving(true);
+
     try {
-      const res = await fetch('/api/leave', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // include cookies/session consistently
-        body: JSON.stringify({
-          name: policyName,
-          description,
-          applicability,
-          leaveTypes,
-          ...(editPolicyName && { originalPolicyName: editPolicyName }),
-        }),
-      })
+      const json = await api[method]('/api/leave', payload);
+      console.log("=== API RESPONSE ===", json);   // ← This will show exact error
 
-      const json = await res.json()
-      if (!res.ok) {
-        alert(json.error || 'Failed to save policy')
-        return
+      if (!json.success) {
+        alert(`Save failed: ${json.error || 'Unknown error from server'}`);
+        return;
       }
 
-      // reload list (keep credentials)
-      const refresh = await fetch('/api/leave', { credentials: 'include' })
-      const refreshed = await refresh.json()
-      setPolicies(refreshed.data)
-
-      closeModal()
-    } catch (err) {
-      console.error(err)
-      alert('Network error while saving')
+      // success
+      if (method === 'post') {
+        setLeaves(prev => [json.policy, ...prev]);
+      } else {
+        setLeaves(prev => prev.map(p => p.id === editLeaveId ? { ...p, ...payload, id: editLeaveId! } : p));
+      }
+      closeModal();
+    } catch (err: any) {
+      console.error("Full save error:", err);
+      alert(`Failed to save leave: ${err.message || err}`);
     } finally {
-      setSaving(false)
+      setSaving(false);
+    }
+  };
+
+  const updateLeaveField = (field: keyof LeaveConfig, value: any) => {
+    setCurrentLeave(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleAllChange = (checked: boolean) => {
+    setCurrentLeave(prev => ({
+      ...prev,
+      applicability: { all: checked, branches: [], departments: [], designations: [], levels: [], categories: [], grades: [], attendanceTypes: [] }
+    }))
+    setErrors(prev => ({ ...prev, applicability: '' }))
+  }
+
+  const getApplicabilityKey = (type: 'Branch' | 'Department' | 'Designation' | 'Level' | 'Category' | 'Grade' | 'AttendanceType'): keyof Applicability => {
+    const map: Record<string, keyof Applicability> = {
+      Branch: 'branches',
+      Department: 'departments',
+      Designation: 'designations',
+      Level: 'levels',
+      Category: 'categories',
+      Grade: 'grades',
+      AttendanceType: 'attendanceTypes',
+    }
+    return map[type]
+  }
+
+  const toggleId = (type: 'Branch' | 'Department' | 'Designation' | 'Level' | 'Category' | 'Grade' | 'AttendanceType', id: string) => {
+    setCurrentLeave(prev => {
+      const app = prev.applicability
+      const key = getApplicabilityKey(type)
+      const ids = (app[key] as string[]) || []
+      const newIds = ids.includes(id)
+        ? ids.filter((x: string) => x !== id)
+        : [...ids, id]
+      return {
+        ...prev,
+        applicability: { ...app, all: false, [key]: newIds }
+      }
+    })
+    setErrors(prev => ({ ...prev, applicability: '' }))
+  }
+
+  const handleSelectAll = (type: 'Branch' | 'Department' | 'Designation' | 'Level' | 'Category' | 'Grade' | 'AttendanceType', checked: boolean) => {
+    setCurrentLeave(prev => {
+      const app = prev.applicability
+      const key = getApplicabilityKey(type)
+      const allIds = getAllForType(type)
+      const newIds = checked ? allIds : []
+      return {
+        ...prev,
+        applicability: { ...app, all: false, [key]: newIds }
+      }
+    })
+    setErrors(prev => ({ ...prev, applicability: '' }))
+  }
+
+  const getAllForType = (type: 'Branch' | 'Department' | 'Designation' | 'Level' | 'Category' | 'Grade' | 'AttendanceType') => {
+    if (type === 'Branch') return setups?.branches?.map((b: any) => b.name) || []
+    if (type === 'Department') return setups?.departments?.map((d: any) => d.name) || []
+    if (type === 'Designation') return setups?.designations?.map((d: any) => d.name) || []
+    if (type === 'Level') return setups?.levels?.map((l: any) => l.name) || []
+    if (type === 'Category') return setups?.categories?.map((c: any) => c.name) || []
+    if (type === 'Grade') return setups?.grades?.map((g: any) => g.name) || []
+    if (type === 'AttendanceType') return setups?.attendanceTypes?.map((a: any) => a.name) || []
+    return []
+  }
+
+  /* ---------- Delete ---------- */
+  const handleDelete = async (id: string) => {
+    if (!confirm('Delete this leave?')) return
+
+    const old = leaves
+    setLeaves(prev => prev.filter(p => p.id !== id))
+
+    try {
+      const json = await api.delete('/api/leave', { body: { id } })
+      if (!json.success) throw new Error()
+    } catch {
+      setLeaves(old)
+      alert('Delete failed')
     }
   }
 
+  const validateLeave = () => {
+    const newErrors = {
+      leaveName: '',
+      leaveCode: '',
+      applicability: ''
+    }
 
+    if (!currentLeave.name.trim()) {
+      newErrors.leaveName = 'Leave name is required'
+    } else {
+      const duplicateName = leaves.find(l => l.name.trim().toLowerCase() === currentLeave.name.trim().toLowerCase() && l.id !== editLeaveId)
+      if (duplicateName) {
+        newErrors.leaveName = 'Leave name already exists in the company'
+      }
+    }
 
-  /* ---------- Leave Type Helpers ---------- */
-  const addLeaveType = () => {
-    setLeaveTypes(prev => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        name: '',
-        code: '',
-        type: 'FULL DAY',
+    if (!currentLeave.code.trim()) {
+      newErrors.leaveCode = 'Leave code is required'
+    } else {
+      const newApp = currentLeave.applicability
+      const duplicateCode = leaves.find(l =>
+        l.code.trim().toUpperCase() === currentLeave.code.trim().toUpperCase() &&
+        l.id !== editLeaveId &&
+        hasOverlappingApplicability(l.applicability, newApp)
+      )
+      if (duplicateCode) {
+        const overlapDetails = getOverlapDetails(duplicateCode.applicability, newApp)
+        newErrors.leaveCode = `Leave code already used in overlapping applicability: ${overlapDetails}`
+      }
+    }
 
-        // More realistic defaults for most organizations
-        payConsume: true,          // usually yes
-        allowApply: true,
-        halfDay: false,            // ← keep false, common
+    // Updated applicability check: Skip if all is true
+    const app = currentLeave.applicability
+    if (!app.all &&
+      app.branches.length === 0 &&
+      app.departments.length === 0 &&
+      app.designations.length === 0 &&
+      app.levels.length === 0 &&
+      app.categories.length === 0 &&
+      app.grades.length === 0 &&
+      app.attendanceTypes.length === 0) {
+      newErrors.applicability = 'At least one applicability must be selected'
+    }
 
-        accrueRule: 'None',
-        fixedDays: 0,
-        fixedPeriod: 'Yearly',
-        plPer: 0,
-        plBasis: '',
-        minAttendance: 0,
+    setErrors(newErrors)
 
-        maxPerMonth: 0,            // 0 = unlimited
-        availedFrom: '1st',
-        autoAllot: false,
-
-        restrictDays: 0,
-        mandatoryDocDays: 3,       // common default: documents after 3 days
-
-        allowEncash: false,
-        minEncash: 0,
-        maxEncash: 0,
-
-        cfOption: 'Lapse at the end of Year',
-        cfMaxLimit: 0,
-
-        totalPerYear: 0,           // consider deprecating this field
-      },
-    ])
+    return !newErrors.leaveName &&
+      !newErrors.leaveCode &&
+      !newErrors.applicability
   }
 
-  const updateLeaveType = (
-    id: string,
-    field: keyof LeaveTypeConfig,
-    value: any
-  ) => {
-    setLeaveTypes(prev =>
-      prev.map(lt => (lt.id === id ? { ...lt, [field]: value } : lt))
+  // Helper functions (add these outside validateLeave)
+  const hasOverlappingApplicability = (existing: Applicability, newApp: Applicability): boolean => {
+    if (existing.all || newApp.all) return true; // Company-wide overlaps with anything
+
+    return (
+      arraysIntersect(existing.branches, newApp.branches) ||
+      arraysIntersect(existing.departments, newApp.departments) ||
+      arraysIntersect(existing.designations, newApp.designations) ||
+      arraysIntersect(existing.levels, newApp.levels) ||
+      arraysIntersect(existing.categories, newApp.categories) ||
+      arraysIntersect(existing.grades, newApp.grades) ||
+      arraysIntersect(existing.attendanceTypes, newApp.attendanceTypes)
     )
   }
 
-  const removeLeaveType = (id: string) => {
-    setLeaveTypes(prev => prev.filter(lt => lt.id !== id))
+  const getOverlapDetails = (existing: Applicability, newApp: Applicability): string => {
+    const parts: string[] = []
+    if (arraysIntersect(existing.branches, newApp.branches)) parts.push(`branches ${existing.branches.filter(id => newApp.branches.includes(id)).join(', ')}`)
+    if (arraysIntersect(existing.departments, newApp.departments)) parts.push(`departments ${existing.departments.filter(id => newApp.departments.includes(id)).join(', ')}`)
+    if (arraysIntersect(existing.designations, newApp.designations)) parts.push(`designations ${existing.designations.filter(id => newApp.designations.includes(id)).join(', ')}`)
+    if (arraysIntersect(existing.levels, newApp.levels)) parts.push(`levels ${existing.levels.filter(id => newApp.levels.includes(id)).join(', ')}`)
+    if (arraysIntersect(existing.categories, newApp.categories)) parts.push(`categories ${existing.categories.filter(id => newApp.categories.includes(id)).join(', ')}`)
+    if (arraysIntersect(existing.grades, newApp.grades)) parts.push(`grades ${existing.grades.filter(id => newApp.grades.includes(id)).join(', ')}`)
+    if (arraysIntersect(existing.attendanceTypes, newApp.attendanceTypes)) parts.push(`attendance types ${existing.attendanceTypes.filter(id => newApp.attendanceTypes.includes(id)).join(', ')}`)
+    return parts.join('; ')
   }
 
-
-  /* ---------- Delete ---------- */
-  const handleDelete = async (name: string) => {
-    if (!confirm('Delete this policy?')) return
-
-    const res = await fetch('/api/leave', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ policyName: name }),
-      credentials: 'include',
-    })
-
-    const json = await res.json()
-    if (!res.ok) {
-      alert(json.error || 'Delete failed')
-      return
-    }
-
-    setPolicies(prev => prev.filter(p => p.name !== name))
+  const arraysIntersect = (a: string[], b: string[]): boolean => {
+    return a.some(id => b.includes(id))
   }
-
-
-  /* ---------- Applicability Helpers ---------- */
-  const toggleApplicability = (type: Applicability['type']) => {
-    if (type === 'All') {
-      setApplicability({ type: 'All' })
-    } else {
-      setApplicability({ type, ids: [] })
-    }
-  }
-
-  const toggleId = (id: string) => {
-    if (applicability.type === 'All') return
-    setApplicability(prev => {
-      if (prev.type === 'All') return prev
-      return {
-        ...prev,
-        ids: prev.ids.includes(id)
-          ? prev.ids.filter((x: string) => x !== id)
-          : [...prev.ids, id],
-      }
-    })
-  }
-
-
-  // Demo data (replace with API)
-  const branches = ['HQ', 'North', 'South', 'East', 'West']
-  const departments = ['HR', 'IT', 'Finance', 'Sales', 'Marketing']
-  const levels = ['L1', 'L2', 'L3', 'L4', 'L5']
-
   return (
     <GlobalLayout>
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold">Leave Policy</h1>
+          <h1 className="text-2xl font-semibold">Leave</h1>
           <button
             onClick={openCreate}
             className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
           >
-            <Plus className="w-5 h-5" /> CREATE LEAVE POLICY
+            <Plus className="w-5 h-5" /> CREATE LEAVE
           </button>
         </div>
 
         {/* ---------- Table ---------- */}
         {loading && (
           <div className="text-center py-6 text-gray-500 text-sm">
-            Loading leave policies...
+            Loading leaves...
           </div>
         )}
 
@@ -360,7 +536,7 @@ export default function LeavePolicyPage() {
                   Name
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">
-                  Leave Types
+                  Code
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">
                   Applicability
@@ -374,18 +550,24 @@ export default function LeavePolicyPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200">
-              {policies.map(p => {
-                const appText =
-                  p.applicability.type === 'All'
-                    ? 'All'
-                    : `${p.applicability.type}: ${p.applicability.ids.join(', ') || '—'}`
+              {leaves.map(p => {
+                const app = p.applicability
+                let appText = ''
+                if (app.all) {
+                  appText = 'All'
+                } else {
+                  const parts: string[] = []
+                  if (app.branches?.length > 0) parts.push(`Branches: ${app.branches.join(', ')}`)
+                  if (app.departments?.length > 0) parts.push(`Departments: ${app.departments.join(', ')}`)
+                  if (app.levels?.length > 0) parts.push(`Levels: ${app.levels.join(', ')}`)
+                  if (app.categories?.length > 0) parts.push(`Categories: ${app.categories.join(', ')}`)
+                  appText = parts.join(' ; ')
+                }
                 return (
-                  <tr key={p.name} className="hover:bg-gray-50">
+                  <tr key={p.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 text-sm">{p.name}</td>
-                    <td className="px-4 py-3 text-sm">
-                      {p.leaveTypes.map(lt => lt.name).join(', ')}
-                    </td>
-                    <td className="px-4 py-3 text-sm">{appText}</td>
+                    <td className="px-4 py-3 text-sm">{p.code}</td>
+                    <td className="px-4 py-3 text-sm">{appText || '-'}</td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
                         {p.status}
@@ -393,13 +575,13 @@ export default function LeavePolicyPage() {
                     </td>
                     <td className="px-4 py-3 flex gap-3">
                       <button
-                        onClick={() => openEdit(p.name)}
+                        onClick={() => openEdit(p.id)}
                         className="text-blue-600 hover:text-blue-800 flex items-center gap-1 text-sm"
                       >
                         <Edit3 className="w-4 h-4" /> Edit
                       </button>
                       <button
-                        onClick={() => handleDelete(p.name)}
+                        onClick={() => handleDelete(p.id)}
                         className="text-red-600 hover:text-red-800 flex items-center gap-1 text-sm"
                       >
                         <Trash2 className="w-4 h-4" /> Delete
@@ -408,11 +590,10 @@ export default function LeavePolicyPage() {
                   </tr>
                 )
               })}
-              {!loading && policies.length === 0 && (
-
+              {!loading && leaves.length === 0 && (
                 <tr>
                   <td colSpan={5} className="text-center py-6 text-gray-500 text-sm">
-                    No leave policies found.
+                    No leaves found.
                   </td>
                 </tr>
               )}
@@ -428,7 +609,7 @@ export default function LeavePolicyPage() {
             {/* Header */}
             <div className="flex justify-between items-center p-4 border-b">
               <h2 className="text-xl font-semibold">
-                {editPolicyName ? 'Edit Leave Policy' : 'Create Leave Policy'}
+                {editLeaveId ? 'Edit Leave' : 'Create Leave'}
               </h2>
               <button onClick={closeModal} className="text-gray-500 hover:text-gray-700">
                 <X className="w-6 h-6" />
@@ -442,20 +623,51 @@ export default function LeavePolicyPage() {
 
             {/* Body */}
             <div className="flex-1 p-6 overflow-y-auto">
-              {/* Step 1 – Leave Types & Rules */}
+              {/* Step 1 – Leave Rules */}
               {step === 1 && (
                 <div className="space-y-6">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Policy Name <span className="text-red-500">*</span>
+                      Leave Name <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
-                      value={policyName}
-                      onChange={e => setPolicyName(e.target.value)}
-                      className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
-                      placeholder="e.g. Standard Leave Policy"
+                      value={currentLeave.name}
+                      onChange={e => {
+                        const value = e.target.value
+                        updateLeaveField('name', value)
+                        if (value.trim()) {
+                          setErrors(prev => ({ ...prev, leaveName: '' }))
+                        }
+                      }}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${errors.leaveName ? 'border-red-500' : ''}`}
+                      placeholder="e.g. Sick Leave"
                     />
+                    {errors.leaveName && (
+                      <p className="text-red-500 text-xs mt-1">{errors.leaveName}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Leave Code <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={currentLeave.code}
+                      onChange={e => {
+                        const value = e.target.value
+                        updateLeaveField('code', value)
+                        if (value.trim()) {
+                          setErrors(prev => ({ ...prev, leaveCode: '' }))
+                        }
+                      }}
+                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 ${errors.leaveCode ? 'border-red-500' : ''}`}
+                      placeholder="e.g. SL"
+                    />
+                    {errors.leaveCode && (
+                      <p className="text-red-500 text-xs mt-1">{errors.leaveCode}</p>
+                    )}
                   </div>
 
                   <div>
@@ -463,8 +675,8 @@ export default function LeavePolicyPage() {
                       Description
                     </label>
                     <textarea
-                      value={description}
-                      onChange={e => setDescription(e.target.value)}
+                      value={currentLeave.description}
+                      onChange={e => updateLeaveField('description', e.target.value)}
                       rows={3}
                       className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                       placeholder="Optional"
@@ -474,366 +686,342 @@ export default function LeavePolicyPage() {
                   <div>
                     <div className="flex justify-between items-center mb-3">
                       <label className="block text-sm font-medium text-gray-700">
-                        Leave Types & Rules
+                        Leave Rules
                       </label>
-                      <button
-                        onClick={addLeaveType}
-                        className="text-green-600 hover:text-green-700 text-sm font-medium flex items-center gap-1"
-                      >
-                        <Plus className="w-4 h-4" /> Add Type
-                      </button>
                     </div>
 
                     <div className="space-y-6">
-                      {leaveTypes.map(lt => (
-                        <div
-                          key={lt.id}
-                          className="p-4 bg-gray-50 rounded-lg border border-gray-200"
-                        >
-                          {/* Row 1: Name, Code, Type */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600">
-                                Leave Name <span className="text-red-500">*</span>
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="e.g. Sick Leave"
-                                value={lt.name}
-                                onChange={e => updateLeaveType(lt.id, 'name', e.target.value)}
-                                className="mt-1 w-full px-3 py-1 border rounded text-sm"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600">
-                                Leave Code
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="e.g. SL"
-                                value={lt.code ?? ''}
-                                onChange={e => updateLeaveType(lt.id, 'code', e.target.value)}
-                                className="mt-1 w-full px-3 py-1 border rounded text-sm"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600">
-                                Leave Type
-                              </label>
-                              <select
-                                value={lt.type ?? 'Full Day'}
-                                onChange={e => updateLeaveType(lt.id, 'type', e.target.value)}
-                                className="mt-1 w-full px-3 py-1 border rounded text-sm"
-                              >
-                                <option>Full Day</option>
-                                <option>Half Day</option>
-                              </select>
-                            </div>
-                          </div>
-
-                          {/* Row 2: Checkboxes */}
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={lt.payConsume ?? false}
-                                onChange={e => updateLeaveType(lt.id, 'payConsume', e.target.checked)}
-                                className="h-4 w-4 text-green-600"
-                              />
-                              <label className="text-xs">1 Pay Leave Consume For 1 day Leave</label>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={lt.allowApply ?? true}
-                                onChange={e => updateLeaveType(lt.id, 'allowApply', e.target.checked)}
-                                className="h-4 w-4 text-green-600"
-                              />
-                              <label className="text-xs">Allow Users to Apply Leaves</label>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={lt.halfDay ?? false}
-                                onChange={e => updateLeaveType(lt.id, 'halfDay', e.target.checked)}
-                                className="h-4 w-4 text-green-600"
-                              />
-                              <label className="text-xs">Available for HalfDay Leave</label>
-                            </div>
-                            <div className="flex justify-end">
-                              <button
-                                onClick={() => removeLeaveType(lt.id)}
-                                className="text-red-600 hover:text-red-800"
-                              >
-                                <Trash2 className="w-5 h-5" />
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Accrued Leave Rules */}
-                          <div className="mb-4">
-                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                              Rules for Accrued Leave
+                      <div
+                        className="p-4 bg-gray-50 rounded-lg border border-gray-200"
+                      >
+                        {/* Row 1: Type, Value */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600">
+                              Leave Type
                             </label>
-                            <div className="flex flex-wrap gap-4 items-center">
-                              <label className="flex items-center gap-1">
-                                <input
-                                  type="radio"
-                                  name={`accrue_${lt.id}`}
-                                  checked={lt.accrueRule === 'None'}
-                                  onChange={() => updateLeaveType(lt.id, 'accrueRule', 'None')}
-                                  className="h-4 w-4 text-green-600"
-                                />
-                                <span className="text-sm">None</span>
-                              </label>
-
-                              <label className="flex items-center gap-1">
-                                <input
-                                  type="radio"
-                                  name={`accrue_${lt.id}`}
-                                  checked={lt.accrueRule === 'Fixed'}
-                                  onChange={() => updateLeaveType(lt.id, 'accrueRule', 'Fixed')}
-                                  className="h-4 w-4 text-green-600"
-                                />
-                                <span className="text-sm">Fixed</span>
-                              </label>
-
-                              {lt.accrueRule === 'Fixed' && (
-                                <div className="flex items-center gap-2">
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={lt.fixedDays ?? 0}
-                                    onChange={e => updateLeaveType(lt.id, 'fixedDays', Number(e.target.value))}
-                                    className="w-20 px-2 py-1 border rounded text-sm"
-                                  />
-                                  <span className="text-sm">Days</span>
-                                  <select
-                                    value={lt.fixedPeriod ?? 'Yearly'}
-                                    onChange={e => updateLeaveType(lt.id, 'fixedPeriod', e.target.value)}
-                                    className="px-2 py-1 border rounded text-sm"
-                                  >
-                                    <option>Yearly</option>
-                                    <option>Monthly</option>
-                                  </select>
-                                </div>
-                              )}
-
-                              <label className="flex items-center gap-1">
-                                <input
-                                  type="radio"
-                                  name={`accrue_${lt.id}`}
-                                  checked={lt.accrueRule === 'Attendance'}
-                                  onChange={() => updateLeaveType(lt.id, 'accrueRule', 'Attendance')}
-                                  className="h-4 w-4 text-green-600"
-                                />
-                                <span className="text-sm">Attendance/Performance Basis</span>
-                              </label>
-
-                              {lt.accrueRule === 'Attendance' && (
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="text-sm">1 PL =</span>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={lt.plPer ?? 0}
-                                    onChange={e => updateLeaveType(lt.id, 'plPer', Number(e.target.value))}
-                                    className="w-20 px-2 py-1 border rounded text-sm"
-                                  />
-                                  <select
-                                    value={lt.plBasis ?? 'Select'}
-                                    onChange={e => updateLeaveType(lt.id, 'plBasis', e.target.value)}
-                                    className="px-2 py-1 border rounded text-sm"
-                                  >
-                                    <option>Select</option>
-                                    <option>Attendance</option>
-                                    <option>Performance</option>
-                                  </select>
-                                  <span className="text-sm">Minimum Attendance Required in year</span>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.01"
-                                    value={lt.minAttendance ?? 0}
-                                    onChange={e => updateLeaveType(lt.id, 'minAttendance', Number(e.target.value))}
-                                    className="w-20 px-2 py-1 border rounded text-sm"
-                                  />
-                                  <span className="text-sm">(0 means no limit)</span>
-                                </div>
-                              )}
-                            </div>
+                            <select
+                              value={currentLeave.type}
+                              onChange={e => {
+                                const type = e.target.value as 'FULL_DAY' | 'HALF_DAY'
+                                updateLeaveField('type', type)
+                                updateLeaveField('leaveValue', type === 'FULL_DAY' ? 1 : 0.5)
+                              }}
+                              className="mt-1 w-full px-3 py-1 border rounded text-sm"
+                            >
+                              <option value="FULL_DAY">Full Day</option>
+                              <option value="HALF_DAY">Half Day</option>
+                            </select>
                           </div>
-
-                          {/* Max Leave & Availed From */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600">
-                                Max Leave Can be availed
-                              </label>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={lt.maxPerMonth ?? 0}
-                                  onChange={e => updateLeaveType(lt.id, 'maxPerMonth', Number(e.target.value))}
-                                  className="w-24 px-2 py-1 border rounded text-sm"
-                                />
-                                <span className="text-sm">in a Month (0 means no limit)</span>
-                              </div>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600">
-                                Leaves can be availed from
-                              </label>
-                              <div className="flex items-center gap-2">
-                                <select
-                                  value={lt.availedFrom ?? '1st'}
-                                  onChange={e => updateLeaveType(lt.id, 'availedFrom', e.target.value)}
-                                  className="px-2 py-1 border rounded text-sm"
-                                >
-                                  <option>1st</option>
-                                  <option>2nd</option>
-                                  <option>3rd</option>
-                                  <option>4th</option>
-                                  <option>5th</option>
-                                </select>
-                                <span className="text-sm">Month of Joining Date</span>
-                                <label className="flex items-center gap-1 ml-4">
-                                  <input
-                                    type="checkbox"
-                                    checked={lt.autoAllot ?? false}
-                                    onChange={e => updateLeaveType(lt.id, 'autoAllot', e.target.checked)}
-                                    className="h-4 w-4 text-green-600"
-                                  />
-                                  <span className="text-sm">Auto Allot Leave on pro-rata basis</span>
-                                </label>
-                              </div>
-                            </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600">
+                              Leave Value
+                            </label>
+                            <input
+                              type="number"
+                              value={currentLeave.leaveValue}
+                              readOnly
+                              className="mt-1 w-full px-3 py-1 border rounded text-sm bg-gray-50"
+                            />
                           </div>
+                        </div>
 
-                          {/* Restrict & Mandatory Document */}
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600">
-                                Restrict Leave Application, If total days are less than
-                              </label>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={lt.restrictDays ?? 0}
-                                  onChange={e => updateLeaveType(lt.id, 'restrictDays', Number(e.target.value))}
-                                  className="w-24 px-2 py-1 border rounded text-sm"
-                                />
-                                <span className="text-sm">(0 means no limit)</span>
-                              </div>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600">
-                                Mandatory to upload document if leave days
-                              </label>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  value={lt.mandatoryDocDays ?? 0}
-                                  onChange={e => updateLeaveType(lt.id, 'mandatoryDocDays', Number(e.target.value))}
-                                  className="w-24 px-2 py-1 border rounded text-sm"
-                                />
-                                <span className="text-sm">(0 means no limit)</span>
-                              </div>
-                            </div>
+                        {/* Row 2: Checkboxes */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={currentLeave.payConsume ?? false}
+                              onChange={e => updateLeaveField('payConsume', e.target.checked)}
+                              className="h-4 w-4 text-green-600"
+                            />
+                            <label className="text-xs">1 Pay Leave Consume For 1 day Leave</label>
                           </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={currentLeave.allowApply ?? true}
+                              onChange={e => updateLeaveField('allowApply', e.target.checked)}
+                              className="h-4 w-4 text-green-600"
+                            />
+                            <label className="text-xs">Allow Users to Apply Leaves</label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={currentLeave.halfDay ?? false}
+                              onChange={e => updateLeaveField('halfDay', e.target.checked)}
+                              className="h-4 w-4 text-green-600"
+                            />
+                            <label className="text-xs">Available for HalfDay Leave</label>
+                          </div>
+                        </div>
 
-                          {/* Encash/Reimburse */}
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div className="flex items-center gap-2">
+                        {/* Accrued Leave Rules */}
+                        <div className="mb-4">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Rules for Accrued Leave
+                          </label>
+                          <div className="flex flex-wrap gap-4 items-center">
+                            <label className="flex items-center gap-1">
                               <input
-                                type="checkbox"
-                                checked={lt.allowEncash ?? false}
-                                onChange={e => updateLeaveType(lt.id, 'allowEncash', e.target.checked)}
+                                type="radio"
+                                name={`accrue`}
+                                checked={currentLeave.accrueRule === 'None'}
+                                onChange={() => updateLeaveField('accrueRule', 'None')}
                                 className="h-4 w-4 text-green-600"
                               />
-                              <label className="text-sm">Allow</label>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600">MinLimit</label>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={lt.minEncash ?? 0}
-                                onChange={e => updateLeaveType(lt.id, 'minEncash', Number(e.target.value))}
-                                className="mt-1 w-full px-2 py-1 border rounded text-sm"
-                              />
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-600">MaxLimit</label>
-                              <input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={lt.maxEncash ?? 0}
-                                onChange={e => updateLeaveType(lt.id, 'maxEncash', Number(e.target.value))}
-                                className="mt-1 w-full px-2 py-1 border rounded text-sm"
-                              />
-                            </div>
-                          </div>
-
-                          {/* Carry Forward Options */}
-                          <div className="mb-4">
-                            <label className="block text-xs font-medium text-gray-600 mb-1">
-                              CF Options Available
+                              <span className="text-sm">None</span>
                             </label>
-                            <div className="space-y-1">
-                              {[
-                                'Carry Forward Balance to next year',
-                                'Carry Forward Max Limit given below & Lapse Remaining',
-                                'Carry Forward Max Limit given below & Reimburse Remaining',
-                                'Reimburse all at the end of Year',
-                                'Reimburse Max Limit given below & Lapse Remaining',
-                                'Reimburse Max Limit given below & Carry Forward Remaining',
-                                'Lapse at the end of Year',
-                              ].map((opt, i) => (
-                                <label key={i} className="flex items-center gap-2">
-                                  <input
-                                    type="radio"
-                                    name={`cf_${lt.id}`}
-                                    checked={lt.cfOption === opt}
-                                    onChange={() => updateLeaveType(lt.id, 'cfOption', opt)}
-                                    className="h-4 w-4 text-green-600"
-                                  />
-                                  <span className="text-sm">{opt}</span>
-                                </label>
-                              ))}
-                            </div>
-                            {lt.cfOption?.includes('Max Limit') && (
-                              <div className="mt-2 flex items-center gap-2">
-                                <span className="text-sm">Maximum Limit:</span>
+
+                            <label className="flex items-center gap-1">
+                              <input
+                                type="radio"
+                                name={`accrue`}
+                                checked={currentLeave.accrueRule === 'Fixed'}
+                                onChange={() => updateLeaveField('accrueRule', 'Fixed')}
+                                className="h-4 w-4 text-green-600"
+                              />
+                              <span className="text-sm">Fixed</span>
+                            </label>
+
+                            {currentLeave.accrueRule === 'Fixed' && (
+                              <div className="flex items-center gap-2">
                                 <input
                                   type="number"
                                   min="0"
-                                  step="0.01"
-                                  value={lt.cfMaxLimit ?? 0}
-                                  onChange={e => updateLeaveType(lt.id, 'cfMaxLimit', Number(e.target.value))}
-                                  className="w-24 px-2 py-1 border rounded text-sm"
+                                  step="1"
+                                  value={currentLeave.fixedDays ?? 0}
+                                  onChange={e => updateLeaveField('fixedDays', Number(e.target.value))}
+                                  className="w-20 px-2 py-1 border rounded text-sm"
                                 />
                                 <span className="text-sm">Days</span>
+                                <select
+                                  value={currentLeave.fixedPeriod ?? 'Yearly'}
+                                  onChange={e => updateLeaveField('fixedPeriod', e.target.value)}
+                                  className="px-2 py-1 border rounded text-sm"
+                                >
+                                  <option>Yearly</option>
+                                  <option>Monthly</option>
+                                </select>
+                              </div>
+                            )}
+
+                            <label className="flex items-center gap-1">
+                              <input
+                                type="radio"
+                                name={`accrue`}
+                                checked={currentLeave.accrueRule === 'Attendance'}
+                                onChange={() => updateLeaveField('accrueRule', 'Attendance')}
+                                className="h-4 w-4 text-green-600"
+                              />
+                              <span className="text-sm">Attendance/Performance Basis</span>
+                            </label>
+
+                            {currentLeave.accrueRule === 'Attendance' && (
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm">1 PL =</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={currentLeave.plPer ?? 0}
+                                  onChange={e => updateLeaveField('plPer', Number(e.target.value))}
+                                  className="w-20 px-2 py-1 border rounded text-sm"
+                                />
+                                <select
+                                  value={currentLeave.plBasis ?? 'Select'}
+                                  onChange={e => updateLeaveField('plBasis', e.target.value)}
+                                  className="px-2 py-1 border rounded text-sm"
+                                >
+                                  <option>Select</option>
+                                  <option>Attendance</option>
+                                  <option>Performance</option>
+                                </select>
+                                <span className="text-sm">Minimum Attendance Required in year</span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="1"
+                                  value={currentLeave.minAttendance ?? 0}
+                                  onChange={e => updateLeaveField('minAttendance', Number(e.target.value))}
+                                  className="w-20 px-2 py-1 border rounded text-sm"
+                                />
+                                <span className="text-sm">(0 means no limit)</span>
                               </div>
                             )}
                           </div>
                         </div>
-                      ))}
-                      {leaveTypes.length === 0 && (
-                        <p className="text-gray-500 text-sm">
-                          No leave types added yet.
-                        </p>
-                      )}
+
+                        {/* Max Leave & Availed From */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600">
+                              Max Leave Can be availed
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={currentLeave.maxPerMonth ?? 0}
+                                onChange={e => updateLeaveField('maxPerMonth', Number(e.target.value))}
+                                className="w-24 px-2 py-1 border rounded text-sm"
+                              />
+                              <span className="text-sm">in a Month (0 means no limit)</span>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600">
+                              Leaves can be availed from
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <select
+                                value={currentLeave.availedFrom ?? '1st'}
+                                onChange={e => updateLeaveField('availedFrom', e.target.value)}
+                                className="px-2 py-1 border rounded text-sm"
+                              >
+                                <option>1st</option>
+                                <option>2nd</option>
+                                <option>3rd</option>
+                                <option>4th</option>
+                                <option>5th</option>
+                                <option>6th</option>
+                                <option>7th</option>
+                                <option>8th</option>
+                                <option>9th</option>
+                                <option>10th</option>
+                                <option>11th</option>
+                                <option>12th</option>
+                              </select>
+                              <span className="text-sm">Month of Joining Date</span>
+                              <label className="flex items-center gap-1 ml-4">
+                                <input
+                                  type="checkbox"
+                                  checked={currentLeave.autoAllot ?? false}
+                                  onChange={e => updateLeaveField('autoAllot', e.target.checked)}
+                                  className="h-4 w-4 text-green-600"
+                                />
+                                <span className="text-sm">Auto Allot Leave on pro-rata basis</span>
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Restrict & Mandatory Document */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600">
+                              Restrict Leave Application, If total days are less than
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={currentLeave.restrictDays ?? 0}
+                                onChange={e => updateLeaveField('restrictDays', Number(e.target.value))}
+                                className="w-24 px-2 py-1 border rounded text-sm"
+                              />
+                              <span className="text-sm">(0 means no limit)</span>
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600">
+                              Mandatory to upload document if leave days
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={currentLeave.mandatoryDocDays ?? 0}
+                                onChange={e => updateLeaveField('mandatoryDocDays', Number(e.target.value))}
+                                className="w-24 px-2 py-1 border rounded text-sm"
+                              />
+                              <span className="text-sm">(0 means no limit)</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Encash/Reimburse */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={currentLeave.allowEncash ?? false}
+                              onChange={e => updateLeaveField('allowEncash', e.target.checked)}
+                              className="h-4 w-4 text-green-600"
+                            />
+                            <label className="text-sm">Allow Encashment</label>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600">Min Encash</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={currentLeave.minEncash ?? 0}
+                              onChange={e => updateLeaveField('minEncash', Number(e.target.value))}
+                              className="mt-1 w-full px-2 py-1 border rounded text-sm"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-gray-600">Max Encash</label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="1"
+                              value={currentLeave.maxEncash ?? 0}
+                              onChange={e => updateLeaveField('maxEncash', Number(e.target.value))}
+                              className="mt-1 w-full px-2 py-1 border rounded text-sm"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Carry Forward Options */}
+                        <div className="mb-4">
+                          <label className="block text-xs font-medium text-gray-600 mb-1">
+                            Carry Forward Options
+                          </label>
+                          <div className="space-y-1">
+                            {[
+                              'Carry Forward Balance to next year',
+                              'Carry Forward Max Limit given below & Lapse Remaining',
+                              'Carry Forward Max Limit given below & Reimburse Remaining',
+                              'Reimburse all at the end of Year',
+                              'Reimburse Max Limit given below & Lapse Remaining',
+                              'Reimburse Max Limit given below & Carry Forward Remaining',
+                              'Lapse at the end of Year',
+                            ].map((opt, i) => (
+                              <label key={i} className="flex items-center gap-2">
+                                <input
+                                  type="radio"
+                                  name={`cf`}
+                                  checked={currentLeave.cfOption === opt}
+                                  onChange={() => updateLeaveField('cfOption', opt)}
+                                  className="h-4 w-4 text-green-600"
+                                />
+                                <span className="text-sm">{opt}</span>
+                              </label>
+                            ))}
+                          </div>
+                          {currentLeave.cfOption?.includes('Max Limit') && (
+                            <div className="mt-2 flex items-center gap-2">
+                              <span className="text-sm">Maximum Limit:</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={currentLeave.cfMaxLimit ?? 0}
+                                onChange={e => updateLeaveField('cfMaxLimit', Number(e.target.value))}
+                                className="w-24 px-2 py-1 border rounded text-sm"
+                              />
+                              <span className="text-sm">Days</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -843,139 +1031,248 @@ export default function LeavePolicyPage() {
               {step === 2 && (
                 <div className="space-y-6">
                   <p className="text-sm text-gray-600">
-                    Choose where this policy will be applicable.
+                    Choose where this leave will be applicable. Selections within a category use OR logic, while selections across different categories use AND logic.
                   </p>
+                  {errors.applicability && (
+                    <p className="text-red-500 text-xs mt-1 mb-4">{errors.applicability}</p>
+                  )}
 
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="app"
-                      checked={applicability.type === 'All'}
-                      onChange={() => toggleApplicability('All')}
-                      className="h-4 w-4 text-green-600"
-                    />
-                    <span className="font-medium">All (company-wide)</span>
-                  </label>
+                  {setupsLoading ? (
+                    <div className="text-center py-6 text-gray-500 text-sm">
+                      Loading setups...
+                    </div>
+                  ) : (
+                    <>
+                      <label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={currentLeave.applicability.all}
+                          onChange={e => handleAllChange(e.target.checked)}
+                          className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                        />
+                        <span className="font-medium text-gray-900">All (company-wide)</span>
+                      </label>
 
-                  <div>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="app"
-                        checked={applicability.type === 'Branch'}
-                        onChange={() => toggleApplicability('Branch')}
-                        className="h-4 w-4 text-green-600"
-                      />
-                      <span className="font-medium">Branch</span>
-                    </label>
-                    {applicability.type === 'Branch' && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {branches.map(b => (
-                          <label key={b} className="flex items-center gap-1 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={applicability.ids.includes(b)}
-                              onChange={() => toggleId(b)}
-                              className="h-4 w-4 text-green-600"
-                            />
-                            <span className="text-sm">{b}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                      {!currentLeave.applicability.all && (
+                        <>
+                          <div className="border-t pt-4">
+                            <div className="font-medium text-gray-800 mb-2">Branches</div>
+                            <label className="flex items-center gap-2 mb-2">
+                              <input
+                                type="checkbox"
+                                ref={branchSelectAllRef}
+                                onChange={e => handleSelectAll('Branch', e.target.checked)}
+                                className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                              />
+                              <span className="text-sm text-gray-700">Select All</span>
+                            </label>
+                            <div className="flex flex-wrap gap-3">
+                              {setups?.branches?.map((b: any) => (
+                                <label key={b.id} className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={currentLeave.applicability.branches.includes(b.name)}
+                                    onChange={() => toggleId('Branch', b.name)}
+                                    className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                                  />
+                                  <span className="text-sm text-gray-700">{b.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
 
-                  <div>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="app"
-                        checked={applicability.type === 'Department'}
-                        onChange={() => toggleApplicability('Department')}
-                        className="h-4 w-4 text-green-600"
-                      />
-                      <span className="font-medium">Department</span>
-                    </label>
-                    {applicability.type === 'Department' && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {departments.map(d => (
-                          <label key={d} className="flex items-center gap-1 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={applicability.ids.includes(d)}
-                              onChange={() => toggleId(d)}
-                              className="h-4 w-4 text-green-600"
-                            />
-                            <span className="text-sm">{d}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                          <div className="border-t pt-4">
+                            <div className="font-medium text-gray-800 mb-2">Departments</div>
+                            <label className="flex items-center gap-2 mb-2">
+                              <input
+                                type="checkbox"
+                                ref={departmentSelectAllRef}
+                                onChange={e => handleSelectAll('Department', e.target.checked)}
+                                className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                              />
+                              <span className="text-sm text-gray-700">Select All</span>
+                            </label>
+                            <div className="flex flex-wrap gap-3">
+                              {setups?.departments?.map((d: any) => (
+                                <label key={d.id} className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={currentLeave.applicability.departments.includes(d.name)}
+                                    onChange={() => toggleId('Department', d.name)}
+                                    className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                                  />
+                                  <span className="text-sm text-gray-700">{d.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
 
-                  <div>
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="app"
-                        checked={applicability.type === 'Level'}
-                        onChange={() => toggleApplicability('Level')}
-                        className="h-4 w-4 text-green-600"
-                      />
-                      <span className="font-medium">Level</span>
-                    </label>
-                    {applicability.type === 'Level' && (
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {levels.map(l => (
-                          <label key={l} className="flex items-center gap-1 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={applicability.ids.includes(l)}
-                              onChange={() => toggleId(l)}
-                              className="h-4 w-4 text-green-600"
-                            />
-                            <span className="text-sm">{l}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                          <div className="border-t pt-4">
+                            <div className="font-medium text-gray-800 mb-2">Designations</div>
+                            <label className="flex items-center gap-2 mb-2">
+                              <input
+                                type="checkbox"
+                                ref={designationSelectAllRef}
+                                onChange={e => handleSelectAll('Designation', e.target.checked)}
+                                className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                              />
+                              <span className="text-sm text-gray-700">Select All</span>
+                            </label>
+                            <div className="flex flex-wrap gap-3">
+                              {setups?.designations?.map((d: any) => (
+                                <label key={d.id} className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={currentLeave.applicability.designations.includes(d.name)}
+                                    onChange={() => toggleId('Designation', d.name)}
+                                    className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                                  />
+                                  <span className="text-sm text-gray-700">{d.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="border-t pt-4">
+                            <div className="font-medium text-gray-800 mb-2">Levels</div>
+                            <label className="flex items-center gap-2 mb-2">
+                              <input
+                                type="checkbox"
+                                ref={levelSelectAllRef}
+                                onChange={e => handleSelectAll('Level', e.target.checked)}
+                                className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                              />
+                              <span className="text-sm text-gray-700">Select All</span>
+                            </label>
+                            <div className="flex flex-wrap gap-3">
+                              {setups?.levels?.map((l: any) => (
+                                <label key={l.id} className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={currentLeave.applicability.levels.includes(l.name)}
+                                    onChange={() => toggleId('Level', l.name)}
+                                    className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                                  />
+                                  <span className="text-sm text-gray-700">{l.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="border-t pt-4">
+                            <div className="font-medium text-gray-800 mb-2">Categories</div>
+                            <label className="flex items-center gap-2 mb-2">
+                              <input
+                                type="checkbox"
+                                ref={categorySelectAllRef}
+                                onChange={e => handleSelectAll('Category', e.target.checked)}
+                                className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                              />
+                              <span className="text-sm text-gray-700">Select All</span>
+                            </label>
+                            <div className="flex flex-wrap gap-3">
+                              {setups?.categories?.map((c: any) => (
+                                <label key={c.id} className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={currentLeave.applicability.categories.includes(c.name)}
+                                    onChange={() => toggleId('Category', c.name)}
+                                    className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                                  />
+                                  <span className="text-sm text-gray-700">{c.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="border-t pt-4">
+                            <div className="font-medium text-gray-800 mb-2">Grades</div>
+                            <label className="flex items-center gap-2 mb-2">
+                              <input
+                                type="checkbox"
+                                ref={gradeSelectAllRef}
+                                onChange={e => handleSelectAll('Grade', e.target.checked)}
+                                className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                              />
+                              <span className="text-sm text-gray-700">Select All</span>
+                            </label>
+                            <div className="flex flex-wrap gap-3">
+                              {setups?.grades?.map((g: any) => (
+                                <label key={g.id} className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={currentLeave.applicability.grades.includes(g.name)}
+                                    onChange={() => toggleId('Grade', g.name)}
+                                    className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                                  />
+                                  <span className="text-sm text-gray-700">{g.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          <div className="border-t pt-4">
+                            <div className="font-medium text-gray-800 mb-2">Attendance Types</div>
+                            <label className="flex items-center gap-2 mb-2">
+                              <input
+                                type="checkbox"
+                                ref={attendanceTypeSelectAllRef}
+                                onChange={e => handleSelectAll('AttendanceType', e.target.checked)}
+                                className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                              />
+                              <span className="text-sm text-gray-700">Select All</span>
+                            </label>
+                            <div className="flex flex-wrap gap-3">
+                              {setups?.attendanceTypes?.map((a: any) => (
+                                <label key={a.id} className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={currentLeave.applicability.attendanceTypes.includes(a.name)}
+                                    onChange={() => toggleId('AttendanceType', a.name)}
+                                    className="h-4 w-4 text-green-600 rounded border-gray-300 focus:ring-green-500"
+                                  />
+                                  <span className="text-sm text-gray-700">{a.name}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </>
+                  )}
                 </div>
               )}
+
 
               {/* Step 3 – Review */}
               {step === 3 && (
                 <div className="space-y-4 text-sm">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 bg-gray-50 rounded">
                     <div>
-                      <strong className="block text-gray-700">Policy Name:</strong>
-                      <p className="mt-1">{policyName || '-'}</p>
+                      <strong className="block text-gray-700">Leave Name:</strong>
+                      <p className="mt-1">{currentLeave.name || '-'}</p>
                     </div>
                     <div>
                       <strong className="block text-gray-700">Applicability:</strong>
                       <p className="mt-1">
-                        {applicability.type === 'All'
+                        {currentLeave.applicability.all
                           ? 'All'
-                          : `${applicability.type}: ${(applicability as { ids: string[] }).ids.length
-                            ? applicability.ids.join(', ')
-                            : '—'
-                          }`}
+                          : (() => {
+                            const parts: string[] = []
+                            if (currentLeave.applicability.branches.length > 0) parts.push(`Branches: ${currentLeave.applicability.branches.join(', ')}`)
+                            if (currentLeave.applicability.departments.length > 0) parts.push(`Departments: ${currentLeave.applicability.departments.join(', ')}`)
+                            if (currentLeave.applicability.designations.length > 0) parts.push(`Designations: ${currentLeave.applicability.designations.join(', ')}`)
+                            if (currentLeave.applicability.levels.length > 0) parts.push(`Levels: ${currentLeave.applicability.levels.join(', ')}`)
+                            if (currentLeave.applicability.categories.length > 0) parts.push(`Categories: ${currentLeave.applicability.categories.join(', ')}`)
+                            if (currentLeave.applicability.grades.length > 0) parts.push(`Grades: ${currentLeave.applicability.grades.join(', ')}`)
+                            if (currentLeave.applicability.attendanceTypes.length > 0) parts.push(`Attendance Types: ${currentLeave.applicability.attendanceTypes.join(', ')}`)
+                            return parts.join(' ; ') || '—'
+                          })()}
                       </p>
                     </div>
                   </div>
 
                   <div>
-                    <strong className="block text-gray-700">Leave Types:</strong>
-                    <ul className="mt-2 space-y-1">
-                      {leaveTypes.map(lt => (
-                        <li key={lt.id} className="flex justify-between text-sm">
-                          <span>{lt.name || '(no name)'}</span>
-                          <span className="text-gray-600">
-                            Code: {lt.code || '-'}, Max/Month: {lt.maxPerMonth ?? 0}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
+                    <strong className="block text-gray-700">Leave Code:</strong>
+                    <p className="mt-1">{currentLeave.code || '-'}</p>
                   </div>
                 </div>
               )}
@@ -1004,9 +1301,8 @@ export default function LeavePolicyPage() {
                   disabled={saving}
                   className="px-6 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 font-medium disabled:opacity-50"
                 >
-                  {editPolicyName ? 'UPDATE' : 'CREATE'}
+                  {editLeaveId ? 'UPDATE' : 'CREATE'}
                 </button>
-
               )}
             </div>
           </div>
