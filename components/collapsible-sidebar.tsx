@@ -49,7 +49,7 @@ const superAdminNavigation = [
 export function CollapsibleSidebar({ user, client, navigation }: CollapsibleSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const pathname = usePathname()
+  const pathname = usePathname() ?? ""
 
   // Load sidebar state from localStorage on mount
   useEffect(() => {

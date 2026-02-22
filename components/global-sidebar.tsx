@@ -57,8 +57,7 @@ const navigation = [
   { name: "Payroll", href: "/dashboard/payroll", icon: Calculator, adminOnly: true },
   { name: "Leave Management", href: "/dashboard/leave", icon: Calendar, adminOnly: true },
   { name: "Attendance", href: "/dashboard/attendance", icon: Clock, adminOnly: true },
-  { name: "Reports", href: "/dashboard/reports", icon: FileText, adminOnly: true },
-  { name: "Settings", href: "/dashboard/settings", icon: Settings, adminOnly: true },
+
 ];
 
 const clientNavigation = [
@@ -125,23 +124,24 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
   // Full menu (with routes added where available)
   const employeeManagement = [
     { id: "employee-details", title: "Employee Details", icon: Users, href: "/super-admin/employee-details" },
-    { id: "salary-heads", title: "Salary Heads", icon: DollarSign, href: "/super-admin/salary-head" },
-    { id: "pf-esi-rate", title: "PF / ESI Rate", icon: CreditCard, href: "/super-admin/PF-ESI" },
+
   ];
-  
+
   const leaveAttendance = [
     { id: "attendance", title: "Attendance", icon: Clock, href: "/super-admin/attendance" },
     { id: "payroll-cycle", title: "Payroll Cycle", icon: Clock3, href: "/super-admin/payroll-cycle" },
     { id: "leave", title: "Leave", icon: CalendarDays, href: "/super-admin/leave" },
     { id: "short-leave", title: "Short Leave", icon: UserCheck, href: "/super-admin/short-leave" },
   ];
-  
+
   const organizationalSetup = [
+    { id: "salary-heads", title: "Salary Heads", icon: DollarSign, href: "/super-admin/salary-head" },
+    { id: "pf-esi-rate", title: "PF / ESI Rate", icon: CreditCard, href: "/super-admin/PF-ESI" },
     { id: "setups", title: "Setups", icon: Settings, href: "/super-admin/setups" },
     { id: "shift", title: "Shift", icon: Clock3, href: "/super-admin/shift" },
     { id: "shift-rotation", title: "Shift Rotation", icon: Clock3, href: "/super-admin/shift-rotation" },
   ];
-  
+
 
   const toggleSection = React.useCallback((id: string) => {
     setExpandedSections((prev) => {
@@ -223,14 +223,14 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
           </div>
         )}
       </div>
-      
+
       {/* Company Badge - shown below logo when not collapsed */}
       {!isCollapsed && (
         <div className="px-6 pb-2">
           <SidebarCompanyBadge />
         </div>
       )}
-      
+
       {/* Navigation */}
       <nav className="flex-1 space-y-1 px-4 py-4">
         {pathname?.startsWith("/super-admin") ? (
@@ -247,179 +247,179 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
               {!isCollapsed && "Dashboard"}
             </div>
 
-             {/* Companies button now routes to dashboard */}
-             {(() => {
-               const href = "/super-admin";
-               const isActive = pathname === href;
-               return (
-                 <Link
-                   href={href}
-                   className={cn(
-                     "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                     isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                     isCollapsed && "justify-center"
-                   )}
-                 >
-                   <Building2 className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
-                   {!isCollapsed && "Companies"}
-                 </Link>
-               );
-             })()}
-            {/* Employee Management */}
-              <Collapsible
-                open={expandedSections.has("employee-management")}
-                onOpenChange={() => debouncedToggleSection("employee-management")}
-              >
-                <CollapsibleTrigger asChild>
-                  <Button variant="ghost" className="w-full justify-between px-3 py-2 h-auto">
-                    <div className="flex items-center">
-                      <Users className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
-                      {!isCollapsed && <span className="font-medium">Employee Management</span>}
-                    </div>
-                    {!isCollapsed && (
-                      <ChevronRight
-                        className={cn(
-                          "h-4 w-4 transition-transform",
-                          expandedSections.has("employee-management") && "rotate-90"
-                        )}
-                      />
-                    )}
-                  </Button>
-                </CollapsibleTrigger>
-
-                <CollapsibleContent className="ml-4 space-y-1">
-                  {employeeManagement.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = pathname.startsWith(item.href);
-                    return (
-                      <Link
-                        key={item.id}
-                        href={item.href}
-                        className={cn(
-                          "flex items-center rounded-md px-2 py-2 text-xs",
-                          isActive ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted"
-                        )}
-                      >
-                        <Icon className="mr-2 h-3 w-3" />
-                        {item.title}
-                      </Link>
-                    );
-                  })}
-                </CollapsibleContent>
-              </Collapsible>
-              {/* Leave & Attendance */}
-                <Collapsible
-                  open={expandedSections.has("leave-attendance")}
-                  onOpenChange={() => debouncedToggleSection("leave-attendance")}
+            {/* Companies button now routes to dashboard */}
+            {(() => {
+              const href = "/super-admin";
+              const isActive = pathname === href;
+              return (
+                <Link
+                  href={href}
+                  className={cn(
+                    "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                    isActive ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                    isCollapsed && "justify-center"
+                  )}
                 >
-                  <CollapsibleTrigger asChild>
-                    <Button variant="ghost" className="w-full justify-between px-3 py-2 h-auto">
-                      <div className="flex items-center">
-                        <CalendarDays className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
-                        {!isCollapsed && <span className="font-medium">Leave & Attendance</span>}
-                      </div>
-                      {!isCollapsed && (
-                        <ChevronRight
-                          className={cn(
-                            "h-4 w-4 transition-transform",
-                            expandedSections.has("leave-attendance") && "rotate-90"
-                          )}
-                        />
+                  <Building2 className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                  {!isCollapsed && "Companies"}
+                </Link>
+              );
+            })()}
+            {/* Employee Management */}
+            <Collapsible
+              open={expandedSections.has("employee-management")}
+              onOpenChange={() => debouncedToggleSection("employee-management")}
+            >
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between px-3 py-2 h-auto">
+                  <div className="flex items-center">
+                    <Users className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                    {!isCollapsed && <span className="font-medium">Employee Management</span>}
+                  </div>
+                  {!isCollapsed && (
+                    <ChevronRight
+                      className={cn(
+                        "h-4 w-4 transition-transform",
+                        expandedSections.has("employee-management") && "rotate-90"
                       )}
-                    </Button>
-                  </CollapsibleTrigger>
+                    />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
 
-                  <CollapsibleContent className="ml-4 space-y-1">
-                    {leaveAttendance.map((item) => {
-                      const Icon = item.icon;
-                      const isActive = pathname.startsWith(item.href);
-                      return (
-                        <Link
-                          key={item.id}
-                          href={item.href}
-                          className={cn(
-                            "flex items-center rounded-md px-2 py-2 text-xs transition-colors",
-                            isActive
-                              ? "bg-primary/10 text-primary font-medium"
-                              : "hover:bg-muted"
-                          )}
-                        >
-                          <Icon className="mr-2 h-3 w-3" />
-                          {item.title}
-                        </Link>
-                      );
-                    })}
-                  </CollapsibleContent>
-                </Collapsible>
-                {/* Organizational Setup */}
-                  <Collapsible
-                    open={expandedSections.has("organizational-setup")}
-                    onOpenChange={() => debouncedToggleSection("organizational-setup")}
-                  >
-                    <CollapsibleTrigger asChild>
-                    <Button variant="ghost" className="w-full justify-between px-3 py-2 h-auto">
-                      <div className="flex items-center">
-                        <Settings className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
-                        {!isCollapsed && <span className="font-medium">Organizational Setup</span>}
-                      </div>
-                      {!isCollapsed && (
-                        <ChevronRight
-                          className={cn(
-                            "h-4 w-4 transition-transform",
-                            expandedSections.has("organizational-setup") && "rotate-90"
-                          )}
-                        />
+              <CollapsibleContent className="ml-4 space-y-1">
+                {employeeManagement.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname.startsWith(item.href);
+                  return (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      className={cn(
+                        "flex items-center rounded-md px-2 py-2 text-xs",
+                        isActive ? "bg-primary/10 text-primary font-medium" : "hover:bg-muted"
                       )}
-                    </Button>
-                  </CollapsibleTrigger>
+                    >
+                      <Icon className="mr-2 h-3 w-3" />
+                      {item.title}
+                    </Link>
+                  );
+                })}
+              </CollapsibleContent>
+            </Collapsible>
+            {/* Leave & Attendance */}
+            <Collapsible
+              open={expandedSections.has("leave-attendance")}
+              onOpenChange={() => debouncedToggleSection("leave-attendance")}
+            >
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between px-3 py-2 h-auto">
+                  <div className="flex items-center">
+                    <CalendarDays className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                    {!isCollapsed && <span className="font-medium">Leave & Attendance</span>}
+                  </div>
+                  {!isCollapsed && (
+                    <ChevronRight
+                      className={cn(
+                        "h-4 w-4 transition-transform",
+                        expandedSections.has("leave-attendance") && "rotate-90"
+                      )}
+                    />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
 
-                    <CollapsibleContent className="ml-4 space-y-1">
-                      {organizationalSetup.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = pathname.startsWith(item.href);
-                        return (
-                          <Link
-                            key={item.id}
-                            href={item.href}
-                            className={cn(
-                              "flex items-center rounded-md px-2 py-2 text-xs transition-colors",
-                              isActive
-                                ? "bg-primary/10 text-primary font-medium"
-                                : "hover:bg-muted"
-                            )}
-                          >
-                            <Icon className="mr-2 h-3 w-3" />
-                            {item.title}
-                          </Link>
-                        );
-                      })}
-                    </CollapsibleContent>
-                  </Collapsible>
+              <CollapsibleContent className="ml-4 space-y-1">
+                {leaveAttendance.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname.startsWith(item.href);
+                  return (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      className={cn(
+                        "flex items-center rounded-md px-2 py-2 text-xs transition-colors",
+                        isActive
+                          ? "bg-primary/10 text-primary font-medium"
+                          : "hover:bg-muted"
+                      )}
+                    >
+                      <Icon className="mr-2 h-3 w-3" />
+                      {item.title}
+                    </Link>
+                  );
+                })}
+              </CollapsibleContent>
+            </Collapsible>
+            {/* Organizational Setup */}
+            <Collapsible
+              open={expandedSections.has("organizational-setup")}
+              onOpenChange={() => debouncedToggleSection("organizational-setup")}
+            >
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" className="w-full justify-between px-3 py-2 h-auto">
+                  <div className="flex items-center">
+                    <Settings className={cn("h-4 w-4", !isCollapsed && "mr-2")} />
+                    {!isCollapsed && <span className="font-medium">Organizational Setup</span>}
+                  </div>
+                  {!isCollapsed && (
+                    <ChevronRight
+                      className={cn(
+                        "h-4 w-4 transition-transform",
+                        expandedSections.has("organizational-setup") && "rotate-90"
+                      )}
+                    />
+                  )}
+                </Button>
+              </CollapsibleTrigger>
+
+              <CollapsibleContent className="ml-4 space-y-1">
+                {organizationalSetup.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname.startsWith(item.href);
+                  return (
+                    <Link
+                      key={item.id}
+                      href={item.href}
+                      className={cn(
+                        "flex items-center rounded-md px-2 py-2 text-xs transition-colors",
+                        isActive
+                          ? "bg-primary/10 text-primary font-medium"
+                          : "hover:bg-muted"
+                      )}
+                    >
+                      <Icon className="mr-2 h-3 w-3" />
+                      {item.title}
+                    </Link>
+                  );
+                })}
+              </CollapsibleContent>
+            </Collapsible>
 
 
 
           </div>
         ) : (
-           currentNavigation.map((item) => {
-             // Fixed active state detection for main navigation - exact match only
-             const isActive = pathname === item.href;
-             return (
-               <Link
-                 key={item.name}
-                 href={item.href}
-                 className={cn(
-                   "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                   isActive
-                     ? "bg-primary text-primary-foreground"
-                     : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
-                   isCollapsed && "justify-center"
-                 )}
-               >
-                 <item.icon className={cn("h-4 w-4", !isCollapsed && "mr-3")} />
-                 {!isCollapsed && item.name}
-               </Link>
-             );
-           })
+          currentNavigation.map((item) => {
+            // Fixed active state detection for main navigation - exact match only
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.name}
+                href={item.href}
+                className={cn(
+                  "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                  isCollapsed && "justify-center"
+                )}
+              >
+                <item.icon className={cn("h-4 w-4", !isCollapsed && "mr-3")} />
+                {!isCollapsed && item.name}
+              </Link>
+            );
+          })
         )}
       </nav>
 
@@ -442,9 +442,9 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
             <LogoutButton />
           </div>
         )}
-       </div>
-     </div>
-   );
+      </div>
+    </div>
+  );
 
   return (
     <>
