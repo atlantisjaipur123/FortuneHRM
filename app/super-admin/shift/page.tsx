@@ -11,7 +11,50 @@ import { Label } from "@/components/ui/label"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Checkbox } from "@/components/ui/checkbox"
 import { GlobalLayout } from "@/app/components/global-layout"
-import { api, API } from "@/app/lib/api"
+import { api } from "@/app/lib/api" // Use the provided api utility for all calls
+
+
+interface WeeklyOffPattern {
+  week: number;
+  day: string;
+  type: string;
+  time: string | null;
+}
+
+interface FormData {
+  code: string;
+  color: string;
+  name: string;
+  startTime: string;
+  endTime: string;
+  breakTime: string;
+  totalHours: string;
+  firstHalfHours: string;
+  firstHalfMinutes: string;
+  secondHalfHours: string;
+  secondHalfMinutes: string;
+  checkInGrace: string;
+  lateGrace: string;
+  earlyGrace: string;
+  halfDayHours: string;
+  halfDayMinutes: string;
+  fullDayHours: string;
+  fullDayMinutes: string;
+  noAttendanceHours: string;
+  noAttendanceMinutes: string;
+  halfDayAbsenceHours: string;
+  halfDayAbsenceMinutes: string;
+  noAttendanceCheckOutHours: string;
+  noAttendanceCheckOutMinutes: string;
+  shiftAllowance: boolean;
+  restrictManagerBackdate: boolean;
+  restrictHRBackdate: boolean;
+  restrictManagerFuture: boolean;
+  defineWeeklyOff: boolean;
+  weeklyOffPattern: WeeklyOffPattern[];
+  errors: Record<string, string>;
+}
+
 const enforceRange = (
   e: React.KeyboardEvent<HTMLInputElement>,
   min: number,
@@ -20,49 +63,51 @@ const enforceRange = (
   const input = e.currentTarget;
   const currentValue = input.value || "0";
 
-  // Allow control keys
   if (["Backspace", "Delete", "ArrowLeft", "ArrowRight", "Tab", "Enter"].includes(e.key)) {
     return;
   }
 
-  // Block minus key completely (no negatives)
   if (e.key === "-" || e.key === "Minus") {
     e.preventDefault();
     return;
   }
 
-  // If it's a digit
   if (/[0-9]/.test(e.key)) {
     const selectionStart = input.selectionStart || 0;
     const selectionEnd = input.selectionEnd || 0;
     const newValue = currentValue.slice(0, selectionStart) + e.key + currentValue.slice(selectionEnd);
-
     const numValue = Number(newValue);
-
-    // Block if new value is out of range
     if (numValue < min || numValue > max) {
       e.preventDefault();
     }
   }
 };
 
-const timeToMinutes = (time: string) => {
-  const [h, m] = time.split(":").map(Number);
-  return h * 60 + m;
+const timeToMinutes = (time: string): number => {
+  const [h, m] = (time || "00:00").split(":").map(Number);
+  return (isNaN(h) ? 0 : h) * 60 + (isNaN(m) ? 0 : m);
 };
 
-const addMinutesToTime = (time: string, minutesToAdd: number) => {
-  const total = timeToMinutes(time) + minutesToAdd;
+const minutesToTime = (minutes: number): string => {
+  const safeMinutes = isNaN(minutes) ? 0 : Math.max(0, minutes);
+  const h = Math.floor(safeMinutes / 60);
+  const m = safeMinutes % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+};
+
+const addMinutesToTime = (time: string, minutesToAdd: number): string => {
+  const total = timeToMinutes(time) + (isNaN(minutesToAdd) ? 0 : minutesToAdd);
   const h = Math.floor((total % (24 * 60)) / 60);
   const m = total % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 };
 
+const clampValue = (value: string, min: number, max: number): string => {
+  const num = Number(value);
+  if (isNaN(num)) return "0";
+  return String(Math.min(Math.max(num, min), max));
+};
 
-
-
-
-// Chart.js integration for Review preview
 const ReviewChart = ({
   workingMinutes,
   checkInMinutes,
@@ -73,8 +118,7 @@ const ReviewChart = ({
   checkOutMinutes: number;
 }) => {
   const chartRef = useRef<HTMLCanvasElement | null>(null);
-  const chartInstanceRef = useRef<any>(null);
-
+  const chartInstanceRef = useRef<Chart | null>(null);
 
   useEffect(() => {
     const canvas = chartRef.current;
@@ -85,13 +129,11 @@ const ReviewChart = ({
 
     if (chartInstanceRef.current) {
       chartInstanceRef.current.destroy();
-      chartInstanceRef.current = null;
     }
 
-    // ✅ MOVE CALCULATIONS OUTSIDE OBJECT
-    const shift = Math.max(workingMinutes, 1);
-    const checkIn = Math.min(checkInMinutes, shift * 0.25);
-    const checkOut = Math.min(checkOutMinutes, shift * 0.25);
+    const safeWorking = isNaN(workingMinutes) ? 1 : Math.max(workingMinutes, 1);
+    const safeCheckIn = isNaN(checkInMinutes) ? 0 : Math.min(checkInMinutes, safeWorking * 0.25);
+    const safeCheckOut = isNaN(checkOutMinutes) ? 0 : Math.min(checkOutMinutes, safeWorking * 0.25);
 
     chartInstanceRef.current = new Chart(ctx, {
       type: "doughnut",
@@ -103,7 +145,7 @@ const ReviewChart = ({
         ],
         datasets: [
           {
-            data: [shift, checkIn, checkOut],
+            data: [safeWorking, safeCheckIn, safeCheckOut],
             backgroundColor: ["#a855f7", "#06b6d4", "#fbbf24"],
           },
         ],
@@ -119,106 +161,136 @@ const ReviewChart = ({
     return () => {
       if (chartInstanceRef.current) {
         chartInstanceRef.current.destroy();
-        chartInstanceRef.current = null;
       }
     };
   }, [workingMinutes, checkInMinutes, checkOutMinutes]);
+
   return <canvas ref={chartRef} className="p-4 bg-gray-50 rounded-lg w-full" />;
 };
-
-
-
 
 export default function ShiftPage() {
   const [shifts, setShifts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-
-
   const [selectedShift, setSelectedShift] = useState<any>(null);
   const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState<any>({
-    code: "", color: "#28a745", name: "", startTime: "09:00", endTime: "17:30", breakTime: "00:30", totalHours: "8",
-    firstHalfHours: "4", firstHalfMinutes: "0", secondHalfHours: "4", secondHalfMinutes: "15",
-    checkInGrace: "30", lateGrace: "10", earlyGrace: "10",
-    halfDayHours: "4", halfDayMinutes: "0", fullDayHours: "8", fullDayMinutes: "0",
-    noAttendanceHours: "2", noAttendanceMinutes: "0", noAttendanceCheckOutHours: "1", noAttendanceCheckOutMinutes: "0",
-    shiftAllowance: true, restrictManagerBackdate: false, restrictHRBackdate: false, restrictManagerFuture: true,
-    defineWeeklyOff: true, weeklyOffPattern: [{ week: 1, day: "Sun", type: "Full day", time: "" }],
-    errors: {},
+  const [formData, setFormData] = useState<FormData>({
+    code: "",
+    color: "#28a745",
+    name: "",
+    startTime: "09:00",
+    endTime: "17:30",
+    breakTime: "00:30",
+    totalHours: "8",
+    firstHalfHours: "4",
+    firstHalfMinutes: "0",
+    secondHalfHours: "4",
+    secondHalfMinutes: "0",
+    checkInGrace: "30",
+    lateGrace: "10",
+    earlyGrace: "10",
+    halfDayHours: "4",
+    halfDayMinutes: "0",
+    fullDayHours: "8",
+    fullDayMinutes: "0",
+    noAttendanceHours: "2",
+    noAttendanceMinutes: "0",
+    halfDayAbsenceHours: "2",
+    halfDayAbsenceMinutes: "0",
+    noAttendanceCheckOutHours: "1",
+    noAttendanceCheckOutMinutes: "0",
+    shiftAllowance: true,
+    restrictManagerBackdate: false,
+    restrictHRBackdate: false,
+    restrictManagerFuture: true,
+    defineWeeklyOff: true,
+    weeklyOffPattern: [
+      { week: 1, day: "Sun", type: "Full day", time: null },
+      { week: 2, day: "Sun", type: "Full day", time: null },
+      { week: 3, day: "Sun", type: "Full day", time: null },
+      { week: 4, day: "Sun", type: "Full day", time: null },
+      { week: 5, day: "Sun", type: "Full day", time: null },
+    ],
+    errors: {} as Record<string, string>,
   });
 
-  const reservedCodes = ["P", "A", "VO", "FL", "SW"];
+  const reservedCodes = ["P", "A", "WO", "FL", "SW"];
+
   const fetchShifts = async () => {
     setLoading(true);
     try {
       const data = await api.get("/api/shift");
       setShifts(data.shifts || []);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Fetch shifts failed:", err);
+      alert(err.message || "Failed to fetch shifts");
       setShifts([]);
     } finally {
       setLoading(false);
     }
   };
+
   useEffect(() => {
     fetchShifts();
   }, []);
-
-
 
   useEffect(() => {
     if (!selectedShift) return;
 
     const breakMinutes = selectedShift.breakDuration ?? 0;
-    const bh = Math.floor(breakMinutes / 60);
-    const bm = breakMinutes % 60;
+    const firstHalfMinutes = selectedShift.firstHalfDuration ?? 240;
+    const secondHalfMinutes = selectedShift.secondHalfDuration ?? 240;
+    const halfDayMinutes = selectedShift.halfDayThreshold ?? 240;
+    const fullDayMinutes = selectedShift.fullDayThreshold ?? 480;
+    const noAttendanceMinutes = selectedShift.noAttendanceThreshold ?? 120;
+    const halfDayAbsenceMinutes = selectedShift.halfDayAbsenceThreshold ?? 120;
+    const earlyCheckoutMinutes = selectedShift.earlyCheckoutThreshold ?? 60;
 
     setFormData({
       ...selectedShift,
-
-      // UI-derived fields
-      breakTime: `${String(bh).padStart(2, "0")}:${String(bm).padStart(2, "0")}`,
-
-      checkInGrace: String(selectedShift.checkInAllowedFrom ?? 0),
-      earlyGrace: String(selectedShift.checkOutAllowedFrom ?? 0),
-
-      startTime: selectedShift.startTime ?? "00:00",
-      endTime: selectedShift.endTime ?? "00:00",
-
+      breakTime: minutesToTime(breakMinutes),
+      firstHalfHours: String(Math.floor(firstHalfMinutes / 60)),
+      firstHalfMinutes: String(firstHalfMinutes % 60),
+      secondHalfHours: String(Math.floor(secondHalfMinutes / 60)),
+      secondHalfMinutes: String(secondHalfMinutes % 60),
+      checkInGrace: String(selectedShift.checkInGrace ?? 30),
+      lateGrace: String(selectedShift.lateGrace ?? 10),
+      earlyGrace: String(selectedShift.earlyGrace ?? 10),
+      halfDayHours: String(Math.floor(halfDayMinutes / 60)),
+      halfDayMinutes: String(halfDayMinutes % 60),
+      fullDayHours: String(Math.floor(fullDayMinutes / 60)),
+      fullDayMinutes: String(fullDayMinutes % 60),
+      noAttendanceHours: String(Math.floor(noAttendanceMinutes / 60)),
+      noAttendanceMinutes: String(noAttendanceMinutes % 60),
+      halfDayAbsenceHours: String(Math.floor(halfDayAbsenceMinutes / 60)),
+      halfDayAbsenceMinutes: String(halfDayAbsenceMinutes % 60),
+      noAttendanceCheckOutHours: String(Math.floor(earlyCheckoutMinutes / 60)),
+      noAttendanceCheckOutMinutes: String(earlyCheckoutMinutes % 60),
       defineWeeklyOff: selectedShift.defineWeeklyOff ?? true,
-      weeklyOffPattern: Array.isArray(selectedShift.weeklyOffPattern)
-        ? selectedShift.weeklyOffPattern
-        : [{ week: 1, day: "Sun", type: "Full day", time: "" }],
-
-
-      errors: {},
+      weeklyOffPattern: Array.isArray(selectedShift.weeklyOffPattern) && selectedShift.weeklyOffPattern.length === 5
+        ? selectedShift.weeklyOffPattern.map((p: WeeklyOffPattern) => ({ ...p, time: p.time === "" ? null : p.time })) // Added: Normalize loaded data to convert "" to null for type consistency
+        : [
+          { week: 1, day: "Sun", type: "Full day", time: null },
+          { week: 2, day: "Sun", type: "Full day", time: null },
+          { week: 3, day: "Sun", type: "Full day", time: null },
+          { week: 4, day: "Sun", type: "Full day", time: null },
+          { week: 5, day: "Sun", type: "Full day", time: null },
+        ],
+      errors: {} as Record<string, string>,
     });
   }, [selectedShift]);
 
-
-  // Auto-calculate total hours based on start, end, and break times
   useEffect(() => {
-    const firstHalf =
-      Number(formData.firstHalfHours) * 60 +
-      Number(formData.firstHalfMinutes);
-
-    const secondHalf =
-      Number(formData.secondHalfHours) * 60 +
-      Number(formData.secondHalfMinutes);
-
-    const [bh, bm] = formData.breakTime.split(":").map(Number);
-    const breakMinutes = bh * 60 + bm;
+    const firstHalf = Number(formData.firstHalfHours) * 60 + Number(formData.firstHalfMinutes);
+    const secondHalf = Number(formData.secondHalfHours) * 60 + Number(formData.secondHalfMinutes);
+    const breakMinutes = timeToMinutes(formData.breakTime);
 
     const totalWorkMinutes = firstHalf + secondHalf;
     const totalShiftMinutes = totalWorkMinutes + breakMinutes;
 
-    const calculatedEndTime = addMinutesToTime(
-      formData.startTime,
-      totalShiftMinutes
-    );
+    const calculatedEndTime = addMinutesToTime(formData.startTime, totalShiftMinutes);
 
-    setFormData((prev: any) => ({
+    setFormData((prev) => ({
       ...prev,
       endTime: calculatedEndTime,
       totalHours: (totalWorkMinutes / 60).toFixed(2),
@@ -232,44 +304,64 @@ export default function ShiftPage() {
     formData.breakTime,
   ]);
 
-
-
-
   const validateForm = () => {
-    const errors: any = {};
+    const errors: Record<string, string> = {};
     if (!formData.code) errors.code = "Shift code is required";
     if (reservedCodes.includes(formData.code)) errors.code = "Please don't use reserved codes P,A,WO,FL,SW.";
     if (!formData.name) errors.name = "Shift name is required";
+    if (!formData.startTime.match(/^\d{2}:\d{2}$/)) errors.startTime = "Invalid start time format";
+    if (!formData.endTime.match(/^\d{2}:\d{2}$/)) errors.endTime = "Invalid end time format";
+    if (timeToMinutes(formData.startTime) >= timeToMinutes(formData.endTime)) errors.endTime = "End time must be after start time";
+    // Add more validations as needed (e.g., graces < working hours)
+
+    if (formData.defineWeeklyOff) {
+      formData.weeklyOffPattern.forEach((pattern, index) => {
+        if (pattern.type === "Time" && pattern.time && !pattern.time.match(/^\d{2}:\d{2}$/)) {
+          errors[`weeklyOffPattern_${index}_time`] = `Invalid time format for week ${pattern.week}`;
+        }
+      });
+    }
+
     return errors;
   };
+
   const mapFormToApiPayload = () => {
-    const [bh, bm] = formData.breakTime.split(":").map(Number);
+    const breakMinutes = timeToMinutes(formData.breakTime);
+    const firstHalfMinutes = Number(formData.firstHalfHours) * 60 + Number(formData.firstHalfMinutes);
+    const secondHalfMinutes = Number(formData.secondHalfHours) * 60 + Number(formData.secondHalfMinutes);
+    const halfDayMinutes = Number(formData.halfDayHours) * 60 + Number(formData.halfDayMinutes);
+    const fullDayMinutes = Number(formData.fullDayHours) * 60 + Number(formData.fullDayMinutes);
+    const noAttendanceMinutes = Number(formData.noAttendanceHours) * 60 + Number(formData.noAttendanceMinutes);
+    const halfDayAbsenceMinutes = Number(formData.halfDayAbsenceHours) * 60 + Number(formData.halfDayAbsenceMinutes);
+    const earlyCheckoutMinutes = Number(formData.noAttendanceCheckOutHours) * 60 + Number(formData.noAttendanceCheckOutMinutes);
 
     return {
       name: formData.name,
       code: formData.code || null,
+      color: formData.color,
       startTime: formData.startTime,
       endTime: formData.endTime,
-      color: formData.color,
-      breakDuration: bh * 60 + bm,
+      breakDuration: breakMinutes,
       workingHours: Number(formData.totalHours) || 0,
-      checkInAllowedFrom: Number(formData.checkInGrace),
-      checkOutAllowedFrom: Number(formData.earlyGrace),
-
+      firstHalfDuration: firstHalfMinutes,
+      secondHalfDuration: secondHalfMinutes,
+      checkInGrace: Number(formData.checkInGrace),
+      lateGrace: Number(formData.lateGrace),
+      earlyGrace: Number(formData.earlyGrace),
+      halfDayThreshold: halfDayMinutes,
+      fullDayThreshold: fullDayMinutes,
+      noAttendanceThreshold: noAttendanceMinutes,
+      halfDayAbsenceThreshold: halfDayAbsenceMinutes,
+      earlyCheckoutThreshold: earlyCheckoutMinutes,
       shiftAllowance: formData.shiftAllowance,
-      weeklyOffPattern: formData.defineWeeklyOff
-        ? formData.weeklyOffPattern
-        : [],
+      defineWeeklyOff: formData.defineWeeklyOff,
+      weeklyOffPattern: formData.defineWeeklyOff ? formData.weeklyOffPattern : [],
       restrictManagerBackdate: formData.restrictManagerBackdate,
       restrictHRBackdate: formData.restrictHRBackdate,
       restrictManagerFuture: formData.restrictManagerFuture,
-
-
       isActive: true,
     };
   };
-
-
 
   const handleSave = async () => {
     const errors = validateForm();
@@ -291,65 +383,86 @@ export default function ShiftPage() {
         await api.post("/api/shift", payload);
       }
 
-      // ✅ SUCCESS PATH
       setIsPopupOpen(false);
       setSelectedShift(null);
       setStep(1);
       await fetchShifts();
-
     } catch (err: any) {
       console.error("Save shift failed:", err);
       alert(err.message || "Failed to save shift");
     } finally {
       setLoading(false);
     }
-
   };
+
   const handleAddShift = () => {
     setSelectedShift(null);
-
     setFormData({
       code: "",
-      name: "",
       color: "#28a745",
-
-      startTime: "00:00",
-      endTime: "00:00",
-      breakTime: "00:00",
-
-      checkInGrace: "0",
-      earlyGrace: "0",
-
-      totalHours: "0",
-
-      weeklyOffPattern: [{ week: 1, day: "Sun", type: "Full day", time: "" }],
-
-      errors: {},
+      name: "",
+      startTime: "09:00",
+      endTime: "17:30",
+      breakTime: "00:30",
+      totalHours: "8",
+      firstHalfHours: "4",
+      firstHalfMinutes: "0",
+      secondHalfHours: "4",
+      secondHalfMinutes: "0",
+      checkInGrace: "30",
+      lateGrace: "10",
+      earlyGrace: "10",
+      halfDayHours: "4",
+      halfDayMinutes: "0",
+      fullDayHours: "8",
+      fullDayMinutes: "0",
+      noAttendanceHours: "2",
+      noAttendanceMinutes: "0",
+      halfDayAbsenceHours: "2",
+      halfDayAbsenceMinutes: "0",
+      noAttendanceCheckOutHours: "1",
+      noAttendanceCheckOutMinutes: "0",
+      shiftAllowance: true,
+      restrictManagerBackdate: false,
+      restrictHRBackdate: false,
+      restrictManagerFuture: true,
+      defineWeeklyOff: true,
+      weeklyOffPattern: [
+        { week: 1, day: "Sun", type: "Full day", time: null },
+        { week: 2, day: "Sun", type: "Full day", time: null },
+        { week: 3, day: "Sun", type: "Full day", time: null },
+        { week: 4, day: "Sun", type: "Full day", time: null },
+        { week: 5, day: "Sun", type: "Full day", time: null },
+      ],
+      errors: {} as Record<string, string>,
     });
-
     setStep(1);
     setIsPopupOpen(true);
   };
 
-
-
   const updateWeeklyPattern = (index: number, field: string, value: any) => {
-    const newPattern = formData.weeklyOffPattern.map((p: any, i: number) =>
-      i === index ? { ...p, [field]: value } : p
-    );
+    const newPattern = formData.weeklyOffPattern.map((p: WeeklyOffPattern, i: number) => { // Changed: Typed p as WeeklyOffPattern
+      if (i === index) {
+        const updated = { ...p, [field]: value };
+        if (field === 'type') {
+          updated.time = value === 'Full day' ? null : (p.time ?? "00:00");
+        }
+        return updated;
+      }
+      return p;
+    });
     setFormData({ ...formData, weeklyOffPattern: newPattern });
   };
-
   const handleNavigation = (direction: string) => {
     if (direction === "next" && step < 6) setStep(step + 1);
     if (direction === "prev" && step > 1) setStep(step - 1);
   };
+
   const workingMinutes =
     Number(formData.firstHalfHours) * 60 +
     Number(formData.firstHalfMinutes) +
     Number(formData.secondHalfHours) * 60 +
     Number(formData.secondHalfMinutes);
-
 
   return (
     <GlobalLayout>
@@ -362,7 +475,7 @@ export default function ShiftPage() {
         )}
         <Button
           variant="default"
-          onClick={() => { handleAddShift(); }}
+          onClick={handleAddShift}
           className="bg-green-600 text-white hover:bg-green-700 mb-6"
         >
           <Plus className="h-4 w-4 mr-2" /> Add Shift
@@ -374,11 +487,10 @@ export default function ShiftPage() {
                 <div className="h-2 mb-2" style={{ backgroundColor: shift.color }}></div>
                 <CardTitle className="text-lg font-semibold">{shift.code}</CardTitle>
                 <p className="text-gray-600">{shift.name}</p>
-                <p className="text-sm text-gray-500">Active: {shift.active ? "Yes" : "No"}</p>
+                <p className="text-sm text-gray-500">Active: {shift.isActive ? "Yes" : "No"}</p>
               </CardHeader>
               <CardContent>
                 <div className="flex gap-2">
-                  {/* EDIT */}
                   <Button
                     size="sm"
                     className="flex-1 bg-blue-600 text-white hover:bg-blue-700"
@@ -389,16 +501,13 @@ export default function ShiftPage() {
                   >
                     Edit
                   </Button>
-
-                  {/* DELETE */}
                   <Button
                     size="sm"
                     variant="destructive"
                     onClick={async () => {
                       if (!confirm("Delete this shift?")) return;
-
                       try {
-                        await API("/api/shift", { method: "DELETE", body: { id: shift.id } });
+                        await api.delete("/api/shift", { body: { id: shift.id } });
                         fetchShifts();
                       } catch (err: any) {
                         console.error("Delete shift failed:", err);
@@ -410,7 +519,6 @@ export default function ShiftPage() {
                   </Button>
                 </div>
               </CardContent>
-
             </Card>
           ))}
         </div>
@@ -423,7 +531,6 @@ export default function ShiftPage() {
               </DialogTitle>
             </DialogHeader>
             <div className="flex flex-1 overflow-hidden">
-              {/* Internal Sidebar */}
               <div className="w-1/4 pr-4 border-r border-gray-200 overflow-y-auto">
                 <nav className="space-y-4 p-2">
                   <button onClick={() => setStep(1)} className={`block w-full text-left ${step === 1 ? 'text-green-600 font-semibold' : 'text-gray-600'}`}>Basic</button>
@@ -439,7 +546,6 @@ export default function ShiftPage() {
                   ))}
                 </div>
               </div>
-              {/* Form Content */}
               <div className="w-3/4 p-4 overflow-y-auto">
                 {step === 1 && (
                   <div className="space-y-4">
@@ -473,6 +579,7 @@ export default function ShiftPage() {
                         placeholder="Morning"
                         className="mt-1"
                       />
+                      {formData.errors?.name && <p className="text-red-500 text-sm mt-1">{formData.errors.name}</p>}
                     </div>
                   </div>
                 )}
@@ -486,7 +593,10 @@ export default function ShiftPage() {
                           min="0"
                           max="23"
                           value={formData.startTime.split(':')[0] || '09'}
-                          onChange={(e) => setFormData({ ...formData, startTime: `${e.target.value.padStart(2, '0')}:${formData.startTime.split(':')[1] || '00'}` })}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 23);
+                            setFormData({ ...formData, startTime: `${val.padStart(2, '0')}:${formData.startTime.split(':')[1] || '00'}` });
+                          }}
                           onKeyDown={(e) => enforceRange(e, 0, 23)}
                           className="w-20"
                         />
@@ -496,11 +606,15 @@ export default function ShiftPage() {
                           min="0"
                           max="59"
                           value={formData.startTime.split(':')[1] || '00'}
-                          onChange={(e) => setFormData({ ...formData, startTime: `${formData.startTime.split(':')[0] || '09'}:${e.target.value.padStart(2, '0')}` })}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 59);
+                            setFormData({ ...formData, startTime: `${formData.startTime.split(':')[0] || '09'}:${val.padStart(2, '0')}` });
+                          }}
                           onKeyDown={(e) => enforceRange(e, 0, 59)}
                           className="w-20"
                         />
                       </div>
+                      {formData.errors?.startTime && <p className="text-red-500 text-sm mt-1">{formData.errors.startTime}</p>}
                     </div>
                     <div>
                       <Label className="text-gray-700">How long is the first half?</Label>
@@ -510,7 +624,10 @@ export default function ShiftPage() {
                           min="0"
                           max="23"
                           value={formData.firstHalfHours}
-                          onChange={(e) => setFormData({ ...formData, firstHalfHours: e.target.value })}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 23);
+                            setFormData({ ...formData, firstHalfHours: val });
+                          }}
                           onKeyDown={(e) => enforceRange(e, 0, 23)}
                           className="w-20"
                         />
@@ -519,7 +636,10 @@ export default function ShiftPage() {
                           min="0"
                           max="59"
                           value={formData.firstHalfMinutes}
-                          onChange={(e) => setFormData({ ...formData, firstHalfMinutes: e.target.value })}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 59);
+                            setFormData({ ...formData, firstHalfMinutes: val });
+                          }}
                           onKeyDown={(e) => enforceRange(e, 0, 59)}
                           className="w-20"
                         />
@@ -533,7 +653,10 @@ export default function ShiftPage() {
                           min="0"
                           max="23"
                           value={formData.secondHalfHours}
-                          onChange={(e) => setFormData({ ...formData, secondHalfHours: e.target.value })}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 23);
+                            setFormData({ ...formData, secondHalfHours: val });
+                          }}
                           onKeyDown={(e) => enforceRange(e, 0, 23)}
                           className="w-20"
                         />
@@ -542,7 +665,10 @@ export default function ShiftPage() {
                           min="0"
                           max="59"
                           value={formData.secondHalfMinutes}
-                          onChange={(e) => setFormData({ ...formData, secondHalfMinutes: e.target.value })}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 59);
+                            setFormData({ ...formData, secondHalfMinutes: val });
+                          }}
                           onKeyDown={(e) => enforceRange(e, 0, 59)}
                           className="w-20"
                         />
@@ -555,7 +681,10 @@ export default function ShiftPage() {
                         min="0"
                         max="59"
                         value={formData.checkInGrace}
-                        onChange={(e) => setFormData({ ...formData, checkInGrace: e.target.value })}
+                        onChange={(e) => {
+                          const val = clampValue(e.target.value, 0, 59);
+                          setFormData({ ...formData, checkInGrace: val });
+                        }}
                         onKeyDown={(e) => enforceRange(e, 0, 59)}
                         className="mt-1 w-20"
                       />
@@ -567,7 +696,10 @@ export default function ShiftPage() {
                         min="0"
                         max="59"
                         value={formData.lateGrace}
-                        onChange={(e) => setFormData({ ...formData, lateGrace: e.target.value })}
+                        onChange={(e) => {
+                          const val = clampValue(e.target.value, 0, 59);
+                          setFormData({ ...formData, lateGrace: val });
+                        }}
                         onKeyDown={(e) => enforceRange(e, 0, 59)}
                         className="mt-1 w-20"
                       />
@@ -579,7 +711,10 @@ export default function ShiftPage() {
                         min="0"
                         max="59"
                         value={formData.earlyGrace}
-                        onChange={(e) => setFormData({ ...formData, earlyGrace: e.target.value })}
+                        onChange={(e) => {
+                          const val = clampValue(e.target.value, 0, 59);
+                          setFormData({ ...formData, earlyGrace: val });
+                        }}
                         onKeyDown={(e) => enforceRange(e, 0, 59)}
                         className="mt-1 w-20"
                       />
@@ -592,7 +727,10 @@ export default function ShiftPage() {
                           min="0"
                           max="23"
                           value={formData.breakTime.split(':')[0] || '00'}
-                          onChange={(e) => setFormData({ ...formData, breakTime: `${e.target.value.padStart(2, '0')}:${formData.breakTime.split(':')[1] || '00'}` })}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 23);
+                            setFormData({ ...formData, breakTime: `${val.padStart(2, '0')}:${formData.breakTime.split(':')[1] || '00'}` });
+                          }}
                           onKeyDown={(e) => enforceRange(e, 0, 23)}
                           className="w-20"
                         />
@@ -602,16 +740,21 @@ export default function ShiftPage() {
                           min="0"
                           max="59"
                           value={formData.breakTime.split(':')[1] || '00'}
-                          onChange={(e) => setFormData({ ...formData, breakTime: `${formData.breakTime.split(':')[0] || '00'}:${e.target.value.padStart(2, '0')}` })}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 59);
+                            setFormData({ ...formData, breakTime: `${formData.breakTime.split(':')[0] || '00'}:${val.padStart(2, '0')}` });
+                          }}
                           onKeyDown={(e) => enforceRange(e, 0, 59)}
                           className="w-20"
                         />
                       </div>
                     </div>
                     <p className="text-gray-700">Total Hours: {formData.totalHours || "0.0"}</p>
-                    <ReviewChart workingMinutes={workingMinutes}
+                    <ReviewChart
+                      workingMinutes={workingMinutes}
                       checkInMinutes={Number(formData.checkInGrace)}
-                      checkOutMinutes={Number(formData.earlyGrace)} />
+                      checkOutMinutes={Number(formData.earlyGrace)}
+                    />
                   </div>
                 )}
                 {step === 3 && (
@@ -624,7 +767,10 @@ export default function ShiftPage() {
                           min="0"
                           max="23"
                           value={formData.halfDayHours}
-                          onChange={(e) => setFormData({ ...formData, halfDayHours: e.target.value })}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 23);
+                            setFormData({ ...formData, halfDayHours: val });
+                          }}
                           onKeyDown={(e) => enforceRange(e, 0, 23)}
                           className="w-20"
                         />
@@ -633,7 +779,10 @@ export default function ShiftPage() {
                           min="0"
                           max="59"
                           value={formData.halfDayMinutes}
-                          onChange={(e) => setFormData({ ...formData, halfDayMinutes: e.target.value })}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 59);
+                            setFormData({ ...formData, halfDayMinutes: val });
+                          }}
                           onKeyDown={(e) => enforceRange(e, 0, 59)}
                           className="w-20"
                         />
@@ -647,7 +796,10 @@ export default function ShiftPage() {
                           min="0"
                           max="23"
                           value={formData.fullDayHours}
-                          onChange={(e) => setFormData({ ...formData, fullDayHours: e.target.value })}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 23);
+                            setFormData({ ...formData, fullDayHours: val });
+                          }}
                           onKeyDown={(e) => enforceRange(e, 0, 23)}
                           className="w-20"
                         />
@@ -656,25 +808,103 @@ export default function ShiftPage() {
                           min="0"
                           max="59"
                           value={formData.fullDayMinutes}
-                          onChange={(e) => setFormData({ ...formData, fullDayMinutes: e.target.value })}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 59);
+                            setFormData({ ...formData, fullDayMinutes: val });
+                          }}
                           onKeyDown={(e) => enforceRange(e, 0, 59)}
                           className="w-20"
                         />
                       </div>
                     </div>
                     <div>
-                      <Label className="text-gray-700">If no attendance is recorded for <Input type="number" min="0" max="23" value={formData.noAttendanceHours} onKeyDown={(e) => enforceRange(e, 0, 23)} onChange={(e) => setFormData({ ...formData, noAttendanceHours: e.target.value })} className="w-20 inline" /> <Input type="number" min="0" max="59" value={formData.noAttendanceMinutes} onKeyDown={(e) => enforceRange(e, 0, 59)} onChange={(e) => setFormData({ ...formData, noAttendanceMinutes: e.target.value })} className="w-20 inline" /> from shift start time then mark "Full day" as absent.</Label>
+                      <Label className="text-gray-700">If no attendance is recorded for
+                        <Input
+                          type="number"
+                          min="0"
+                          max="23"
+                          value={formData.noAttendanceHours}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 23);
+                            setFormData({ ...formData, noAttendanceHours: val });
+                          }}
+                          onKeyDown={(e) => enforceRange(e, 0, 23)}
+                          className="w-20 inline mx-1"
+                        /> :
+                        <Input
+                          type="number"
+                          min="0"
+                          max="59"
+                          value={formData.noAttendanceMinutes}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 59);
+                            setFormData({ ...formData, noAttendanceMinutes: val });
+                          }}
+                          onKeyDown={(e) => enforceRange(e, 0, 59)}
+                          className="w-20 inline mx-1"
+                        /> from shift start time then mark "Full day" as absent.
+                      </Label>
                     </div>
                     <div>
-                      <Label className="text-gray-700">If no attendance is recorded for <Input type="number" min="0" max="23" value={formData.noAttendanceHours} onKeyDown={(e) => enforceRange(e, 0, 23)} onChange={(e) => setFormData({ ...formData, noAttendanceHours: e.target.value })} className="w-20 inline" /> <Input type="number" min="0" max="59" value={formData.noAttendanceMinutes} onKeyDown={(e) => enforceRange(e, 0, 59)} onChange={(e) => setFormData({ ...formData, noAttendanceMinutes: e.target.value })} className="w-20 inline" /> from shift start time then mark "Half day" as absent.</Label>
+                      <Label className="text-gray-700">If no attendance is recorded for
+                        <Input
+                          type="number"
+                          min="0"
+                          max="23"
+                          value={formData.halfDayAbsenceHours}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 23);
+                            setFormData({ ...formData, halfDayAbsenceHours: val });
+                          }}
+                          onKeyDown={(e) => enforceRange(e, 0, 23)}
+                          className="w-20 inline mx-1"
+                        /> :
+                        <Input
+                          type="number"
+                          min="0"
+                          max="59"
+                          value={formData.halfDayAbsenceMinutes}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 59);
+                            setFormData({ ...formData, halfDayAbsenceMinutes: val });
+                          }}
+                          onKeyDown={(e) => enforceRange(e, 0, 59)}
+                          className="w-20 inline mx-1"
+                        /> from shift start time then mark "Half day" as absent.
+                      </Label>
                     </div>
                     <div>
-                      <Label className="text-gray-700">If check out is recorded for <Input type="number" min="0" max="23" value={formData.noAttendanceCheckOutHours} onKeyDown={(e) => enforceRange(e, 0, 23)} onChange={(e) => setFormData({ ...formData, noAttendanceCheckOutHours: e.target.value })} className="w-20 inline" /> <Input type="number" min="0" max="59" value={formData.noAttendanceCheckOutMinutes} onKeyDown={(e) => enforceRange(e, 0, 59)} onChange={(e) => setFormData({ ...formData, noAttendanceCheckOutMinutes: e.target.value })} className="w-20 inline" /> before shift end, mark second half as absent.</Label>
+                      <Label className="text-gray-700">If check out is recorded for
+                        <Input
+                          type="number"
+                          min="0"
+                          max="23"
+                          value={formData.noAttendanceCheckOutHours}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 23);
+                            setFormData({ ...formData, noAttendanceCheckOutHours: val });
+                          }}
+                          onKeyDown={(e) => enforceRange(e, 0, 23)}
+                          className="w-20 inline mx-1"
+                        /> :
+                        <Input
+                          type="number"
+                          min="0"
+                          max="59"
+                          value={formData.noAttendanceCheckOutMinutes}
+                          onChange={(e) => {
+                            const val = clampValue(e.target.value, 0, 59);
+                            setFormData({ ...formData, noAttendanceCheckOutMinutes: val });
+                          }}
+                          onKeyDown={(e) => enforceRange(e, 0, 59)}
+                          className="w-20 inline mx-1"
+                        /> before shift end, mark second half as absent.
+                      </Label>
                     </div>
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         checked={formData.shiftAllowance}
-                        onCheckedChange={(checked) => setFormData({ ...formData, shiftAllowance: checked })}
+                        onCheckedChange={(checked) => setFormData({ ...formData, shiftAllowance: !!checked })}
                       />
                       <Label className="text-gray-700">Shift allowance *</Label>
                     </div>
@@ -686,7 +916,7 @@ export default function ShiftPage() {
                       <Checkbox
                         id="restrict-manager-backdate"
                         checked={formData.restrictManagerBackdate}
-                        onCheckedChange={(checked) => setFormData({ ...formData, restrictManagerBackdate: checked })}
+                        onCheckedChange={(checked) => setFormData({ ...formData, restrictManagerBackdate: !!checked })}
                       />
                       <Label htmlFor="restrict-manager-backdate" className="text-gray-700">Do you want to restrict managers from marking backdate attendance status?</Label>
                     </div>
@@ -694,7 +924,7 @@ export default function ShiftPage() {
                       <Checkbox
                         id="restrict-hr-backdate"
                         checked={formData.restrictHRBackdate}
-                        onCheckedChange={(checked) => setFormData({ ...formData, restrictHRBackdate: checked })}
+                        onCheckedChange={(checked) => setFormData({ ...formData, restrictHRBackdate: !!checked })}
                       />
                       <Label htmlFor="restrict-hr-backdate" className="text-gray-700">Do you want to restrict HR from marking backdate attendance status?</Label>
                     </div>
@@ -702,7 +932,7 @@ export default function ShiftPage() {
                       <Checkbox
                         id="restrict-manager-future"
                         checked={formData.restrictManagerFuture}
-                        onCheckedChange={(checked) => setFormData({ ...formData, restrictManagerFuture: checked })}
+                        onCheckedChange={(checked) => setFormData({ ...formData, restrictManagerFuture: !!checked })}
                       />
                       <Label htmlFor="restrict-manager-future" className="text-gray-700">Do you want to restrict manager from marking future attendance status?</Label>
                     </div>
@@ -713,60 +943,66 @@ export default function ShiftPage() {
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         checked={formData.defineWeeklyOff}
-                        onCheckedChange={(checked) => setFormData({ ...formData, defineWeeklyOff: checked })}
+                        onCheckedChange={(checked) => setFormData({ ...formData, defineWeeklyOff: !!checked })}
                       />
                       <Label className="text-gray-700">Do you want to define weekly off for this shift? *</Label>
                     </div>
                     {formData.defineWeeklyOff && (
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Week</TableHead>
-                            <TableHead>Day</TableHead>
-                            <TableHead>Time</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {(formData.weeklyOffPattern ?? []).map((row: any, i: number) => (
-                            <TableRow key={i}>
-                              <TableCell>{row.week}</TableCell>
-                              <TableCell>
-                                <select
-                                  value={row.day}
-                                  onChange={(e) => updateWeeklyPattern(i, 'day', e.target.value)}
-                                  className="border p-1 rounded w-full"
-                                >
-                                  <option value="Sun">Sun</option>
-                                  <option value="Mon">Mon</option>
-                                  <option value="Tue">Tue</option>
-                                  <option value="Wed">Wed</option>
-                                  <option value="Thu">Thu</option>
-                                  <option value="Fri">Fri</option>
-                                  <option value="Sat">Sat</option>
-                                </select>
-                              </TableCell>
-                              <TableCell>
-                                <select
-                                  value={row.type}
-                                  onChange={(e) => updateWeeklyPattern(i, 'type', e.target.value)}
-                                  className="border p-1 rounded mr-2 w-32"
-                                >
-                                  <option value="Full day">Full day</option>
-                                  <option value="Time">Time</option>
-                                </select>
-                                {row.type === "Time" && (
-                                  <Input
-                                    type="time"
-                                    value={row.time}
-                                    onChange={(e) => updateWeeklyPattern(i, 'time', e.target.value)}
-                                    className="w-32"
-                                  />
-                                )}
-                              </TableCell>
+                      <>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Week</TableHead>
+                              <TableHead>Day</TableHead>
+                              <TableHead>Time</TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHeader>
+                          <TableBody>
+                            {formData.weeklyOffPattern.map((row: WeeklyOffPattern, i: number) => ( // Changed: Typed row as WeeklyOffPattern
+                              <TableRow key={i}>
+                                <TableCell>{row.week}</TableCell>
+                                <TableCell>
+                                  <select
+                                    value={row.day}
+                                    onChange={(e) => updateWeeklyPattern(i, 'day', e.target.value)}
+                                    className="border p-1 rounded w-full"
+                                  >
+                                    <option value="Sun">Sun</option>
+                                    <option value="Mon">Mon</option>
+                                    <option value="Tue">Tue</option>
+                                    <option value="Wed">Wed</option>
+                                    <option value="Thu">Thu</option>
+                                    <option value="Fri">Fri</option>
+                                    <option value="Sat">Sat</option>
+                                  </select>
+                                </TableCell>
+                                <TableCell>
+                                  <select
+                                    value={row.type}
+                                    onChange={(e) => updateWeeklyPattern(i, 'type', e.target.value)}
+                                    className="border p-1 rounded mr-2 w-32"
+                                  >
+                                    <option value="Full day">Full day</option>
+                                    <option value="Time">Time</option>
+                                  </select>
+                                  {row.type === "Time" && (
+                                    <Input
+                                      type="time"
+                                      value={row.time ?? ""}
+                                      onChange={(e) => updateWeeklyPattern(i, 'time', e.target.value || null)}
+                                      className="w-32"
+                                    />
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                        {/* Added: Display weekly off validation errors below the table */}
+                        {Object.keys(formData.errors).filter(key => key.startsWith('weeklyOffPattern_')).map(key => (
+                          <p key={key} className="text-red-500 text-sm mt-1">{formData.errors[key]}</p>
+                        ))}
+                      </>
                     )}
                   </div>
                 )}
@@ -777,10 +1013,9 @@ export default function ShiftPage() {
                       checkInMinutes={Number(formData.checkInGrace)}
                       checkOutMinutes={Number(formData.earlyGrace)}
                     />
-
                     <div className="flex justify-between mt-6">
                       <Button variant="outline" onClick={() => handleNavigation("prev")} disabled={false}>Previous</Button>
-                      <Button className="bg-green-600 text-white hover:bg-green-700" onClick={handleSave}>Save</Button>
+                      <Button className="bg-green-600 text-white hover:bg-green-700" onClick={handleSave} disabled={loading}>Save</Button>
                     </div>
                   </div>
                 )}
