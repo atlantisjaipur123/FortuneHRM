@@ -790,35 +790,50 @@ model LeaveApplication {
 }
 
 model Shift {
-  id                      String          @id @default(cuid())
+  id                      String   @id @default(cuid())
   companyId               String
   name                    String
-  code                    String?
-  startTime               String
-  endTime                 String
-  breakDuration           Int?
-  workingHours            Float?
-  shiftType               ShiftType       @default(FIXED)
-  checkInAllowedFrom      Int?
-  checkOutAllowedFrom     Int?
-  shiftAllowance          Boolean         @default(false)
-  weeklyOffPattern        Json
-  restrictManagerBackdate Boolean         @default(false)
-  restrictHRBackdate      Boolean         @default(false)
-  restrictManagerFuture   Boolean         @default(false)
-  isActive                Boolean         @default(true)
-  createdAt               DateTime        @default(now())
-  updatedAt               DateTime        @updatedAt
+  code                    String?  @db.VarChar(10) // Short code, e.g., "MOR"; unique within company
+  color                   String?  @db.VarChar(7)  // Hex color code, e.g., "#28a745"
+  startTime               String   @db.VarChar(10)  // HH:MM format, e.g., "09:00"
+  endTime                 String   @db.VarChar(10)  // HH:MM format, e.g., "17:30"
+  breakDuration           Int      @default(0)     // In minutes, e.g., 30
+  workingHours            Float    @default(0.0)   // Total working hours per shift, e.g., 8.0
+  firstHalfDuration       Int      @default(0)     // First half duration in minutes, e.g., 240 (4 hours)
+  secondHalfDuration      Int      @default(0)     // Second half duration in minutes, e.g., 240
+  shiftType               ShiftType @default(FIXED)
+  checkInGrace            Int      @default(0)     // Minutes before start for check-in, e.g., 30
+  lateGrace               Int      @default(0)     // Minutes after start without penalty, e.g., 10
+  earlyGrace              Int      @default(0)     // Minutes before end for early check-out, e.g., 10
+  halfDayThreshold        Int      @default(240)   // Minimum minutes for half day, e.g., 240 (4 hours)
+  fullDayThreshold        Int      @default(480)   // Minimum minutes for full day, e.g., 480 (8 hours)
+  noAttendanceThreshold   Int      @default(120)   // Minutes after start to mark absent if no check-in, e.g., 120 (2 hours)
+  halfDayAbsenceThreshold Int      @default(120)   // Separate threshold for half-day absence marking
+  earlyCheckoutThreshold  Int      @default(60)    // Minutes before end to mark second half absent if checked out, e.g., 60 (1 hour)
+  shiftAllowance         Boolean  @default(false)
+  defineWeeklyOff         Boolean  @default(true)
+  weeklyOffPattern        Json     // Array of objects: [{ week: Int, day: String (e.g., "Sun"), type: String ("Full day" | "Time"), time: String? (HH:MM) }]
+  restrictManagerBackdate Boolean  @default(false)
+  restrictHRBackdate      Boolean  @default(false)
+  restrictManagerFuture   Boolean  @default(true)
+  isActive                Boolean  @default(true)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+  deletedAt               DateTime? // Add soft-delete timestamp for consistency with other models
   createdBy               String?
   updatedBy               String?
+
+  // Relations
   attendanceRecords       Attendance[]
   employees               Employee[]
   shiftRotations          ShiftRotation[]
-  company                 Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company                 Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@unique([companyId, name])
+  @@unique([companyId, code]) // Ensure code uniqueness per company
   @@index([companyId])
   @@index([companyId, isActive])
+  @@index([companyId, shiftType])
   @@map("shifts")
 }
 
@@ -1178,7 +1193,7 @@ enum CompanyType {
 }
 
 enum AttendanceStatus {
-  PRESENT
+  PRESENT //present 
   ABSENT
   LATE
   HALF_DAY
