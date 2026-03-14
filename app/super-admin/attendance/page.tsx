@@ -1,140 +1,116 @@
 // app/attendance/page.tsx
 "use client"
 
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { toast } from "@/components/ui/use-toast"
-import { Calendar } from "lucide-react"
+import { toast } from "@/hooks/use-toast"
+import { Calendar, Info, User } from "lucide-react"
 import { GlobalLayout } from "@/app/components/global-layout"
-
-// Mock employee data with status arrays (replace with API fetch in production)
-const mockEmployees = [
-  {
-    id: "EMP001",
-    companyId: "company_1",
-    name: "John Doe",
-    branch: "Main Branch",
-    category: "Full-Time",
-    department: "IT",
-    designation: "Engineer",
-    level: "Mid",
-    grade: "B2",
-    attendanceType: "Biometric",
-    shift: "Morning",
-    attendance: Array(31).fill("P"), // Default to Present
-  },
-  {
-    id: "EMP002",
-    companyId: "company_1",
-    name: "Jane Smith",
-    branch: "Branch A",
-    category: "Part-Time",
-    department: "HR",
-    designation: "Manager",
-    level: "Senior",
-    grade: "A1",
-    attendanceType: "Manual",
-    shift: "Afternoon",
-    attendance: Array(31).fill("A"), // Default to Absent
-  },
-]
+import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { api } from "@/app/lib/api"
+import { useCompanySetups } from "@/hooks/useCompanySetups"
 
 export default function AttendancePage() {
-  // Initialize setups from localStorage with error handling
-  const [branches, setBranches] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("branch-detail") || "[]")
-    } catch {
-      return []
-    }
-  })
-  const [categories, setCategories] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("category") || "[]")
-    } catch {
-      return []
-    }
-  })
-  const [departments, setDepartments] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("department") || "[]")
-    } catch {
-      return []
-    }
-  })
-  const [designations, setDesignations] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("designation") || "[]")
-    } catch {
-      return []
-    }
-  })
-  const [levels, setLevels] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("level") || "[]")
-    } catch {
-      return []
-    }
-  })
-  const [grades, setGrades] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("grade") || "[]")
-    } catch {
-      return []
-    }
-  })
-  const [attendanceTypes, setAttendanceTypes] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("attendance-type") || "[]")
-    } catch {
-      return []
-    }
-  })
-  const [shifts, setShifts] = useState<string[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("shift") || "[]")
-    } catch {
-      return []
-    }
-  })
+  // ============== REAL SETUP DATA FROM DB (no localStorage) ==============
+  const { data: setups } = useCompanySetups()
 
-  // Dropdown selections
-  const [selectedBranch, setSelectedBranch] = useState<string>("")
-  const [selectedCategory, setSelectedCategory] = useState<string>("")
-  const [selectedDepartment, setSelectedDepartment] = useState<string>("")
-  const [selectedDesignation, setSelectedDesignation] = useState<string>("")
-  const [selectedLevel, setSelectedLevel] = useState<string>("")
-  const [selectedGrade, setSelectedGrade] = useState<string>("")
-  const [selectedAttendanceType, setSelectedAttendanceType] = useState<string>("")
-  const [selectedShift, setSelectedShift] = useState<string>("")
-  const [employees, setEmployees] = useState(mockEmployees)
+  const branches = useMemo<string[]>(() => setups?.branches?.map((b: any) => b.name) || [], [setups])
+  const categories = useMemo<string[]>(() => setups?.employeeCategories?.map((c: any) => c.name) || [], [setups])
+  const departments = useMemo<string[]>(() => setups?.departments?.map((d: any) => d.name) || [], [setups])
+  const designations = useMemo<string[]>(() => setups?.designations?.map((d: any) => d.name) || [], [setups])
+  const levels = useMemo<string[]>(() => setups?.levels?.map((l: any) => l.name) || [], [setups])
+  const grades = useMemo<string[]>(() => setups?.grades?.map((g: any) => g.name) || [], [setups])
+  const attendanceTypes = useMemo<string[]>(() => setups?.attendanceTypes?.map((a: any) => a.name) || [], [setups])
+  const shiftsList = useMemo<any[]>(() => setups?.shifts || [], [setups]) // full objects for id + name
+
+  // ============== FILTER STATES ==============
+  const [selectedBranch, setSelectedBranch] = useState<string>("all")
+  const [selectedCategory, setSelectedCategory] = useState<string>("all")
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("all")
+  const [selectedDesignation, setSelectedDesignation] = useState<string>("all")
+  const [selectedLevel, setSelectedLevel] = useState<string>("all")
+  const [selectedGrade, setSelectedGrade] = useState<string>("all")
+  const [selectedAttendanceType, setSelectedAttendanceType] = useState<string>("all")
+  const [selectedShift, setSelectedShift] = useState<string>("all")
+
+  // ============== MONTH / YEAR ==============
+  const currentDate = new Date()
+  const [selectedMonth, setSelectedMonth] = useState<string>((currentDate.getMonth() + 1).toString().padStart(2, "0"))
+  const [selectedYear, setSelectedYear] = useState<string>(currentDate.getFullYear().toString())
+
+  const daysInMonth = useMemo(() => {
+    return new Date(parseInt(selectedYear), parseInt(selectedMonth), 0).getDate()
+  }, [selectedMonth, selectedYear])
+
+  // ============== MAIN DATA ==============
+  const [employees, setEmployees] = useState<any[]>([])
+  const [policies, setPolicies] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // ============== UI STATES ==============
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set())
-  const [bulkEditDialog, setBulkEditDialog] = useState<{ day: number; value: string } | null>(null)
+  const [bulkEditDialog, setBulkEditDialog] = useState<{ day?: number; value: string } | null>(null)
+  const [selectedEmployee, setSelectedEmployee] = useState<any>(null)
 
-  // Default to 31 days (full month view)
-  const daysInMonth = 31
+  // ============== FETCH REAL DATA ==============
+  // Policies (once)
+  useEffect(() => {
+    const fetchPolicies = async () => {
+      try {
+        const res = await api.get("/api/leave")
+        setPolicies(res.policies || [])
+      } catch (e) {
+        console.error("Failed to load policies")
+      }
+    }
+    fetchPolicies()
+  }, [])
 
-  // Filter employees
+  // Attendance data (on month/year change)
+  const loadAttendance = async () => {
+    setLoading(true)
+    try {
+      const res = await api.get(`/api/attendance?month=${selectedMonth}&year=${selectedYear}`)
+      setEmployees(res.employees || [])
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to load attendance", variant: "destructive" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadAttendance()
+  }, [selectedMonth, selectedYear])
+
+  // ============== FILTERED EMPLOYEES (REAL FILTERING) ==============
   const filteredEmployees = useMemo(() => {
-    return employees.filter((employee) => {
+    return employees.filter((emp) => {
+      const branchMatch = selectedBranch === "all" || emp.branch === selectedBranch
+      const catMatch = selectedCategory === "all" || emp.category === selectedCategory
+      const deptMatch = selectedDepartment === "all" || emp.department === selectedDepartment
+      const desigMatch = selectedDesignation === "all" || emp.designation === selectedDesignation
+      const levelMatch = selectedLevel === "all" || emp.level === selectedLevel
+      const gradeMatch = selectedGrade === "all" || emp.grade === selectedGrade
+      const attTypeMatch = selectedAttendanceType === "all" || emp.attendanceType === selectedAttendanceType
+      const shiftMatch = selectedShift === "all" || emp.shiftId === selectedShift
+
       return (
-        (!selectedBranch || selectedBranch === "all" || employee.branch === selectedBranch) &&
-        (!selectedCategory || selectedCategory === "all" || employee.category === selectedCategory) &&
-        (!selectedDepartment || selectedDepartment === "all" || employee.department === selectedDepartment) &&
-        (!selectedDesignation || selectedDesignation === "all" || employee.designation === selectedDesignation) &&
-        (!selectedLevel || selectedLevel === "all" || employee.level === selectedLevel) &&
-        (!selectedGrade || selectedGrade === "all" || employee.grade === selectedGrade) &&
-        (!selectedAttendanceType ||
-          selectedAttendanceType === "all" ||
-          employee.attendanceType === selectedAttendanceType) &&
-        (!selectedShift || selectedShift === "all" || employee.shift === selectedShift)
+        branchMatch &&
+        catMatch &&
+        deptMatch &&
+        desigMatch &&
+        levelMatch &&
+        gradeMatch &&
+        attTypeMatch &&
+        shiftMatch
       )
     })
   }, [
@@ -149,54 +125,14 @@ export default function AttendancePage() {
     selectedShift,
   ])
 
-  // Handle attendance status change
-  const handleAttendanceChange = (employeeId: string, day: number, value: string) => {
-    const validStatuses = ["P", "A", "Halfday", "CL", "PL", "SL", "LWP"]
-    if (!validStatuses.includes(value)) {
-      toast({
-        title: "Invalid Status",
-        description: "Please select a valid attendance status (P, A, Halfday, CL, PL, SL, LWP).",
-        variant: "destructive",
-        duration: 3000,
-      })
-      return
-    }
-    setEmployees((prev) =>
-      prev.map((emp) =>
-        emp.id === employeeId
-          ? { ...emp, attendance: emp.attendance.map((h, i) => (i === day ? value : h)) }
-          : emp
-      )
-    )
-    // TODO: Save to database
-    // await fetch("/api/attendance", { method: "POST", body: JSON.stringify({ employeeId, day, status: value }) })
-  }
+  // ============== SHIFT NAME MAP (for nice display) ==============
+  const shiftNameMap = useMemo(() => {
+    const map = new Map<string, string>()
+    shiftsList.forEach((s: any) => map.set(s.id, s.name))
+    return map
+  }, [shiftsList])
 
-  // Handle bulk edit
-  const handleBulkEdit = (day: number, value: string) => {
-    if (!bulkEditDialog) return
-    const validStatuses = ["P", "A", "Halfday", "CL", "PL", "SL", "LWP"]
-    if (!validStatuses.includes(value)) {
-      toast({
-        title: "Invalid Status",
-        description: "Please select a valid attendance status (P, A, Halfday, CL, PL, SL, LWP).",
-        variant: "destructive",
-        duration: 3000,
-      })
-      return
-    }
-    setEmployees((prev) =>
-      prev.map((emp) =>
-        selectedRows.has(emp.id)
-          ? { ...emp, attendance: emp.attendance.map((h, i) => (i === day ? value : h)) }
-          : emp
-      )
-    )
-    // TODO: Save bulk changes to database
-    setBulkEditDialog(null)
-  }
-
-  // Handle row selection
+  // ============== ROW SELECTION ==============
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
       setSelectedRows(new Set(filteredEmployees.map((emp) => emp.id)))
@@ -208,13 +144,41 @@ export default function AttendancePage() {
   const handleSelectRow = (id: string, checked: boolean) => {
     setSelectedRows((prev) => {
       const newSet = new Set(prev)
-      if (checked) {
-        newSet.add(id)
-      } else {
-        newSet.delete(id)
-      }
+      if (checked) newSet.add(id)
+      else newSet.delete(id)
       return newSet
     })
+  }
+
+  // ============== SINGLE DAY CHANGE (REAL API) ==============
+  const handleAttendanceChange = async (employeeId: string, day: number, value: string) => {
+    const dateStr = `${selectedYear}-${selectedMonth}-${(day + 1).toString().padStart(2, "0")}`
+
+    try {
+      await api.post("/api/attendance", { employeeId, date: dateStr, status: value })
+      await loadAttendance()
+      toast({ title: "Saved", description: `Day ${day + 1} updated` })
+    } catch (e) {
+      toast({ title: "Error", description: "Failed to save attendance", variant: "destructive" })
+    }
+  }
+
+  // ============== MAIN TABLE BULK EDIT ==============
+  const handleBulkEdit = async (day?: number, value?: string) => {
+    if (!day || !value) return
+
+    try {
+      for (const empId of selectedRows) {
+        const dateStr = `${selectedYear}-${selectedMonth}-${(day + 1).toString().padStart(2, "0")}`
+        await api.post("/api/attendance", { employeeId: empId, date: dateStr, status: value })
+      }
+      await loadAttendance()
+      setBulkEditDialog(null)
+      setSelectedRows(new Set())
+      toast({ title: "Bulk Update Done" })
+    } catch (e) {
+      toast({ title: "Error", description: "Some updates failed", variant: "destructive" })
+    }
   }
 
   return (
@@ -224,120 +188,124 @@ export default function AttendancePage() {
           Attendance Management
         </h1>
 
-        <Card className="bg-white border border-gray-300 rounded-lg shadow-sm hover:shadow-md transition-shadow mb-6">
+        {/* FILTER CARD */}
+        <Card className="bg-white border border-gray-300 rounded-lg shadow-sm mb-6">
           <CardHeader className="bg-blue-50 p-4 rounded-t-lg">
             <CardTitle className="text-lg font-semibold text-gray-900">Filter Attendance</CardTitle>
           </CardHeader>
           <CardContent className="p-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Month & Year */}
               <div>
-                <Label htmlFor="branch" className="text-gray-700">Branch</Label>
-                <Select value={selectedBranch} onValueChange={setSelectedBranch}>
-                  <SelectTrigger id="branch" className="text-xs sm:text-sm">
-                    <SelectValue placeholder="Select branch" />
+                <Label>Month</Label>
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger>
+                    <SelectValue />
                   </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 12 }, (_, i) => (
+                      <SelectItem key={i} value={(i + 1).toString().padStart(2, "0")}>
+                        {new Date(0, i).toLocaleString("default", { month: "long" })}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Year</Label>
+                <Select value={selectedYear} onValueChange={setSelectedYear}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 10 }, (_, i) => (
+                      <SelectItem key={i} value={(currentDate.getFullYear() - 5 + i).toString()}>
+                        {currentDate.getFullYear() - 5 + i}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* All other filters */}
+              <div>
+                <Label>Branch</Label>
+                <Select value={selectedBranch} onValueChange={setSelectedBranch}>
+                  <SelectTrigger><SelectValue placeholder="All Branches" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Branches</SelectItem>
-                    {branches.map((branch) => (
-                      <SelectItem key={branch} value={branch}>{branch}</SelectItem>
-                    ))}
+                    {branches.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="category" className="text-gray-700">Category</Label>
+                <Label>Category</Label>
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger id="category" className="text-xs sm:text-sm">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="All Categories" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map((category) => (
-                      <SelectItem key={category} value={category}>{category}</SelectItem>
-                    ))}
+                    {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="department" className="text-gray-700">Department</Label>
+                <Label>Department</Label>
                 <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                  <SelectTrigger id="department" className="text-xs sm:text-sm">
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="All Departments" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Departments</SelectItem>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                    ))}
+                    {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="designation" className="text-gray-700">Designation</Label>
+                <Label>Designation</Label>
                 <Select value={selectedDesignation} onValueChange={setSelectedDesignation}>
-                  <SelectTrigger id="designation" className="text-xs sm:text-sm">
-                    <SelectValue placeholder="Select designation" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="All Designations" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Designations</SelectItem>
-                    {designations.map((des) => (
-                      <SelectItem key={des} value={des}>{des}</SelectItem>
-                    ))}
+                    {designations.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="level" className="text-gray-700">Level</Label>
+                <Label>Level</Label>
                 <Select value={selectedLevel} onValueChange={setSelectedLevel}>
-                  <SelectTrigger id="level" className="text-xs sm:text-sm">
-                    <SelectValue placeholder="Select level" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="All Levels" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Levels</SelectItem>
-                    {levels.map((level) => (
-                      <SelectItem key={level} value={level}>{level}</SelectItem>
-                    ))}
+                    {levels.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="grade" className="text-gray-700">Grade</Label>
+                <Label>Grade</Label>
                 <Select value={selectedGrade} onValueChange={setSelectedGrade}>
-                  <SelectTrigger id="grade" className="text-xs sm:text-sm">
-                    <SelectValue placeholder="Select grade" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="All Grades" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Grades</SelectItem>
-                    {grades.map((grade) => (
-                      <SelectItem key={grade} value={grade}>{grade}</SelectItem>
-                    ))}
+                    {grades.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="attendanceType" className="text-gray-700">Attendance Type</Label>
+                <Label>Attendance Type</Label>
                 <Select value={selectedAttendanceType} onValueChange={setSelectedAttendanceType}>
-                  <SelectTrigger id="attendanceType" className="text-xs sm:text-sm">
-                    <SelectValue placeholder="Select attendance type" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="All Types" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Attendance Types</SelectItem>
-                    {attendanceTypes.map((type) => (
-                      <SelectItem key={type} value={type}>{type}</SelectItem>
-                    ))}
+                    <SelectItem value="all">All Types</SelectItem>
+                    {attendanceTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label htmlFor="shift" className="text-gray-700">Shift</Label>
+                <Label>Shift</Label>
                 <Select value={selectedShift} onValueChange={setSelectedShift}>
-                  <SelectTrigger id="shift" className="text-xs sm:text-sm">
-                    <SelectValue placeholder="Select shift" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="All Shifts" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Shifts</SelectItem>
-                    {shifts.map((shift) => (
-                      <SelectItem key={shift} value={shift}>{shift}</SelectItem>
+                    {shiftsList.map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -346,147 +314,387 @@ export default function AttendancePage() {
           </CardContent>
         </Card>
 
-        <Card className="bg-white border border-gray-300 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+        {/* MAIN TABLE CARD */}
+        <Card className="bg-white border border-gray-300 rounded-lg shadow-sm">
           <CardHeader className="bg-blue-50 p-4 rounded-t-lg">
-            <CardTitle className="text-lg font-semibold text-gray-900">Attendance Records</CardTitle>
+            <CardTitle className="text-lg font-semibold text-gray-900">
+              Attendance Records — {selectedMonth}/{selectedYear}
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-4">
             {selectedRows.size > 0 && (
-              <div className="mb-4">
+              <div className="mb-4 flex items-center gap-3">
                 <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => setBulkEditDialog({ day: 0, value: "P" })}
-                  className="bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+                  onClick={() => setBulkEditDialog({ value: "P" })}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  <Calendar className="h-4 w-4 mr-2" /> Bulk Edit Attendance
+                  <Calendar className="mr-2 h-4 w-4" /> Bulk Edit Selected
                 </Button>
-                <span className="ml-2 text-xs sm:text-sm text-gray-700">
+                <span className="text-sm text-gray-600">
                   {selectedRows.size} employee(s) selected
                 </span>
               </div>
             )}
-            <div className="overflow-x-auto">
-              <Table className="w-full">
+
+            <ScrollArea className="w-full">
+              <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50">
-                    <TableHead className="text-gray-700">
+                    <TableHead>
                       <Checkbox
-                        checked={selectedRows.size === filteredEmployees.length && filteredEmployees.length > 0}
+                        checked={filteredEmployees.length > 0 && selectedRows.size === filteredEmployees.length}
                         onCheckedChange={handleSelectAll}
                       />
                     </TableHead>
-                    <TableHead className="text-gray-700">Employee ID</TableHead>
-                    <TableHead className="text-gray-700">Name</TableHead>
-                    <TableHead className="text-gray-700">Branch</TableHead>
-                    <TableHead className="text-gray-700">Category</TableHead>
-                    <TableHead className="text-gray-700">Department</TableHead>
-                    <TableHead className="text-gray-700">Designation</TableHead>
-                    <TableHead className="text-gray-700">Level</TableHead>
-                    <TableHead className="text-gray-700">Grade</TableHead>
-                    <TableHead className="text-gray-700">Attendance Type</TableHead>
-                    <TableHead className="text-gray-700">Shift</TableHead>
-                    {Array.from({ length: daysInMonth }, (_, i) => (
-                      <TableHead key={i} className="text-gray-700">{i + 1}</TableHead>
-                    ))}
+                    <TableHead>Code</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Branch</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Designation</TableHead>
+                    <TableHead>Level</TableHead>
+                    <TableHead>Grade</TableHead>
+                    <TableHead>Att. Type</TableHead>
+                    <TableHead>Shift</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredEmployees.length > 0 ? (
-                    filteredEmployees.map((employee) => (
-                      <TableRow key={employee.id} className="hover:bg-gray-100 transition-colors">
-                        <TableCell>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={11} className="text-center py-8 text-gray-500">
+                        Loading attendance...
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredEmployees.length > 0 ? (
+                    filteredEmployees.map((emp) => (
+                      <TableRow
+                        key={emp.id}
+                        className="hover:bg-gray-100 cursor-pointer"
+                        onClick={() => setSelectedEmployee(emp)}
+                      >
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <Checkbox
-                            checked={selectedRows.has(employee.id)}
-                            onCheckedChange={(checked) => handleSelectRow(employee.id, checked as boolean)}
+                            checked={selectedRows.has(emp.id)}
+                            onCheckedChange={(ch) => handleSelectRow(emp.id, !!ch)}
                           />
                         </TableCell>
-                        <TableCell className="text-gray-800">{employee.id}</TableCell>
-                        <TableCell className="text-gray-800">{employee.name}</TableCell>
-                        <TableCell className="text-gray-800">{employee.branch}</TableCell>
-                        <TableCell className="text-gray-800">{employee.category}</TableCell>
-                        <TableCell className="text-gray-800">{employee.department}</TableCell>
-                        <TableCell className="text-gray-800">{employee.designation}</TableCell>
-                        <TableCell className="text-gray-800">{employee.level}</TableCell>
-                        <TableCell className="text-gray-800">{employee.grade}</TableCell>
-                        <TableCell className="text-gray-800">{employee.attendanceType}</TableCell>
-                        <TableCell className="text-gray-800">{employee.shift}</TableCell>
-                        {employee.attendance.slice(0, daysInMonth).map((status, day) => (
-                          <TableCell key={day}>
-                            <Select
-                              value={status}
-                              onValueChange={(value) => handleAttendanceChange(employee.id, day, value)}
-                            >
-                              <SelectTrigger id={`status-${employee.id}-${day}`} className="w-20 text-xs sm:text-sm">
-                                <SelectValue placeholder="Select status" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="P">P (Present)</SelectItem>
-                                <SelectItem value="A">A (Absent)</SelectItem>
-                                <SelectItem value="Halfday">Halfday</SelectItem>
-                                <SelectItem value="CL">CL (Casual Leave)</SelectItem>
-                                <SelectItem value="PL">PL (Paid Leave)</SelectItem>
-                                <SelectItem value="SL">SL (Sick Leave)</SelectItem>
-                                <SelectItem value="LWP">LWP (Leave Without Pay)</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                        ))}
+                        <TableCell>{emp.code}</TableCell>
+                        <TableCell>{emp.name}</TableCell>
+                        <TableCell>{emp.branch}</TableCell>
+                        <TableCell>{emp.category}</TableCell>
+                        <TableCell>{emp.department}</TableCell>
+                        <TableCell>{emp.designation}</TableCell>
+                        <TableCell>{emp.level}</TableCell>
+                        <TableCell>{emp.grade}</TableCell>
+                        <TableCell>{emp.attendanceType}</TableCell>
+                        <TableCell>{shiftNameMap.get(emp.shiftId) || emp.shiftId || "—"}</TableCell>
                       </TableRow>
                     ))
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={11 + daysInMonth} className="h-16 sm:h-24 text-center text-gray-500">
-                        No employees found for the selected filters.
+                      <TableCell colSpan={11} className="text-center py-8 text-gray-500">
+                        No employees match the selected filters.
                       </TableCell>
                     </TableRow>
                   )}
                 </TableBody>
               </Table>
-            </div>
+            </ScrollArea>
           </CardContent>
         </Card>
 
+        {/* MAIN BULK DIALOG */}
         <Dialog open={bulkEditDialog !== null} onOpenChange={() => setBulkEditDialog(null)}>
-          <DialogContent className="bg-white border border-gray-300 rounded-lg shadow-lg">
+          <DialogContent>
             <DialogHeader>
-              <DialogTitle className="text-xl font-semibold text-gray-900">
-                Bulk Edit Attendance for Day {bulkEditDialog?.day !== undefined ? bulkEditDialog.day + 1 : ""}
-              </DialogTitle>
+              <DialogTitle>Bulk Edit Attendance</DialogTitle>
             </DialogHeader>
-            <div className="space-y-5 py-5">
-              <div className="space-y-2">
-                <Label htmlFor="bulk-status" className="text-gray-700">Status</Label>
+            <div className="space-y-4 py-4">
+              <div>
+                <Label>Day</Label>
                 <Select
-                  value={bulkEditDialog?.value || "P"}
-                  onValueChange={(value) =>
-                    bulkEditDialog && setBulkEditDialog({ ...bulkEditDialog, value })
-                  }
+                  value={bulkEditDialog?.day !== undefined ? String(bulkEditDialog.day + 1) : ""}
+                  onValueChange={(v) => bulkEditDialog && setBulkEditDialog({ ...bulkEditDialog, day: parseInt(v) - 1 })}
                 >
-                  <SelectTrigger id="bulk-status" className="border-gray-300 bg-white focus:ring-2 focus:ring-blue-500">
-                    <SelectValue placeholder="Select status" />
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select day" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="P">P (Present)</SelectItem>
-                    <SelectItem value="A">A (Absent)</SelectItem>
-                    <SelectItem value="Halfday">Halfday</SelectItem>
-                    <SelectItem value="CL">CL (Casual Leave)</SelectItem>
-                    <SelectItem value="PL">PL (Paid Leave)</SelectItem>
-                    <SelectItem value="SL">SL (Sick Leave)</SelectItem>
-                    <SelectItem value="LWP">LWP (Leave Without Pay)</SelectItem>
+                    {Array.from({ length: daysInMonth }, (_, i) => (
+                      <SelectItem key={i} value={String(i + 1)}>{i + 1}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-              <Button
-                onClick={() => bulkEditDialog && handleBulkEdit(bulkEditDialog.day, bulkEditDialog.value)}
-                className="w-full bg-blue-600 text-white hover:bg-blue-700 transition-colors"
-              >
-                Apply
+              <div>
+                <Label>Status</Label>
+                <Select
+                  value={bulkEditDialog?.value || "P"}
+                  onValueChange={(v) => bulkEditDialog && setBulkEditDialog({ ...bulkEditDialog, value: v })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="P">P</SelectItem>
+                    <SelectItem value="A">A</SelectItem>
+                    <SelectItem value="Halfday">Halfday</SelectItem>
+                    <SelectItem value="CL">CL</SelectItem>
+                    <SelectItem value="PL">PL</SelectItem>
+                    <SelectItem value="SL">SL</SelectItem>
+                    <SelectItem value="LWP">LWP</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button onClick={() => handleBulkEdit(bulkEditDialog?.day, bulkEditDialog?.value)} className="w-full bg-blue-600">
+                Apply to Selected Employees
               </Button>
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* EMPLOYEE DETAIL POPUP */}
+        <Dialog open={!!selectedEmployee} onOpenChange={() => setSelectedEmployee(null)}>
+          <DialogContent className="max-w-5xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <User className="h-5 w-5" />
+                {selectedEmployee?.name} — {selectedEmployee?.code}
+              </DialogTitle>
+            </DialogHeader>
+
+            {selectedEmployee && (
+              <ScrollArea className="max-h-[85vh]">
+                <div className="space-y-6">
+                  {/* Basic Info */}
+                  <Card>
+                    <CardHeader className="bg-blue-50">
+                      <CardTitle className="text-base">Basic Information</CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-4 p-6">
+                      <div><Label>Code</Label><p>{selectedEmployee.code}</p></div>
+                      <div><Label>Branch</Label><p>{selectedEmployee.branch}</p></div>
+                      <div><Label>Category</Label><p>{selectedEmployee.category}</p></div>
+                      <div><Label>Department</Label><p>{selectedEmployee.department}</p></div>
+                      <div><Label>Designation</Label><p>{selectedEmployee.designation}</p></div>
+                      <div><Label>Level</Label><p>{selectedEmployee.level}</p></div>
+                      <div><Label>Grade</Label><p>{selectedEmployee.grade}</p></div>
+                      <div><Label>Attendance Type</Label><p>{selectedEmployee.attendanceType}</p></div>
+                      <div><Label>Shift</Label><p>{shiftNameMap.get(selectedEmployee.shiftId) || selectedEmployee.shiftId || "—"}</p></div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Attendance Grid */}
+                  <AttendanceDetails
+                    selectedEmployee={selectedEmployee}
+                    selectedMonth={selectedMonth}
+                    selectedYear={selectedYear}
+                    daysInMonth={daysInMonth}
+                    handleAttendanceChange={handleAttendanceChange}
+                    shiftNameMap={shiftNameMap}
+                    refreshAttendance={loadAttendance}
+                  />
+
+                  {/* Leave Balances */}
+                  <Card>
+                    <CardHeader className="bg-blue-50">
+                      <CardTitle className="text-base">Leave Balances</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-6 grid grid-cols-2 sm:grid-cols-4 gap-6">
+                      {Object.entries(selectedEmployee.leaveBalances || {}).map(([code, bal]) => (
+                        <div key={code} className="text-center">
+                          <Badge className="bg-purple-600 text-white mb-2">{code}</Badge>
+                          <p className="text-2xl font-semibold text-gray-800">{String(bal)}</p>
+                        </div>
+                      ))}
+                    </CardContent>
+                  </Card>
+                </div>
+              </ScrollArea>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </GlobalLayout>
+  )
+}
+
+/* ====================== POPUP ATTENDANCE DETAILS ====================== */
+function AttendanceDetails({
+  selectedEmployee,
+  selectedMonth,
+  selectedYear,
+  daysInMonth,
+  handleAttendanceChange,
+  shiftNameMap,
+  refreshAttendance,
+}: {
+  selectedEmployee: any
+  selectedMonth: string
+  selectedYear: string
+  daysInMonth: number
+  handleAttendanceChange: (empId: string, day: number, status: string) => Promise<void>
+  shiftNameMap: Map<string, string>
+  refreshAttendance: () => Promise<void>
+}) {
+  const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set())
+  const [bulkStatus, setBulkStatus] = useState<string>("P")
+
+  const attendanceSummary = useMemo(() => {
+    const counts: Record<string, number> = {}
+    selectedEmployee.attendance?.slice(0, daysInMonth).forEach((s: string) => {
+      counts[s] = (counts[s] || 0) + 1
+    })
+    return counts
+  }, [selectedEmployee.attendance, daysInMonth])
+
+  const getStatusColor = (s: string) => {
+    if (s === "P") return "bg-green-500"
+    if (s === "A") return "bg-red-500"
+    if (s === "Halfday") return "bg-yellow-500"
+    if (["CL", "PL", "SL"].includes(s)) return "bg-blue-500"
+    if (s === "LWP") return "bg-orange-500"
+    return "bg-gray-500"
+  }
+
+  const handleSelectAllDays = (checked: boolean) => {
+    if (checked) {
+      setSelectedDays(new Set(Array.from({ length: daysInMonth }, (_, i) => i)))
+    } else {
+      setSelectedDays(new Set())
+    }
+  }
+
+  const handleBulkApply = async () => {
+    if (selectedDays.size === 0) {
+      toast({ title: "No days selected", variant: "destructive" })
+      return
+    }
+
+    for (const day of selectedDays) {
+      const dateStr = `${selectedYear}-${selectedMonth}-${(day + 1).toString().padStart(2, "0")}`
+      await handleAttendanceChange(selectedEmployee.id, day, bulkStatus)
+    }
+
+    setSelectedDays(new Set())
+    await refreshAttendance()
+    toast({ title: "Bulk update saved" })
+  }
+
+  return (
+    <Card>
+      <CardHeader className="bg-blue-50">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Calendar className="h-4 w-4" /> Daily Attendance Grid
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="p-6">
+        <div className="flex items-center gap-3 mb-4">
+          <Checkbox checked={selectedDays.size === daysInMonth} onCheckedChange={handleSelectAllDays} />
+          <span>Select All Days</span>
+        </div>
+
+        {selectedDays.size > 0 && (
+          <div className="flex gap-3 mb-6">
+            <Select value={bulkStatus} onValueChange={setBulkStatus}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="P">P</SelectItem>
+                <SelectItem value="A">A</SelectItem>
+                <SelectItem value="Halfday">Halfday</SelectItem>
+                <SelectItem value="CL">CL</SelectItem>
+                <SelectItem value="PL">PL</SelectItem>
+                <SelectItem value="SL">SL</SelectItem>
+                <SelectItem value="LWP">LWP</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button onClick={handleBulkApply} className="bg-blue-600">
+              Apply to {selectedDays.size} day(s)
+            </Button>
+          </div>
+        )}
+
+        {/* 3-Column Grid of Days */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[0, 1, 2].map((col) => {
+            const start = col * 10
+            const end = Math.min(start + 10, daysInMonth)
+            if (start >= daysInMonth) return null
+
+            return (
+              <div key={col} className="border rounded-lg overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-gray-50">
+                      <TableHead className="w-12" />
+                      <TableHead>Date</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {Array.from({ length: end - start }, (_, i) => {
+                      const day = start + i
+                      const status = selectedEmployee.attendance[day] || "P"
+                      const dateObj = new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, day + 1)
+                      const weekday = dateObj.toLocaleString("default", { weekday: "short" })
+
+                      return (
+                        <TableRow key={day}>
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedDays.has(day)}
+                              onCheckedChange={(ch) => {
+                                const ns = new Set(selectedDays)
+                                if (ch) ns.add(day)
+                                else ns.delete(day)
+                                setSelectedDays(ns)
+                              }}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            {day + 1} <span className="text-xs text-gray-500">({weekday})</span>
+                          </TableCell>
+                          <TableCell>
+                            <Select
+                              value={status}
+                              onValueChange={(v) => handleAttendanceChange(selectedEmployee.id, day, v)}
+                            >
+                              <SelectTrigger className="w-28 text-sm">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="P">P</SelectItem>
+                                <SelectItem value="A">A</SelectItem>
+                                <SelectItem value="Halfday">Halfday</SelectItem>
+                                <SelectItem value="CL">CL</SelectItem>
+                                <SelectItem value="PL">PL</SelectItem>
+                                <SelectItem value="SL">SL</SelectItem>
+                                <SelectItem value="LWP">LWP</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Summary */}
+        <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
+          {Object.entries(attendanceSummary).map(([status, count]) => (
+            <div key={status} className="text-center bg-gray-50 p-4 rounded-lg">
+              <Badge className={`${getStatusColor(status)} text-white mb-1`}>{status}</Badge>
+              <p className="text-3xl font-bold text-gray-800">{count}</p>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   )
 }

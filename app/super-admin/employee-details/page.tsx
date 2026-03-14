@@ -267,46 +267,6 @@ export default function EmployeeDetailsPage() {
 
   const [selectedShifts, setSelectedShifts] = useState<string[]>([])
 
-
-
-
-  // ── Load dropdown options from localStorage (fallback values) ──
-  const [branches] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem("branch-detail") || "[]"); }
-    catch { return ["Main Branch", "Branch A", "Branch B"]; }
-  });
-  const [categories] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem("category") || "[]"); }
-    catch { return ["Full-Time", "Part-Time", "Contract"]; }
-  });
-  const [departments] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem("department") || "[]"); }
-    catch { return ["IT", "HR", "Finance", "Operations"]; }
-  });
-  const [designations] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem("designation") || "[]"); }
-    catch { return ["Software Engineer", "Manager", "Analyst", "Director"]; }
-  });
-  const [levels] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem("level") || "[]"); }
-    catch { return ["Level 1", "Level 2", "Level 3", "Level 4"]; }
-  });
-  const [grades] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem("grade") || "[]"); }
-    catch { return ["A1", "A2", "B1", "B2"]; }
-  });
-  const [ptGroups] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem("pt-group") || "[]"); }
-    catch { return ["Group A", "Group B", "Group C"]; }
-  });
-  const [shifts] = useState<string[]>(() => {
-    try { return JSON.parse(localStorage.getItem("shift") || "[]"); }
-    catch { return ["Morning", "Afternoon", "Night"]; }
-  });
-
-  // ── Filter states (8 dropdowns) ──
-
-
   // ── Load employees from API ──
   async function loadEmployees() {
     try {
@@ -524,28 +484,30 @@ export default function EmployeeDetailsPage() {
     try {
       setLoading(true);
 
-      // 1. Destructure all tabs from the form state
+      // ─────────────────────────────────────────────────────────────
+      // Child (AddEmployee) now sends PERFECT structure:
+      // { employee: {code, name, permanentAddress, ...}, salary, qualifications, family, ... }
+      // We just need to sanitize + clean relations — NO double nesting
+      // ─────────────────────────────────────────────────────────────
+
       const {
+        employee: rawEmployee = {},
         salary,
-        qualifications,
-        experiences,
-        family,           // UI usually calls this 'family'
-        nominees,
-        witnesses,
-        assets,           // UI usually calls this 'assets'
-        permanentAddress,
-        correspondenceAddress,
-        ...basicInfo
+        qualifications = [],
+        experiences = [],
+        family = [],
+        nominees = [],
+        witnesses = [],
+        // companyAssets not sent by child yet → keep empty
       } = formData;
 
-      // 2. Sanitize the main employee object (Dates, Enums, Numbers)
-      const employeeData = sanitizeForPrisma(basicInfo);
+      // 1. Sanitize the main employee object (dates, enums, numbers, booleans)
+      const employeeData = sanitizeForPrisma(rawEmployee);
 
-      // 3. Build the "Relations" object (Mapping UI keys to Prisma keys)
+      // 2. Clean relations (exactly like before)
       const relations = {
         salaryConfig: salary ? cleanSalary(salary) : null,
 
-        // We strip 'id' so Prisma generates new database IDs
         qualifications: cleanArray(qualifications).map(({ id, ...rest }: any) => rest),
 
         experiences: cleanArray(experiences).map(({ id, ...rest }: any) => ({
@@ -563,13 +525,13 @@ export default function EmployeeDetailsPage() {
 
         witnesses: cleanArray(witnesses).map(({ id, ...rest }: any) => rest),
 
-        // Note: Your schema calls this 'companyAssets' in relations
-        assets: cleanArray(assets).map(({ id, ...rest }: any) => rest),
+        assets: [], // child doesn't send assets yet
 
-        permanentAddress: cleanAddress(permanentAddress),
-        correspondenceAddress: cleanAddress(correspondenceAddress),
+        permanentAddress: cleanAddress(employeeData.permanentAddress),
+        correspondenceAddress: cleanAddress(employeeData.correspondenceAddress),
       };
 
+      // 3. FINAL PAYLOAD — single "employee" level (this is what backend expects)
       const finalPayload = {
         employee: {
           ...employeeData,
@@ -582,28 +544,32 @@ export default function EmployeeDetailsPage() {
         family: relations.familyMembers,
         nominees: relations.nominees,
         witnesses: relations.witnesses,
-        companyAssets: relations.assets
+        companyAssets: relations.assets,
       };
 
-      // 4. TERMINAL CHECK: Log this to see exactly what goes to the API
-      console.log("📦 FINAL PAYLOAD:", JSON.stringify(finalPayload, null, 2));
+      console.log("📦 FINAL PAYLOAD (to API):", JSON.stringify(finalPayload, null, 2));
 
-      if (formData.id) {
+      // 4. Create or Update
+      const isUpdate = !!rawEmployee?.id;
+      if (isUpdate) {
         // Update
-        await api.put("/api/employee-details", { id: formData.id, ...finalPayload });
+        await api.put("/api/employee-details", {
+          id: rawEmployee.id,
+          ...finalPayload,
+        });
       } else {
-        // Create - Ensure no ID is inside the employee object for POST
+        // Create
         const postData = { ...finalPayload };
-        delete (postData.employee as any).id;
+        delete (postData.employee as any).id; // safety
         await api.post("/api/employee-details", postData);
       }
 
-      alert("Employee saved successfully!");
+      alert(`Employee ${isUpdate ? "updated" : "created"} successfully!`);
       setOpen(false);
-      loadEmployees(); // Refresh the table
+      loadEmployees(); // Refresh table
     } catch (error: any) {
       console.error("❌ Submission Failed:", error);
-      alert(error.response?.data?.error || "Check terminal for error details");
+      alert(error.response?.data?.error || error.message || "Check console for details");
     } finally {
       setLoading(false);
     }
