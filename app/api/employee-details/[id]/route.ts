@@ -24,12 +24,14 @@ export async function GET(
       return NextResponse.json({ error: "Employee ID is required" }, { status: 400 });
     }
     const normalizeAddress = (addr: any) => ({
-      address1: addr?.address1 ?? "",
-      address2: addr?.address2 ?? "",
+      flat: addr?.flat ?? "",
+      building: addr?.building ?? "",
+      area: addr?.area ?? "",
+      road: addr?.road ?? "",
       city: addr?.city ?? "",
+      district: addr?.district ?? "",
       state: addr?.state ?? "",
-      country: addr?.country ?? "",
-      pincode: addr?.pincode ?? "",
+      pin: addr?.pin ?? "",
     });
 
 

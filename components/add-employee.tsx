@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { calculateSalary } from "@/app/lib/calculateSalary";
 import { useCompanySetups } from "@/hooks/useCompanySetups";
-const INDIAN_STATES: string[] = [
+const INDIAN_STATES = [
   "ANDHRA_PRADESH",
   "ARUNACHAL_PRADESH",
   "ASSAM",
@@ -47,7 +47,7 @@ const INDIAN_STATES: string[] = [
 
 type AddEmployeeProps = {
   employee?: any;
-  onSubmit?: (updatedEmployee: any) => void;
+  onSubmit?: (payload: any) => void;
   onCancel?: () => void;
 };
 
@@ -80,25 +80,140 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
   const [isSameAsAbove, setIsSameAsAbove] = useState(false);
 
   const MAX_UPLOAD_SIZE = 50 * 1024; // 50 KB
+  const [isSaving, setIsSaving] = useState(false);
   const [employee, setEmployee] = useState<any>({
+    // ================= PERSONAL TAB =================
+    code: "",
+    name: "",
+    gender: "MALE",
+    maritalStatus: "UNMARRIED",
+    fathersName: "",
+    mothersName: "",
+    spouse: "",
+    dob: "",
+    dateOfMarriage: "",
+    bloodGroup: "",
+    nationality: "Indian",
+    religion: "HINDU",
+    caste: "GEN",
+    noOfDependent: "",
+    email: "",
+    mobile: "",
+    pan: "",
+    aadhaar: "",
+    nasscomRegNo: "",
+    internalId: "",
+    resignationReason: "",
+    fatherHusbandName: "",
+    emergencyContact: "",
+    emergencyPhone: "",
+
+    // ================= OFFICE DETAILS TAB =================
+    branch: "",
+    department: "",
+    designation: "",
+    level: "",
+    grade: "",
+    category: "",
+    attendanceType: "",
+
+    // ================= QUALIFICATION & EXPERIENCE (Shared) =================
+    educationalQualification: "",
+    previousYears: "",
+    previousMonths: "",
+
+    // ================= FINANCIAL TAB =================
+    // Bank Details
+    bankName: "",
+    bankBranch: "",
+    bankIfsc: "",
+    bankAddress: "",
+    nameAsPerAc: "",
+    salaryAcNumber: "",
+    paymentMode: "TRANSFER",
+    acType: "ECS",
+    bankRefNo: "",
+    wardCircleRange: "",
+    // Insurance/LIC
+    licPolicyNo: "",
+    policyTerm: "",
+    licId: "",
+    annualRenewableDate: "",
+    // Applicability Flags
+    reimbursementApplicable: false,
+    hraApplicable: false,
+    bonusApplicable: false,
+    gratuityApplicable: false,
+    lwfApplicable: false,
+    pfApplicable: false,
+    // PF Details
+    pfAcNo: "",
+    pfJoiningDate: "",
+    pfLastDate: "",
+    salaryForPfOption: "ACTUAL",
+    salaryForPf: "",
+    minAmtPf: "",
+    pensionAppl: false,
+    pensionJoiningDate: "",
+    noLimit: false,
+    pensionOnHigherWages: false,
+    // ESI Details
+    esiApplicable: false,
+    esiJoiningDate: "",
+    esiLastDate: "",
+    esiNo: "",
+    minAmtEsiContribution: "",
+    dispensaryOrPanel: "Dispensary",
+    // Handicap & PMRPY
+    physicallyHandicap: "NO",
+    registeredInPmrpy: false,
+
+    // ================= OTHER TAB =================
+    recruitmentAgency: "",
+    bankMandate: "",
+    employmentStatus: "Active",
+    lapTops: "",
+    companyVehicle: "",
+    corpCreditCardNo: "",
+    transportRoute: "",
+    workLocation: "",
+    service: "",
+    remarks: "",
+
+    // ================= EMPLOYMENT DATES (Shared Across Tabs) =================
+    doj: "",
+    noticePeriodMonths: "",
+    probationPeriodMonths: "",
+    confirmationDate: "",
+    resigLetterDate: "",
+    resigDateLwd: "",
+    appraisalDate: "",
+    commitmentCompletionDate: "",
+    dateOfDeath: "",
+
+    // ================= ADDRESSES =================
     permanentAddress: {
+      flat: "",
       building: "",
       area: "",
       road: "",
       city: "",
-      pin: "",
       district: "",
       state: "",
+      pin: "",
     },
     correspondenceAddress: {
+      flat: "",
       building: "",
       area: "",
       road: "",
       city: "",
-      pin: "",
       district: "",
       state: "",
+      pin: "",
     },
+
+    // ================= ARRAYS (Relations) =================
     family: [],
     nominees: [],
     qualifications: [],
@@ -111,76 +226,84 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
     years: "",
     months: "",
   });
+  const tableInput = "w-full h-9 px-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400";
+  const tableTextarea = "w-full px-2 py-1 text-sm border border-gray-300 rounded resize-none focus:outline-none focus:ring-1 focus:ring-blue-400";
 
   // Helper to update nested address fields
   const handleAddressChange = (type: "permanentAddress" | "correspondenceAddress", field: string, value: string) => {
-    setEmployee((prev: typeof employee) => ({
+    setEmployee((prev: any) => ({
       ...prev,
       [type]: { ...prev[type], [field]: value },
     }));
   };
 
-  // Sync Logic: Watch ONLY the checkbox and the permanentAddress object
+  // ================= 1. SYNC "SAME AS ABOVE" =================
   useEffect(() => {
     if (!isSameAsAbove) return;
 
-    setEmployee((prev: typeof employee) => {
-      const same =
-        JSON.stringify(prev.correspondenceAddress) ===
-        JSON.stringify(prev.permanentAddress);
-
-      if (same) return prev; // STOP LOOP
-
-      return {
-        ...prev,
-        correspondenceAddress: { ...prev.permanentAddress },
-      };
-    });
+    setEmployee((prev: any) => ({
+      ...prev,
+      correspondenceAddress: { ...prev.permanentAddress },
+    }));
   }, [isSameAsAbove, employee.permanentAddress]);
 
-
-
-  const tableInput =
-    "w-full h-9 px-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400";
-
-  const tableTextarea =
-    "w-full px-2 py-1 text-sm border border-gray-300 rounded resize-none focus:outline-none focus:ring-1 focus:ring-blue-400";
-
-
-  // Load employee data when prop changes (for editing)
+  // ================= 3. LOAD EMPLOYEE DATA WHEN PROP CHANGES (FOR EDITING) =================
+  // ✅ FIXED EDIT MODE + INITIAL CHECKBOX LOGIC
   useEffect(() => {
     if (employeeProp && Object.keys(employeeProp).length > 0) {
-      // Deep clone to avoid reference issues
-      setEmployee(JSON.parse(JSON.stringify(employeeProp)));
+      const cloned = JSON.parse(JSON.stringify(employeeProp));
 
-      // Load salary data if employee has salary information
-      if (employeeProp.salary) {
-        setSalaryMode(employeeProp.salary.mode || "CTC");
-        setSalaryAmount(employeeProp.salary.inputAmount || 0);
-        if (employeeProp.salary.selectedHeadIds) {
-          setSelectedHeadIds(employeeProp.salary.selectedHeadIds);
-        }
+      // Ensure address objects are complete
+      cloned.permanentAddress = {
+        flat: cloned.permanentAddress?.flat || "",
+        building: cloned.permanentAddress?.building || "",
+        area: cloned.permanentAddress?.area || "",
+        road: cloned.permanentAddress?.road || "",
+        city: cloned.permanentAddress?.city || "",
+        district: cloned.permanentAddress?.district || "",
+        state: cloned.permanentAddress?.state || "",
+        pin: cloned.permanentAddress?.pin || "",
+      };
+
+      cloned.correspondenceAddress = {
+        flat: cloned.correspondenceAddress?.flat || "",
+        building: cloned.correspondenceAddress?.building || "",
+        area: cloned.correspondenceAddress?.area || "",
+        road: cloned.correspondenceAddress?.road || "",
+        city: cloned.correspondenceAddress?.city || "",
+        district: cloned.correspondenceAddress?.district || "",
+        state: cloned.correspondenceAddress?.state || "",
+        pin: cloned.correspondenceAddress?.pin || "",
+      };
+
+      // 🔥 CRITICAL: Auto-set checkbox based on real data
+      const p = cloned.permanentAddress;
+      const c = cloned.correspondenceAddress;
+      const addressesMatch =
+        p.flat === c.flat &&
+        p.building === c.building &&
+        p.area === c.area &&
+        p.road === c.road &&
+        p.city === c.city &&
+        p.district === c.district &&
+        p.state === c.state &&
+        p.pin === c.pin;
+
+      setIsSameAsAbove(addressesMatch);
+
+      setEmployee(cloned);
+
+      // Salary prefill (unchanged)
+      if (cloned.salary) {
+        setSalaryMode(cloned.salary.mode || "CTC");
+        setSalaryAmount(cloned.salary.inputAmount || 0);
+        setSelectedHeadIds(cloned.salary.selectedHeadIds || []);
       }
     } else {
+      // New employee reset
       setEmployee({
-        permanentAddress: {
-          building: "",
-          area: "",
-          road: "",
-          city: "",
-          pin: "",
-          district: "",
-          state: "",
-        },
-        correspondenceAddress: {
-          building: "",
-          area: "",
-          road: "",
-          city: "",
-          pin: "",
-          district: "",
-          state: "",
-        },
+        permanentAddress: { flat: "", building: "", area: "", road: "", city: "", district: "", state: "", pin: "" },
+        correspondenceAddress: { flat: "", building: "", area: "", road: "", city: "", district: "", state: "", pin: "" },
         family: [],
         nominees: [],
         qualifications: [],
@@ -188,22 +311,12 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
         experiences: [],
         companyAssets: [],
       });
+      setIsSameAsAbove(false);
       setSalaryMode("CTC");
       setSalaryAmount(0);
       setSelectedHeadIds([]);
     }
-
   }, [employeeProp]);
-  // Detect if addresses are same when editing employee
-  useEffect(() => {
-    if (!employee?.permanentAddress || !employee?.correspondenceAddress) return;
-
-    const same =
-      JSON.stringify(employee.permanentAddress) ===
-      JSON.stringify(employee.correspondenceAddress);
-
-    setIsSameAsAbove(same);
-  }, [employee]);
 
 
 
@@ -368,6 +481,7 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
 
   // ---------------- SALARY CALCULATION ENGINE ----------------
   useEffect(() => {
+    setSalaryError(null);
     if (!salaryAmount || salaryAmount <= 0 || salaryHeads.length === 0 || selectedHeadIds.length === 0) {
       setCalculatedRows([]);
       setCalculationTotals(null);
@@ -408,58 +522,135 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSaving(true);
 
-    // Validate required fields
-    if (!employee.code || employee.code.trim() === "") {
+    // Basic validation
+    if (!employee.code?.trim()) {
       alert("Employee Code is required");
+      setIsSaving(false);
+      return;
+    }
+    if (!employee.branch || !employee.department || !employee.designation) {
+      alert("Branch, Department, and Designation are required");
+      setActiveTab("Office details");
+      setIsSaving(false);
       return;
     }
 
-    const payload = {
-      employee,
+    // ✅ PROFESSIONAL PAYLOAD - Exactly matches backend expectation
+    const finalPayload = {
+      // Wrap under "employee" key (this is what the backend uses)
+      employee: {
+        ...(employee.id && { id: employee.id }),
+        code: employee.code?.trim() || "",
+        name: employee.name?.trim() || "",
+        fatherHusbandName: employee.fatherHusbandName || employee.fathersName || "",
+        pan: employee.pan?.trim() || "",
+        aadhaar: employee.aadhaar?.trim() || "",
+        uan: employee.uan?.trim() || "",
+        pfAcNo: employee.pfAcNo?.trim() || "",
+        esiNo: employee.esiNo?.trim() || "",
+        email: employee.email?.trim()?.toLowerCase() || "",
+        gender: employee.gender || "MALE",
+        maritalStatus: employee.maritalStatus || "UNMARRIED",
+        dob: employee.dob || null,
+        doj: employee.doj || null,
+        dor: employee.dor || null,
+        dateOfMarriage: employee.dateOfMarriage || null,
+        bloodGroup: employee.bloodGroup || "",
+        nationality: employee.nationality || "Indian",
+        religion: employee.religion || "HINDU",
+        caste: employee.caste || "GEN",
+        noOfDependent: employee.noOfDependent || null,
+        spouse: employee.spouse || "",
+        phone: employee.phone?.trim() || "",
+        mobile: employee.mobile?.trim() || "",
+        internalId: employee.internalId || "",
+        nasscomRegNo: employee.nasscomRegNo || "",
+        physicallyHandicap: employee.physicallyHandicap || "NO",
+        registeredInPmrpy: !!employee.registeredInPmrpy,
+        reimbursementApplicable: !!employee.reimbursementApplicable,
+        hraApplicable: !!employee.hraApplicable,
+        bonusApplicable: !!employee.bonusApplicable,
+        gratuityApplicable: !!employee.gratuityApplicable,
+        lwfApplicable: !!employee.lwfApplicable,
+        pfApplicable: !!employee.pfApplicable,
+        esiApplicable: !!employee.esiApplicable,
+
+        // Bank & Financial
+        bankName: employee.bankName || "",
+        bankBranch: employee.bankBranch || "",
+        bankIfsc: employee.bankIfsc || "",
+        bankAddress: employee.bankAddress || "",
+        nameAsPerAc: employee.nameAsPerAc || "",
+        salaryAcNumber: employee.salaryAcNumber || "",
+        paymentMode: employee.paymentMode || "TRANSFER",
+        acType: employee.acType || "ECS",
+        bankRefNo: employee.bankRefNo || "",
+        wardCircleRange: employee.wardCircleRange || "",
+        licPolicyNo: employee.licPolicyNo || "",
+        policyTerm: employee.policyTerm || "",
+        licId: employee.licId || "",
+        annualRenewableDate: employee.annualRenewableDate || null,
+
+        // Office Details
+        branch: employee.branch || "",
+        department: employee.department || "",
+        designation: employee.designation || "",
+        level: employee.level || "",
+        grade: employee.grade || "",
+        category: employee.category || "",
+        attendanceType: employee.attendanceType || "",
+
+        // Dates & Periods
+        noticePeriodMonths: employee.noticePeriodMonths || null,
+        probationPeriodMonths: employee.probationPeriodMonths || null,
+        confirmationDate: employee.confirmationDate || null,
+        resigLetterDate: employee.resigLetterDate || null,
+        resigDateLwd: employee.resigDateLwd || null,
+        appraisalDate: employee.appraisalDate || null,
+        commitmentCompletionDate: employee.commitmentCompletionDate || null,
+        dateOfDeath: employee.dateOfDeath || null,
+        resignationReason: employee.resignationReason || null,
+
+        // ADDRESSES (critical - must be objects)
+        permanentAddress: employee.permanentAddress || {},
+        correspondenceAddress: employee.correspondenceAddress || {},
+
+        // Other fields from your state
+        fathersName: employee.fathersName || "",
+        mothersName: employee.mothersName || "",
+        lapTops: employee.lapTops || "",
+        companyVehicle: employee.companyVehicle || "",
+        corpCreditCardNo: employee.corpCreditCardNo || "",
+        transportRoute: employee.transportRoute || "",
+        workLocation: employee.workLocation || "",
+        service: employee.service || "",
+        remarks: employee.remarks || "",
+        recruitmentAgency: employee.recruitmentAgency || "",
+        bankMandate: employee.bankMandate || "",
+        employmentStatus: employee.employmentStatus || "ACTIVE",
+      },
+
+      // Related records (backend expects these at root)
+      qualifications: employee.qualifications || [],
+      family: employee.family || [],
+      nominees: employee.nominees || [],
+      witnesses: employee.witnesses || [],
+      experiences: employee.experiences || [],
+
+      // Salary (backend supports this directly)
       salary: {
         mode: salaryMode,
         inputAmount: salaryAmount,
-        selectedHeadIds,
+        selectedHeadIds: selectedHeadIds || [],
       },
     };
 
-    try {
-      // Get company ID from localStorage for header
-      const selectedCompany = localStorage.getItem("selectedCompany");
-      if (!selectedCompany) {
-        alert("Please select a company first");
-        return;
-      }
+    console.log("🚀 FINAL PAYLOAD (Create):", JSON.stringify(finalPayload, null, 2));
 
-      const company = JSON.parse(selectedCompany);
-      const companyId = company?.id;
-
-      if (!companyId) {
-        alert("Invalid company selection");
-        return;
-      }
-
-      const res = await fetch("/api/employee-details", {
-        method: employeeProp?.id ? "PUT" : "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-company-id": companyId,
-        },
-        body: JSON.stringify(employeeProp?.id ? { id: employeeProp.id, ...payload } : payload),
-      });
-
-      if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error || error.message || "Failed to save employee");
-      }
-
-      const result = await res.json();
-      alert(employeeProp?.id ? "Employee updated successfully" : "Employee created successfully");
-      onSubmit?.(result);
-    } catch (err: any) {
-      alert(err.message || "Failed to save employee");
-    }
+    onSubmit?.(finalPayload);   // ← send to parent
+    setIsSaving(false);
   };
 
 
@@ -507,6 +698,13 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                 <label className="block text-sm font-bold mt-4">
                   Permanent Address Details :-
                 </label>
+                <input
+                  type="text"
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
+                  placeholder="Flat / House No."
+                  value={employee.permanentAddress?.flat || ""}
+                  onChange={(e) => handleAddressChange("permanentAddress", "flat", e.target.value)}
+                />
 
                 <input
                   type="text"
@@ -580,14 +778,25 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                     type="checkbox"
                     className="mr-2"
                     checked={isSameAsAbove}
-                    onChange={(e) => setIsSameAsAbove(e.target.checked)}
+                    onChange={(e) => {
+                      const checked = e.target.checked;
+                      setIsSameAsAbove(checked);
+
+                      if (checked) {
+                        // Sync immediately
+                        setEmployee((prev: any) => ({
+                          ...prev,
+                          correspondenceAddress: { ...prev.permanentAddress },
+                        }));
+                      }
+                      // When unchecking → do NOTHING (keep current correspondenceAddress)
+                      // This allows independent editing in Update mode
+                    }}
                   />
                   <span className="text-sm font-medium text-gray-700">
                     Correspondence address is same as above
                   </span>
                 </div>
-
-
                 {/* Correspondence Address */}
                 <label className="block text-sm font-bold mt-4">
                   Correspondence Address Details :-
@@ -702,10 +911,10 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
 
             <div>
               <label className="block text-sm font-bold">Aadhaar No.</label>
-              <input type="text" value={employee.aadharNo || ""} onChange={(e) => handleFieldChange("aadharNo", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="text" value={employee.aadhaar || ""} onChange={(e) => handleFieldChange("aadhaar", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">Mobile No.</label>
-              <input type="text" value={employee.mobileNo || ""} onChange={(e) => handleFieldChange("mobileNo", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="text" value={employee.mobile || ""} onChange={(e) => handleFieldChange("mobile", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">Internal ID</label>
               <input type="text" value={employee.internalId || ""} onChange={(e) => handleFieldChange("internalId", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
@@ -733,10 +942,10 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
               <input type="date" value={employee.confirmationDate || ""} onChange={(e) => handleFieldChange("confirmationDate", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">Resig. Letter Date</label>
-              <input type="date" value={employee.resignationLetterDate || ""} onChange={(e) => handleFieldChange("resignationLetterDate", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="date" value={employee.resigLetterDate || ""} onChange={(e) => handleFieldChange("resigLetterDate", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">Resig. Date L.W.D.</label>
-              <input type="date" value={employee.resignationDateLWD || ""} onChange={(e) => handleFieldChange("resignationDateLWD", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="date" value={employee.resigDateLwd || ""} onChange={(e) => handleFieldChange("resigDateLwd", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">Appraisal Date</label>
               <input type="date" value={employee.appraisalDate || ""} onChange={(e) => handleFieldChange("appraisalDate", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
@@ -747,9 +956,13 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
               <label className="block text-sm font-bold mt-4">Date of Death</label>
               <input type="date" value={employee.dateOfDeath || ""} onChange={(e) => handleFieldChange("dateOfDeath", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
-              <label className="block text-sm font-bold mt-4">SELECT REASON</label>
-              <select value={employee.reason || ""} onChange={(e) => handleFieldChange("reason", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
-                <option>SELECT REASON</option>
+              <label className="block text-sm font-bold mt-4">Resignation Reason</label>
+              <select value={employee.resignationReason || ""} onChange={(e) => handleFieldChange("resignationReason", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
+                <option value="">SELECT REASON</option>
+                <option>Resigned</option>
+                <option>Terminated</option>
+                <option>Retired</option>
+                <option>Other</option>
               </select>
             </div>
 
@@ -776,10 +989,11 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
 
                 <label className="block text-sm font-bold mt-4">Marital Status</label>
                 <select value={employee.maritalStatus || ""} onChange={(e) => handleFieldChange("maritalStatus", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
-                  <option>UnMarried</option>
-                  <option>Married</option>
-                  <option>Widowed</option>
-                  <option>Divorced</option>
+                  <option value="">Select</option>
+                  <option value="UNMARRIED">Unmarried</option>
+                  <option value="MARRIED">Married</option>
+                  <option value="WIDOWED">Widowed</option>
+                  <option value="DIVORCED">Divorced</option>
                 </select>
 
                 <label className="block text-sm font-bold mt-4">Father's Name</label>
@@ -790,54 +1004,59 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
 
                 <label className="block text-sm font-bold mt-4">Blood Group</label>
                 <select value={employee.bloodGroup || ""} onChange={(e) => handleFieldChange("bloodGroup", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
-                  <option>A+</option>
-                  <option>A-</option>
-                  <option>B+</option>
-                  <option>B-</option>
-                  <option>AB+</option>
-                  <option>AB-</option>
-                  <option>O+</option>
-                  <option>O-</option>
+                  <option value="">Select</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
                 </select>
 
                 <label className="block text-sm font-bold mt-4">Date of Marriage</label>
                 <input type="date" value={employee.dateOfMarriage || ""} onChange={(e) => handleFieldChange("dateOfMarriage", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
                 <label className="block text-sm font-bold mt-4">No. Dependent</label>
-                <input type="text" value={employee.noOfDependents || ""} onChange={(e) => handleFieldChange("noOfDependents", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+                <input type="text" value={employee.noOfDependent || ""} onChange={(e) => handleFieldChange("noOfDependent", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
               </div>
 
               <div>
                 <label className="block text-sm font-bold">Caste</label>
                 <select value={employee.caste || ""} onChange={(e) => handleFieldChange("caste", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
-                  <option>GEN</option>
-                  <option>OBC</option>
-                  <option>SC</option>
-                  <option>ST</option>
+                  <option value="">Select</option>
+                  <option value="GEN">General</option>
+                  <option value="OBC">OBC</option>
+                  <option value="SC">SC</option>
+                  <option value="ST">ST</option>
                 </select>
 
                 <label className="block text-sm font-bold mt-4">Nationality</label>
                 <select value={employee.nationality || ""} onChange={(e) => handleFieldChange("nationality", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
-                  <option>Indian</option>
-                  <option>NRI</option>
+                  <option value="">Select</option>
+                  <option value="Indian">Indian</option>
+                  <option value="NRI">NRI</option>
+                  <option value="Foreign">Foreign</option>
                 </select>
 
                 <label className="block text-sm font-bold mt-4">Religion</label>
                 <select value={employee.religion || ""} onChange={(e) => handleFieldChange("religion", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
-                  <option>HINDU</option>
-                  <option>MUSLIM</option>
-                  <option>CHRISTIAN</option>
-                  <option>SIKH</option>
-                  <option>BUDDHIST</option>
-                  <option>JAIN</option>
-                  <option>OTHERS</option>
+                  <option value="">Select</option>
+                  <option value="HINDU">Hindu</option>
+                  <option value="MUSLIM">Muslim</option>
+                  <option value="CHRISTIAN">Christian</option>
+                  <option value="SIKH">Sikh</option>
+                  <option value="BUDDHIST">Buddhist</option>
+                  <option value="JAIN">Jain</option>
+                  <option value="OTHERS">Others</option>
                 </select>
 
                 <label className="block text-sm font-bold mt-4">Spouse</label>
                 <input type="text" value={employee.spouse || ""} onChange={(e) => handleFieldChange("spouse", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
                 <div className="mt-4">
-                  <input type="checkbox" /> Reimbursement Applicable
+                  <input type="checkbox" checked={employee.reimbursementApplicable || false} onChange={(e) => handleFieldChange("reimbursementApplicable", e.target.checked)} /> Reimbursement Applicable
                 </div>
               </div>
             </div>
@@ -1071,14 +1290,21 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (!file) return;
-
                             if (file.size > MAX_UPLOAD_SIZE) {
                               alert("File size must be 50 KB or less.");
                               e.target.value = ""; // reset input
                               return;
                             }
-
-                            updateRow("qualifications", index, "uploadCertification", file);
+                            const reader = new FileReader();
+                            reader.onload = (ev) => {
+                              const base64 = (ev.target?.result as string).split(',')[1]; // Strip prefix
+                              updateRow("qualifications", index, "uploadCertification", {
+                                name: file.name,
+                                size: file.size,
+                                base64, // Backend saves as certificate
+                              });
+                            };
+                            reader.readAsDataURL(file);
                           }}
                         />
 
@@ -1352,25 +1578,32 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
               <input type="text" value={employee.bankBranch || ""} onChange={(e) => handleFieldChange("bankBranch", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">Bank IFSC</label>
-              <input type="text" value={employee.bankIFSC || ""} onChange={(e) => handleFieldChange("bankIFSC", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="text" value={employee.bankIfsc || ""} onChange={(e) => handleFieldChange("bankIfsc", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">Address</label>
               <input type="text" value={employee.bankAddress || ""} onChange={(e) => handleFieldChange("bankAddress", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">Name as per A/c</label>
-              <input type="text" value={employee.bankNameAsPerAcoount || ""} onChange={(e) => handleFieldChange("bankNameAsPerAcoount", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="text" value={employee.nameAsPerAc || ""} onChange={(e) => handleFieldChange("nameAsPerAc", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">Salary A/c Number</label>
-              <input type="text" value={employee.bankAccountNumber || ""} onChange={(e) => handleFieldChange("bankAccountNumber", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="text" value={employee.salaryAcNumber || ""} onChange={(e) => handleFieldChange("salaryAcNumber", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">Payment Mode</label>
               <select value={employee.paymentMode || ""} onChange={(e) => handleFieldChange("paymentMode", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
-                <option>TRANSFER</option>
+                <option value="">Select</option>
+                <option value="TRANSFER">Transfer</option>
+                <option value="CHEQUE">Cheque</option>
+                <option value="CASH">Cash</option>
               </select>
 
               <label className="block text-sm font-bold mt-4">A/c Type</label>
-              <select value={employee.accountType || ""} onChange={(e) => handleFieldChange("accountType", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
-                <option>ECS</option>
+              <select value={employee.acType || ""} onChange={(e) => handleFieldChange("acType", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
+                <option value="">Select</option>
+                <option value="ECS">ECS</option>
+                <option value="NEFT">NEFT</option>
+                <option value="RTGS">RTGS</option>
+                <option value="IMPS">IMPS</option>
               </select>
 
               <label className="block text-sm font-bold mt-4">Bank Ref. No.</label>
@@ -1389,7 +1622,7 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
               <input type="text" value={employee.licId || ""} onChange={(e) => handleFieldChange("licId", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">Annual Renewal Date</label>
-              <input type="date" value={employee.annualRenewalDate || ""} onChange={(e) => handleFieldChange("annualRenewalDate", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="date" value={employee.annualRenewableDate || ""} onChange={(e) => handleFieldChange("annualRenewableDate", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <div className="mt-4 flex flex-wrap gap-4">
                 <input type="checkbox" checked={employee.hraApplicable || false} onChange={(e) => handleFieldChange("hraApplicable", e.target.checked)} /> HRA Applicable
@@ -1425,7 +1658,7 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
               <input type="date" value={employee.pfLastDate || ""} onChange={(e) => handleFieldChange("pfLastDate", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">PF No.</label>
-              <input type="text" value={employee.pfNo || ""} onChange={(e) => handleFieldChange("pfNo", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="text" value={employee.pfAcNo || ""} onChange={(e) => handleFieldChange("pfAcNo", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">UAN</label>
               <input type="text" value={employee.uan || ""} onChange={(e) => handleFieldChange("uan", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
@@ -1436,8 +1669,8 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                   type="radio"
                   name="pf_salary"
                   value="ACTUAL"
-                  checked={employee.pfSalary === "ACTUAL"}
-                  onChange={() => handleFieldChange("pfSalary", "ACTUAL")}
+                  checked={employee.salaryForPfOption === "ACTUAL"}
+                  onChange={() => handleFieldChange("salaryForPfOption", "ACTUAL")}
                 />
                 Consider Actual Salary
 
@@ -1445,8 +1678,8 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                   type="radio"
                   name="pf_salary"
                   value="EMPLOYER"
-                  checked={employee.pfSalary === "EMPLOYER"}
-                  onChange={() => handleFieldChange("pfSalary", "EMPLOYER")}
+                  checked={employee.salaryForPfOption === "EMPLOYER"}
+                  onChange={() => handleFieldChange("salaryForPfOption", "EMPLOYER")}
                   className="ml-4"
                 />
                 Same For Employer
@@ -1458,17 +1691,17 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
               <input type="text" value={employee.salaryForPf || ""} onChange={(e) => handleFieldChange("salaryForPf", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">Specify Min. Amt of PF</label>
-              <input type="text" value={employee.specifyMinAmtOfPf || ""} onChange={(e) => handleFieldChange("specifyMinAmtOfPf", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="text" value={employee.minAmtPf || ""} onChange={(e) => handleFieldChange("minAmtPf", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <div className="mt-4">
                 <input type="checkbox" checked={employee.pensionAppl || false} onChange={(e) => handleFieldChange("pensionAppl", e.target.checked)} /> Pension Appl.
               </div>
 
-              <label className="block text-sm font-bold mt-4">Joining Date</label>
-              <input type="date" value={employee.joiningDate || ""} onChange={(e) => handleFieldChange("joiningDate", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <label className="block text-sm font-bold mt-4">Pension Joining Date</label>
+              <input type="date" value={employee.pensionJoiningDate || ""} onChange={(e) => handleFieldChange("pensionJoiningDate", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">Pension No Limit</label>
-              <input type="checkbox" checked={employee.pensionNoLimit || false} onChange={(e) => handleFieldChange("pensionNoLimit", e.target.checked)} />
+              <input type="checkbox" checked={employee.noLimit || false} onChange={(e) => handleFieldChange("noLimit", e.target.checked)} />
 
               <div className="mt-4">
                 <input type="radio" checked={employee.pensionOnHigherWages || false} onChange={(e) => handleFieldChange("pensionOnHigherWages", e.target.checked)} name="pension" /> Pension on Higher Wages
@@ -1488,12 +1721,12 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
               <input type="text" value={employee.esiNo || ""} onChange={(e) => handleFieldChange("esiNo", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <label className="block text-sm font-bold mt-4">Specify Min. Amount of ESI Contribution</label>
-              <input type="text" value={employee.specifyMinAmtOfEsi || ""} onChange={(e) => handleFieldChange("specifyMinAmtOfEsi", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="text" value={employee.minAmtEsiContribution || ""} onChange={(e) => handleFieldChange("minAmtEsiContribution", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
 
               <div className="mt-4 flex items-center gap-4">
-                <input type="radio" name="esi_mode" checked={employee.esiMode === "Dispensary"} onChange={() => handleFieldChange("esiMode", "Dispensary")} /> Dispensary
-                <input type="radio" name="esi_mode" checked={employee.esiMode === "Panel System"} onChange={() => handleFieldChange("esiMode", "Panel System")} /> Panel System
-                <input type="text" value={employee.esiDispensary || ""} onChange={(e) => handleFieldChange("esiDispensary", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+                <input type="radio" name="esi_mode" checked={employee.dispensaryOrPanel === "Dispensary"} onChange={() => handleFieldChange("dispensaryOrPanel", "Dispensary")} /> Dispensary
+                <input type="radio" name="esi_mode" checked={employee.dispensaryOrPanel === "Panel System"} onChange={() => handleFieldChange("dispensaryOrPanel", "Panel System")} /> Panel System
+                <input type="text" value={employee.dispensaryOrPanel || ""} onChange={(e) => handleFieldChange("dispensaryOrPanel", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
               </div>
             </div>
           </div>
@@ -1908,12 +2141,21 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
               <button
                 type="button"
                 className="px-4 py-2 bg-yellow-300 rounded text-sm ml-auto"
-                onClick={() =>
+                onClick={() => {
                   setEmployee((prev: any) => ({
                     ...prev,
-                    nominees: [...(prev.family || [])],
-                  }))
-                }
+                    nominees: (prev.family || []).map((f: any) => ({
+                      name: f.name || "",
+                      address: f.address || "",
+                      district: f.district || "",
+                      state: f.state || "",
+                      pin: "",
+                      relationship: f.relationship || "",
+                      dobAge: f.dobAge || "",
+                      gratuityShare: "100",
+                    })),
+                  }));
+                }}
               >
                 Import From Family
               </button>
@@ -2014,18 +2256,22 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                 placeholder="Years"
                 className="p-2 border border-gray-300 rounded w-32"
                 value={totalExperience.years}
-                onChange={(e) =>
-                  setTotalExperience((p) => ({ ...p, years: e.target.value }))
-                }
+                onChange={(e) => {
+                  const newVal = e.target.value;
+                  setTotalExperience((p) => ({ ...p, years: newVal }))
+                  handleFieldChange("previousYears", newVal);
+                }}
               />
               <input
                 type="text"
                 placeholder="Months"
                 className="p-2 border border-gray-300 rounded w-32"
                 value={totalExperience.months}
-                onChange={(e) =>
-                  setTotalExperience((p) => ({ ...p, months: e.target.value }))
-                }
+                onChange={(e) => {
+                  const newVal = e.target.value;
+                  setTotalExperience((p) => ({ ...p, months: newVal }))
+                  handleFieldChange("previousMonths", newVal);
+                }}
               />
             </div>
 
@@ -2157,8 +2403,12 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
 
 
         <div className="flex justify-between mt-6 items-center">
-          <button type="submit" className="px-6 py-2 bg-blue-500 text-white rounded">
-            Update
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="px-6 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
+          >
+            {isSaving ? "Saving..." : (employeeProp?.id ? "Update Employee" : "Create Employee")}
           </button>
           <button type="button" className="px-6 py-2 bg-gray-500 text-white rounded" onClick={() => onCancel?.()}>
             Cancel

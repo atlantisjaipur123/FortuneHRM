@@ -337,19 +337,20 @@ export async function POST(req: NextRequest) {
 
         // Experiences (expects from/to as dates)
         if (payload.experiences?.length) {
-          await tx.experience.createMany({
-            data: payload.experiences
-              .map((e: any) => {
-                const { id, ...rest } = e;
-                return {
-                  ...rest,
-                  from: e.from ? new Date(e.from) : null,
-                  to: e.to ? new Date(e.to) : null,
-                  employeeId: createdEmployee.id,
-                };
-              })
-              .filter((e: any) => e.companyName?.trim() || e.designation?.trim()),
-          });
+          const validExperiences = payload.experiences
+            .filter((e: any) => (e.companyName?.trim() || e.designation?.trim()) && e.from && e.to)
+            .map((e: any) => {
+              const { id, ...rest } = e;
+              return {
+                ...rest,
+                from: new Date(e.from),
+                to: new Date(e.to),
+                employeeId: createdEmployee.id,
+              };
+            });
+          if (validExperiences.length > 0) {
+            await tx.experience.createMany({ data: validExperiences });
+          }
         }
 
         // Nomineess
@@ -462,7 +463,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { id, employee, salary } = body;
+    const { id, employee, salary, qualifications, family, nominees, witnesses, experiences } = body;
 
     if (!id) {
       return NextResponse.json({ error: "Employee ID is required" }, { status: 400 });
@@ -676,6 +677,99 @@ export async function PUT(req: NextRequest) {
           correspondenceAddress: true,
         },
       });
+
+      // ── Update related records (delete + recreate) ──────────────────────
+      // Qualifications
+      if (qualifications !== undefined) {
+        await tx.qualification.deleteMany({ where: { employeeId: id } });
+        const validQuals = (qualifications || [])
+          .map((q: any) => {
+            const { id: _id, from, to, score, degreeValidityYear, uploadCertification, ...rest } = q;
+            return {
+              ...rest,
+              employeeId: id,
+              fromYear: from ? new Date(from).getFullYear() : null,
+              toYear: to ? new Date(to).getFullYear() : null,
+              percentage: score != null ? String(score) : null,
+              validityYear: degreeValidityYear ? parseInt(degreeValidityYear) || null : null,
+              certificate: uploadCertification?.trim?.() || null,
+            };
+          })
+          .filter((q: any) => q.college?.trim() || q.degree?.trim() || q.fromYear || q.toYear);
+        if (validQuals.length > 0) {
+          await tx.qualification.createMany({ data: validQuals });
+        }
+      }
+
+      // Family members
+      if (family !== undefined) {
+        await tx.familyMember.deleteMany({ where: { employeeId: id } });
+        const validFamily = (family || [])
+          .map((f: any) => {
+            const { id: _id, residing, ...rest } = f;
+            return {
+              ...rest,
+              employeeId: id,
+              residingWith: residing !== undefined ? Boolean(residing) : true,
+            };
+          })
+          .filter((f: any) => f.name?.trim() || f.relationship?.trim());
+        if (validFamily.length > 0) {
+          await tx.familyMember.createMany({ data: validFamily });
+        }
+      }
+
+      // Nominees
+      if (nominees !== undefined) {
+        await tx.nominee.deleteMany({ where: { employeeId: id } });
+        const validNominees = (nominees || [])
+          .map((n: any) => {
+            const { id: _id, gratuityShare, ...rest } = n;
+            return {
+              ...rest,
+              employeeId: id,
+              gratuityShare: gratuityShare === "" || gratuityShare == null ? null : Number(gratuityShare),
+            };
+          })
+          .filter((n: any) => n.name?.trim() || n.relationship?.trim());
+        if (validNominees.length > 0) {
+          await tx.nominee.createMany({ data: validNominees });
+        }
+      }
+
+      // Witnesses
+      if (witnesses !== undefined) {
+        await tx.witness.deleteMany({ where: { employeeId: id } });
+        const validWitnesses = (witnesses || [])
+          .map((w: any) => {
+            const { id: _id, ...rest } = w;
+            return { ...rest, employeeId: id };
+          })
+          .filter((w: any) => w.name?.trim() || w.address?.trim());
+        if (validWitnesses.length > 0) {
+          await tx.witness.createMany({ data: validWitnesses });
+        }
+      }
+
+      // Experiences
+      if (experiences !== undefined) {
+        await tx.experience.deleteMany({ where: { employeeId: id } });
+        const validExps = (experiences || [])
+          .filter((e: any) => (e.companyName?.trim() || e.designation?.trim()) && e.from && e.to)
+          .map((e: any) => {
+            const { id: _id, ...rest } = e;
+            return {
+              ...rest,
+              from: new Date(e.from),
+              to: new Date(e.to),
+              employeeId: id,
+            };
+          });
+        if (validExps.length > 0) {
+          await tx.experience.createMany({ data: validExps });
+        }
+      }
+
       let salaryResult = null;
 
       if (salary && salary.mode && salary.inputAmount !== undefined) {
