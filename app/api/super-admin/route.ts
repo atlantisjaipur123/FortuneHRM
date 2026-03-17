@@ -235,6 +235,15 @@ export async function POST(request: NextRequest) {
       esiLocalOffice: body.esiLocalOffice || null,
       ptoCircleNo: body.ptoCircleNo || null,
       branchDivision: body.branchDivision || "MAIN",
+      ddoCode: body.ddoCode || null,
+      ddoRegNo: body.ddoRegNo || null,
+      tanRegNo: body.tanRegNo || null,
+      lwfRegNo: body.lwfRegNo || null,
+      ain: body.ain || null,
+      paoCode: body.paoCode || null,
+      ministryName: body.ministryName || null,
+      ministryIfOthers: body.ministryIfOthers || null,
+      tdsCircle: body.tdsCircle || null,
       deductorType: body.deductorType 
         ? (body.deductorType.toUpperCase() as DeductorType) 
         : null,
@@ -462,6 +471,15 @@ export async function PUT(request: NextRequest) {
     if (body.esiLocalOffice !== undefined) updateData.esiLocalOffice = body.esiLocalOffice || null
     if (body.ptoCircleNo !== undefined) updateData.ptoCircleNo = body.ptoCircleNo || null
     if (body.branchDivision !== undefined) updateData.branchDivision = body.branchDivision
+    if (body.ddoCode !== undefined) updateData.ddoCode = body.ddoCode || null
+    if (body.ddoRegNo !== undefined) updateData.ddoRegNo = body.ddoRegNo || null
+    if (body.tanRegNo !== undefined) updateData.tanRegNo = body.tanRegNo || null
+    if (body.lwfRegNo !== undefined) updateData.lwfRegNo = body.lwfRegNo || null
+    if (body.ain !== undefined) updateData.ain = body.ain || null
+    if (body.paoCode !== undefined) updateData.paoCode = body.paoCode || null
+    if (body.ministryName !== undefined) updateData.ministryName = body.ministryName || null
+    if (body.ministryIfOthers !== undefined) updateData.ministryIfOthers = body.ministryIfOthers || null
+    if (body.tdsCircle !== undefined) updateData.tdsCircle = body.tdsCircle || null
     if (body.deductorType !== undefined) {
       updateData.deductorType = body.deductorType 
         ? (body.deductorType.toUpperCase() as DeductorType) 

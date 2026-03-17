@@ -26,6 +26,7 @@ interface CompanyInformationFormProps {
 }
 const FIELD_LIMITS: Record<string, number> = {
   // Company
+  name: 100, // 🔒 Mandatory DB field
   code: 50,
   pan: 10,
   tan: 10,
@@ -33,7 +34,6 @@ const FIELD_LIMITS: Record<string, number> = {
   gstin: 15,
   pin: 6,
   email: 255,
-
 
   apName: 100,
   apDesignation: 100,
@@ -64,6 +64,7 @@ export function CompanyInformationForm({
     const value = initialData[field]
     if (value === null || value === undefined) return defaultValue
     if (value instanceof Date) return value.toISOString().split('T')[0] // Format date for input[type="date"]
+    if (typeof value === "string" && value.match(/^\d{4}-\d{2}-\d{2}T/)) return value.split('T')[0] // API returns ISO strings
     return String(value)
   }
 
@@ -75,7 +76,7 @@ export function CompanyInformationForm({
 
 
   const REQUIRED_FIELDS_BY_TAB: Record<string, string[]> = {
-    "company-info": ["code", "pan", "tan"],
+    "company-info": ["name", "code", "pan", "tan"],
     "authorized-person": ["apName", "apDesignation", "apPan"],
   }
 
@@ -96,10 +97,59 @@ export function CompanyInformationForm({
       })
     })
 
-    // 2️⃣ Max length check
+    // 2️⃣ Pattern and Format Validations on Submit
+
+    // Exact PAN format
+    const pan = String(formData.get("pan") || "").trim()
+    if (pan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(pan)) {
+      newErrors.pan = "Invalid PAN format (e.g. ABCDE1234F)"
+      if (!firstErrorTab) firstErrorTab = "company-info"
+    }
+
+    const apPan = String(formData.get("apPan") || "").trim()
+    if (apPan && !/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(apPan)) {
+      newErrors.apPan = "Invalid PAN format (e.g. ABCDE1234F)"
+      if (!firstErrorTab) firstErrorTab = "authorized-person"
+    }
+
+    // Exact Mobile Format
+    const apPhone = String(formData.get("apPhone") || "").trim()
+    if (apPhone && apPhone.length !== 10) {
+      newErrors.apPhone = "Mobile number must be exactly 10 digits"
+      if (!firstErrorTab) firstErrorTab = "authorized-person"
+    }
+
+    // Exact PIN Format
+    const apPin = String(formData.get("apPin") || "").trim()
+    if (apPin && apPin.length !== 6) {
+      newErrors.apPin = "PIN code must be exactly 6 digits"
+      if (!firstErrorTab) firstErrorTab = "authorized-person"
+    }
+
+    // Future Date Blocks (Dates cannot be in the future, year between 1900 and 2099)
+    const validateDate = (field: string, tab: string, label: string) => {
+      const val = String(formData.get(field) || "").trim()
+      if (val) {
+        const dateVal = new Date(val)
+        const year = dateVal.getFullYear()
+        if (year < 1900 || year > 2099) {
+          newErrors[field] = `Year must be between 1900 and 2099`
+          if (!firstErrorTab) firstErrorTab = tab
+        } else if (dateVal > new Date()) {
+          newErrors[field] = `${label} cannot be in the future`
+          if (!firstErrorTab) firstErrorTab = tab
+        }
+      }
+    }
+    validateDate("pensionCoverageDate", "company-info", "Pension Coverage Date")
+    validateDate("pfCoverageDate", "company-info", "PF Coverage Date")
+    validateDate("apDob", "authorized-person", "Date of Birth")
+
+    // 3️⃣ Max length check
     Object.entries(FIELD_LIMITS).forEach(([field, max]) => {
       const value = String(formData.get(field) || "").trim()
-      if (value && value.length > max) {
+      // Only check max length if not already errored by pattern
+      if (value && value.length > max && !newErrors[field]) {
         newErrors[field] = `Max ${max} characters allowed`
       }
     })
@@ -192,8 +242,39 @@ export function CompanyInformationForm({
                       {/* Left Column */}
                       <div className="space-y-4">
                         <div className="space-y-2">
+                          <Label htmlFor="name" className="text-sm font-medium">
+                            Company Name <span className="text-red-500">*</span>
+                          </Label>
+                          <Input
+                            id="name"
+                            name="name"
+                            maxLength={100} // 🔒 DB limit
+                            defaultValue={getValue("name")}
+                            readOnly={isReadOnly}
+                            className={`bg-white h-10 ${errors.name ? "border-red-500 focus-visible:ring-red-500" : ""} ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
+                            onChange={(e) => {
+                              const value = e.target.value
+                              if (value.trim() && value.length <= 100) {
+                                setErrors((prev) => ({ ...prev, name: "" }))
+                              }
+                            }}
+                            onBlur={(e) => {
+                              const value = e.target.value.trim()
+                              if (!value) {
+                                setErrors((prev) => ({ ...prev, name: "This field is required" }))
+                              } else if (value.length > 100) {
+                                setErrors((prev) => ({ ...prev, name: "Max 100 characters allowed" }))
+                              }
+                            }}
+                          />
+                          {errors.name && (
+                            <p className="text-xs text-red-500 mt-1">{errors.name}</p>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
                           <Label htmlFor="code" className="text-sm font-medium">
-                            Code
+                            Code <span className="text-red-500">*</span>
                           </Label>
                           <Input
                             id="code"
@@ -265,7 +346,7 @@ export function CompanyInformationForm({
 
                         <div className="space-y-2">
                           <Label htmlFor="pan" className="text-sm font-medium">
-                            PAN
+                            PAN <span className="text-red-500">*</span>
                           </Label>
                           <div className="flex gap-2">
                             <Input
@@ -274,13 +355,14 @@ export function CompanyInformationForm({
                               maxLength={10} // 🔒 DB + PAN rule
                               defaultValue={getValue("pan")}
                               readOnly={isReadOnly}
-                              className={`bg-white h-10 ${errors.pan ? "border-red-500 focus-visible:ring-red-500" : ""
+                              className={`bg-white h-10 uppercase ${errors.pan ? "border-red-500 focus-visible:ring-red-500" : ""
                                 } ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
                               onChange={(e) => {
-                                const value = e.target.value.toUpperCase()
+                                let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+                                if (value.length > 10) value = value.slice(0, 10)
+                                e.target.value = value
 
-                                // Clear error only when valid length
-                                if (value.length === 10) {
+                                if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(value)) {
                                   setErrors((prev) => ({ ...prev, pan: "" }))
                                 }
                               }}
@@ -289,8 +371,10 @@ export function CompanyInformationForm({
 
                                 if (!value) {
                                   setErrors((prev) => ({ ...prev, pan: "This field is required" }))
-                                } else if (value.length !== 10) {
-                                  setErrors((prev) => ({ ...prev, pan: "PAN must be exactly 10 characters" }))
+                                } else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(value)) {
+                                  setErrors((prev) => ({ ...prev, pan: "Invalid PAN format (e.g. ABCDE1234F)" }))
+                                } else {
+                                  setErrors((prev) => ({ ...prev, pan: "" }))
                                 }
                               }}
                             />
@@ -303,7 +387,7 @@ export function CompanyInformationForm({
 
                         <div className="space-y-2">
                           <Label htmlFor="tan" className="text-sm font-medium">
-                            TAN
+                            TAN <span className="text-red-500">*</span>
                           </Label>
                           <div className="flex gap-2">
                             <Input
@@ -350,23 +434,14 @@ export function CompanyInformationForm({
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="regYear" className="text-sm font-medium">Reg. Year - Reg. No.</Label>
+                          <Label htmlFor="serviceName" className="text-sm font-medium">Service Name</Label>
                           <div className="flex gap-2">
                             <Input
-                              id="regYear"
-                              name="regYear"
-                              defaultValue={getValue("regYear")}
+                              id="serviceName"
+                              name="serviceName"
+                              defaultValue={getValue("serviceName")}
                               readOnly={isReadOnly}
-                              className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
-                              placeholder="Year"
-                            />
-                            <Input
-                              id="regNo"
-                              name="regNo"
-                              defaultValue={getValue("regNo")}
-                              readOnly={isReadOnly}
-                              className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
-                              placeholder="No."
+                              className={`bg-white h-10 flex-1 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
                             />
                           </div>
                         </div>
@@ -400,16 +475,68 @@ export function CompanyInformationForm({
                         </div>
 
                         <div className="space-y-2">
-                          <Label htmlFor="epfCode" className="text-sm font-medium">Code No. Alloted by EPF</Label>
-                          <div className="flex gap-2">
-                            <Input
-                              id="epfCode"
-                              name="epfCode"
-                              defaultValue={getValue("epfCode")}
-                              readOnly={isReadOnly}
-                              className={`bg-white flex-1 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
-                            />
-                          </div>
+                          <Label htmlFor="website" className="text-sm font-medium">Website</Label>
+                          <Input
+                            id="website"
+                            name="website"
+                            defaultValue={getValue("website")}
+                            readOnly={isReadOnly}
+                            className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="ptEnrCert" className="text-sm font-medium">PT Enr. Certificate No.</Label>
+                          <Input
+                            id="ptEnrCert"
+                            name="ptEnrCert"
+                            defaultValue={getValue("ptEnrCert")}
+                            readOnly={isReadOnly}
+                            className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Right Column */}
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="pfRegionalOffice" className="text-sm font-medium">PF Regional Office</Label>
+                          <Input
+                            id="pfRegionalOffice"
+                            name="pfRegionalOffice"
+                            defaultValue={getValue("pfRegionalOffice")}
+                            readOnly={isReadOnly}
+                            className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="pensionCoverageDate" className="text-sm font-medium">Pension Coverage Date</Label>
+                          <Input
+                            id="pensionCoverageDate"
+                            name="pensionCoverageDate"
+                            type="date"
+                            max={new Date().toISOString().split('T')[0]} // 🔒 Block future dates
+                            defaultValue={getValue("pensionCoverageDate")}
+                            readOnly={isReadOnly}
+                            className={`bg-blue-50 h-10 ${errors.pensionCoverageDate ? "border-red-500 focus-visible:ring-red-500" : ""} ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
+                            onChange={(e) => {
+                              if (e.target.value) setErrors(prev => ({ ...prev, pensionCoverageDate: "" }))
+                            }}
+                            onBlur={(e) => {
+                              const value = e.target.value
+                              if (value) {
+                                const dateVal = new Date(value)
+                                const year = dateVal.getFullYear()
+                                if (year < 1900 || year > 2099) {
+                                  setErrors((prev) => ({ ...prev, pensionCoverageDate: "Year must be between 1900 and 2099" }))
+                                } else if (dateVal > new Date()) {
+                                  setErrors((prev) => ({ ...prev, pensionCoverageDate: "Future dates are not allowed" }))
+                                }
+                              }
+                            }}
+                          />
+                          {errors.pensionCoverageDate && <p className="text-xs text-red-500 mt-1">{errors.pensionCoverageDate}</p>}
                         </div>
 
                         <div className="space-y-2">
@@ -418,9 +545,37 @@ export function CompanyInformationForm({
                             id="pfCoverageDate"
                             name="pfCoverageDate"
                             type="date"
+                            max={new Date().toISOString().split('T')[0]} // 🔒 Block future dates
                             defaultValue={getValue("pfCoverageDate")}
                             readOnly={isReadOnly}
-                            className={`bg-blue-50 h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
+                            className={`bg-blue-50 h-10 ${errors.pfCoverageDate ? "border-red-500 focus-visible:ring-red-500" : ""} ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
+                            onChange={(e) => {
+                              if (e.target.value) setErrors(prev => ({ ...prev, pfCoverageDate: "" }))
+                            }}
+                            onBlur={(e) => {
+                              const value = e.target.value
+                              if (value) {
+                                const dateVal = new Date(value)
+                                const year = dateVal.getFullYear()
+                                if (year < 1900 || year > 2099) {
+                                  setErrors((prev) => ({ ...prev, pfCoverageDate: "Year must be between 1900 and 2099" }))
+                                } else if (dateVal > new Date()) {
+                                  setErrors((prev) => ({ ...prev, pfCoverageDate: "Future dates are not allowed" }))
+                                }
+                              }
+                            }}
+                          />
+                          {errors.pfCoverageDate && <p className="text-xs text-red-500 mt-1">{errors.pfCoverageDate}</p>}
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="esiLocalOffice" className="text-sm font-medium">ESI Local Office</Label>
+                          <Input
+                            id="esiLocalOffice"
+                            name="esiLocalOffice"
+                            defaultValue={getValue("esiLocalOffice")}
+                            readOnly={isReadOnly}
+                            className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
                           />
                         </div>
 
@@ -432,6 +587,17 @@ export function CompanyInformationForm({
                             defaultValue={getValue("esiNumber")}
                             readOnly={isReadOnly}
                             className={`bg-blue-50 h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="ptoCircleNo" className="text-sm font-medium">PTO Circle No.</Label>
+                          <Input
+                            id="ptoCircleNo"
+                            name="ptoCircleNo"
+                            defaultValue={getValue("ptoCircleNo")}
+                            readOnly={isReadOnly}
+                            className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
                           />
                         </div>
 
@@ -456,146 +622,8 @@ export function CompanyInformationForm({
                             className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
                           />
                         </div>
-                      </div>
 
-                      {/* Right Column */}
-                      <div className="space-y-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="cin" className="text-sm font-medium">CIN</Label>
-                          <Input
-                            id="cin"
-                            name="cin"
-                            maxLength={21} // 🔒 DB limit
-                            defaultValue={getValue("cin")}
-                            readOnly={isReadOnly}
-                            className={`bg-white h-10 ${errors.cin ? "border-red-500 focus-visible:ring-red-500" : ""
-                              } ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
-                            onChange={(e) => {
-                              const value = e.target.value.toUpperCase()
 
-                              // Clear error only when within limit
-                              if (value.length <= 21) {
-                                setErrors((prev) => ({ ...prev, cin: "" }))
-                              }
-                            }}
-                            onBlur={(e) => {
-                              const value = e.target.value.trim()
-
-                              if (value && value.length > 21) {
-                                setErrors((prev) => ({
-                                  ...prev,
-                                  cin: "CIN can be maximum 21 characters",
-                                }))
-                              }
-                            }}
-                          />
-
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="state" className="text-sm font-medium">State</Label>
-                          <Select name="state">
-                            <SelectTrigger className="bg-white h-10">
-                              <SelectValue placeholder="Select State" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="ANDAMAN AND NICOBAR ISLANDS">ANDAMAN AND NICOBAR ISLANDS</SelectItem>
-                              <SelectItem value="ANDHRA PRADESH">ANDHRA PRADESH</SelectItem>
-                              <SelectItem value="ARUNACHAL PRADESH">ARUNACHAL PRADESH</SelectItem>
-                              <SelectItem value="ASSAM">ASSAM</SelectItem>
-                              <SelectItem value="BIHAR">BIHAR</SelectItem>
-                              <SelectItem value="CHANDIGARH">CHANDIGARH</SelectItem>
-                              <SelectItem value="CHHATTISGARH">CHHATTISGARH</SelectItem>
-                              <SelectItem value="DADRA AND NAGAR HAVELI AND DAMAN AND DIU">DADRA AND NAGAR HAVELI AND DAMAN AND DIU</SelectItem>
-                              <SelectItem value="DELHI">DELHI</SelectItem>
-                              <SelectItem value="GOA">GOA</SelectItem>
-                              <SelectItem value="GUJARAT">GUJARAT</SelectItem>
-                              <SelectItem value="HARYANA">HARYANA</SelectItem>
-                              <SelectItem value="HIMACHAL PRADESH">HIMACHAL PRADESH</SelectItem>
-                              <SelectItem value="JAMMU AND KASHMIR">JAMMU AND KASHMIR</SelectItem>
-                              <SelectItem value="JHARKHAND">JHARKHAND</SelectItem>
-                              <SelectItem value="KARNATAKA">KARNATAKA</SelectItem>
-                              <SelectItem value="KERALA">KERALA</SelectItem>
-                              <SelectItem value="LADAKH">LADAKH</SelectItem>
-                              <SelectItem value="LAKSHADWEEP">LAKSHADWEEP</SelectItem>
-                              <SelectItem value="MADHYA PRADESH">MADHYA PRADESH</SelectItem>
-                              <SelectItem value="MAHARASHTRA">MAHARASHTRA</SelectItem>
-                              <SelectItem value="MANIPUR">MANIPUR</SelectItem>
-                              <SelectItem value="MEGHALAYA">MEGHALAYA</SelectItem>
-                              <SelectItem value="MIZORAM">MIZORAM</SelectItem>
-                              <SelectItem value="NAGALAND">NAGALAND</SelectItem>
-                              <SelectItem value="ODISHA">ODISHA</SelectItem>
-                              <SelectItem value="PUDUCHERRY">PUDUCHERRY</SelectItem>
-                              <SelectItem value="PUNJAB">PUNJAB</SelectItem>
-                              <SelectItem value="RAJASTHAN">RAJASTHAN</SelectItem>
-                              <SelectItem value="SIKKIM">SIKKIM</SelectItem>
-                              <SelectItem value="TAMIL NADU">TAMIL NADU</SelectItem>
-                              <SelectItem value="TELANGANA">TELANGANA</SelectItem>
-                              <SelectItem value="TRIPURA">TRIPURA</SelectItem>
-                              <SelectItem value="UTTAR PRADESH">UTTAR PRADESH</SelectItem>
-                              <SelectItem value="UTTARAKHAND">UTTARAKHAND</SelectItem>
-                              <SelectItem value="WEST BENGAL">WEST BENGAL</SelectItem>
-                              <SelectItem value="OTHER">OTHER</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="ddoCode" className="text-sm font-medium">DDO Code</Label>
-                          <Input
-                            id="ddoCode"
-                            name="ddoCode"
-                            defaultValue={getValue("ddoCode")}
-                            readOnly={isReadOnly}
-                            className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="ddoRegNo" className="text-sm font-medium">DDO Reg. No.</Label>
-                          <Input
-                            id="ddoRegNo"
-                            name="ddoRegNo"
-                            defaultValue={getValue("ddoRegNo")}
-                            readOnly={isReadOnly}
-                            className={`bg-blue-50 h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="tanRegNo" className="text-sm font-medium">TAN Reg. No.</Label>
-                          <Input
-                            id="tanRegNo"
-                            name="tanRegNo"
-                            defaultValue={getValue("tanRegNo")}
-                            readOnly={isReadOnly}
-                            className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="lwfRegNo" className="text-sm font-medium">LWF Reg. No.</Label>
-                          <Input
-                            id="lwfRegNo"
-                            name="lwfRegNo"
-                            defaultValue={getValue("lwfRegNo")}
-                            readOnly={isReadOnly}
-                            className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
-                          />
-                        </div>
-
-                        <div className="space-y-2">
-                          <Label htmlFor="branchDivision" className="text-sm font-medium">
-                            Branch/Division
-                          </Label>
-                          <Input
-                            id="branchDivision"
-                            name="branchDivision"
-                            defaultValue={getValue("branchDivision")}
-                            readOnly={isReadOnly}
-                            className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
-                          />
-                        </div>
 
                         <div className="space-y-2">
                           <Label htmlFor="leaveSetupType" className="text-sm font-medium">Leave SetUp Type</Label>
@@ -670,7 +698,7 @@ export function CompanyInformationForm({
                       <div className="space-y-4">
                         <div className="space-y-2">
                           <Label htmlFor="apName" className="text-sm font-medium">
-                            Authorised Person Name
+                            Authorised Person Name <span className="text-red-500">*</span>
                           </Label>
                           <Input
                             id="apName"
@@ -718,10 +746,27 @@ export function CompanyInformationForm({
                             id="apDob"
                             name="apDob"
                             type="date"
+                            max={new Date().toISOString().split('T')[0]} // 🔒 Block future dates
                             defaultValue={getValue("apDob")}
                             readOnly={isReadOnly}
-                            className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
+                            className={`bg-white h-10 ${errors.apDob ? "border-red-500 focus-visible:ring-red-500" : ""} ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
+                            onChange={(e) => {
+                              if (e.target.value) setErrors(prev => ({ ...prev, apDob: "" }))
+                            }}
+                            onBlur={(e) => {
+                              const value = e.target.value
+                              if (value) {
+                                const dateVal = new Date(value)
+                                const year = dateVal.getFullYear()
+                                if (year < 1900 || year > 2099) {
+                                  setErrors((prev) => ({ ...prev, apDob: "Year must be between 1900 and 2099" }))
+                                } else if (dateVal > new Date()) {
+                                  setErrors((prev) => ({ ...prev, apDob: "Date of Birth cannot be in the future" }))
+                                }
+                              }
+                            }}
                           />
+                          {errors.apDob && <p className="text-xs text-red-500 mt-1">{errors.apDob}</p>}
                         </div>
 
                         <div className="space-y-2">
@@ -773,10 +818,26 @@ export function CompanyInformationForm({
                             <Input
                               id="apPin"
                               name="apPin"
+                              maxLength={6} // 🔒 6 digits max
                               defaultValue={getValue("apPin")}
                               readOnly={isReadOnly}
-                              className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
+                              className={`bg-white h-10 ${errors.apPin ? "border-red-500 focus-visible:ring-red-500" : ""} ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
+                              onChange={(e) => {
+                                let value = e.target.value.replace(/\D/g, '')
+                                if (value.length > 6) value = value.slice(0, 6)
+                                e.target.value = value
+                                if (value.length === 6) setErrors(prev => ({ ...prev, apPin: "" }))
+                              }}
+                              onBlur={(e) => {
+                                const value = e.target.value
+                                if (value && value.length !== 6) {
+                                  setErrors(prev => ({ ...prev, apPin: "PIN code must be exactly 6 digits" }))
+                                } else {
+                                  setErrors(prev => ({ ...prev, apPin: "" }))
+                                }
+                              }}
                             />
+                            {errors.apPin && <p className="text-xs text-red-500 mt-1">{errors.apPin}</p>}
 
                           </div>
                         </div>
@@ -788,10 +849,26 @@ export function CompanyInformationForm({
                             <Input
                               id="apPhone"
                               name="apPhone"
+                              maxLength={10} // 🔒 10 digits
                               defaultValue={getValue("apPhone")}
                               readOnly={isReadOnly}
-                              className={`bg-white h-10 ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
+                              className={`bg-white h-10 ${errors.apPhone ? "border-red-500 focus-visible:ring-red-500" : ""} ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
+                              onChange={(e) => {
+                                let value = e.target.value.replace(/\D/g, '')
+                                if (value.length > 10) value = value.slice(0, 10)
+                                e.target.value = value
+                                if (value.length === 10) setErrors(prev => ({ ...prev, apPhone: "" }))
+                              }}
+                              onBlur={(e) => {
+                                const value = e.target.value
+                                if (value && value.length !== 10) {
+                                  setErrors(prev => ({ ...prev, apPhone: "Mobile number must be exactly 10 digits" }))
+                                } else {
+                                  setErrors(prev => ({ ...prev, apPhone: "" }))
+                                }
+                              }}
                             />
+                            {errors.apPhone && <p className="text-xs text-red-500 mt-1">{errors.apPhone}</p>}
                           </div>
                         </div>
 
@@ -802,7 +879,7 @@ export function CompanyInformationForm({
                       <div className="space-y-4">
                         <div className="space-y-2">
                           <Label htmlFor="apDesignation" className="text-sm font-medium">
-                            Designation
+                            Designation <span className="text-red-500">*</span>
                           </Label>
                           <Input
                             id="apDesignation"
@@ -893,7 +970,7 @@ export function CompanyInformationForm({
 
                         <div className="space-y-2">
                           <Label htmlFor="apPan" className="text-sm font-medium">
-                            PAN
+                            PAN <span className="text-red-500">*</span>
                           </Label>
                           <div className="flex gap-2">
                             <Input
@@ -905,13 +982,11 @@ export function CompanyInformationForm({
                               className={`bg-white h-10 uppercase ${errors.apPan ? "border-red-500 focus-visible:ring-red-500" : ""
                                 } ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
                               onChange={(e) => {
-                                const value = e.target.value.toUpperCase()
-
-                                // force uppercase in input
+                                let value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '')
+                                if (value.length > 10) value = value.slice(0, 10)
                                 e.target.value = value
 
-                                // clear error only if valid length
-                                if (value.length === 10) {
+                                if (/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(value)) {
                                   setErrors((prev) => ({ ...prev, apPan: "" }))
                                 }
                               }}
@@ -923,11 +998,13 @@ export function CompanyInformationForm({
                                     ...prev,
                                     apPan: "This field is required",
                                   }))
-                                } else if (value.length !== 10) {
+                                } else if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(value)) {
                                   setErrors((prev) => ({
                                     ...prev,
-                                    apPan: "PAN must be exactly 10 characters",
+                                    apPan: "Invalid PAN format (e.g. ABCDE1234F)",
                                   }))
+                                } else {
+                                  setErrors((prev) => ({ ...prev, apPan: "" }))
                                 }
                               }}
                             />
@@ -993,8 +1070,10 @@ export function CompanyInformationForm({
                             id="gstin"
                             name="gstin"
                             maxLength={15} // 🔒 DB limit
+                            defaultValue={getValue("gstin")}
+                            readOnly={isReadOnly}
                             className={`bg-white h-10 ${errors.gstin ? "border-red-500 focus-visible:ring-red-500" : ""
-                              }`}
+                              } ${isReadOnly ? "bg-gray-50 cursor-not-allowed" : ""}`}
                             onChange={(e) => {
                               const value = e.target.value.toUpperCase()
 
@@ -1028,15 +1107,15 @@ export function CompanyInformationForm({
                             disabled={isReadOnly}
                           >
                             <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="gov" id="deductorGov" />
+                              <RadioGroupItem value="GOV" id="deductorGov" />
                               <Label htmlFor="deductorGov" className="text-sm">Gov.</Label>
                             </div>
                             <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="union-gov" id="deductorUnionGov" />
+                              <RadioGroupItem value="UNION_GOV" id="deductorUnionGov" />
                               <Label htmlFor="deductorUnionGov" className="text-sm">Union Govt.</Label>
                             </div>
                             <div className="flex items-center space-x-2">
-                              <RadioGroupItem value="others" id="deductorOthers" />
+                              <RadioGroupItem value="OTHERS" id="deductorOthers" />
                               <Label htmlFor="deductorOthers" className="text-sm">Others</Label>
                             </div>
                           </RadioGroup>
@@ -1245,17 +1324,6 @@ export function CompanyInformationForm({
                     </div>
 
                     <div className="mt-6 space-y-4">
-                      <div className="flex items-center space-x-2">
-                        <Checkbox
-                          id="addressChangedEmployer"
-                          name="addressChangedEmployer"
-                          defaultChecked={getCheckboxValue("addressChangedEmployer")}
-                          disabled={isReadOnly}
-                        />
-                        <Label htmlFor="addressChangedEmployer" className="text-sm">
-
-                        </Label>
-                      </div>
 
                       <div className="flex items-center space-x-6">
                         <RadioGroup
@@ -1265,11 +1333,11 @@ export function CompanyInformationForm({
                           disabled={isReadOnly}
                         >
                           <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="government" id="typeGovernment" />
+                            <RadioGroupItem value="GOVERNMENT" id="typeGovernment" />
                             <Label htmlFor="typeGovernment" className="text-sm"> Government</Label>
                           </div>
                           <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="others" id="typeOthers" />
+                            <RadioGroupItem value="OTHERS" id="typeOthers" />
                             <Label htmlFor="typeOthers" className="text-sm"> Others</Label>
                           </div>
                         </RadioGroup>
@@ -1289,7 +1357,9 @@ export function CompanyInformationForm({
                 <div className="flex space-x-3">
                   {!isReadOnly && (
                     <Button type="submit" disabled={isSubmitting} className="bg-blue-500 hover:bg-blue-600 text-white">
-                      {isSubmitting ? "Updating..." : "Update"}
+                      {isSubmitting
+                        ? (mode === "create" ? "Creating..." : "Updating...")
+                        : (mode === "create" ? "Create" : "Update")}
                     </Button>
                   )}
                   <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="bg-blue-500 hover:bg-blue-600 text-white">

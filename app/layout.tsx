@@ -3,6 +3,7 @@ import { GeistSans } from 'geist/font/sans'
 import { GeistMono } from 'geist/font/mono'
 import './globals.css'
 import { Providers } from './providers'
+import { Toaster } from "@/components/ui/toaster"
 // import { Providers } from '@/redux/provider'
 
 export const metadata: Metadata = {
@@ -25,6 +26,7 @@ export default function RootLayout({
         <Providers>
             {children}
         </Providers>
+        <Toaster />
       </body>
     </html>
   )

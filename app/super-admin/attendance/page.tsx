@@ -52,6 +52,7 @@ export default function AttendancePage() {
   // ============== MAIN DATA ==============
   const [employees, setEmployees] = useState<any[]>([])
   const [policies, setPolicies] = useState<any[]>([])
+  const [leavePolicyCodes, setLeavePolicyCodes] = useState<{ code: string; name: string }[]>([])
   const [loading, setLoading] = useState(true)
 
   // ============== UI STATES ==============
@@ -79,6 +80,8 @@ export default function AttendancePage() {
     try {
       const res = await api.get(`/api/attendance?month=${selectedMonth}&year=${selectedYear}`)
       setEmployees(res.employees || [])
+      // Store leave policies returned by API for dynamic status dropdowns
+      if (res.leavePolicies) setLeavePolicyCodes(res.leavePolicies)
     } catch (e) {
       toast({ title: "Error", description: "Failed to load attendance", variant: "destructive" })
     } finally {
@@ -86,9 +89,32 @@ export default function AttendancePage() {
     }
   }
 
+  // Dynamic status options: mandatory P + A, then leave policy codes from DB
+  const statusOptions = useMemo(() => {
+    const defaults = [
+      { value: "P", label: "P — Present" },
+      { value: "A", label: "A — Absent" },
+      { value: "Halfday", label: "Halfday" },
+    ]
+    const fromPolicies = leavePolicyCodes
+      .filter(p => !['P', 'A', 'HALFDAY'].includes(p.code.toUpperCase()))
+      .map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))
+    return [...defaults, ...fromPolicies]
+  }, [leavePolicyCodes])
+
   useEffect(() => {
     loadAttendance()
   }, [selectedMonth, selectedYear])
+
+  // Sync selectedEmployee with latest employee data so UI updates instantly
+  useEffect(() => {
+    if (selectedEmployee) {
+      const updatedEmp = employees.find(e => e.id === selectedEmployee.id)
+      if (updatedEmp) {
+        setSelectedEmployee(updatedEmp)
+      }
+    }
+  }, [employees])
 
   // ============== FILTERED EMPLOYEES (REAL FILTERING) ==============
   const filteredEmployees = useMemo(() => {
@@ -158,8 +184,13 @@ export default function AttendancePage() {
       await api.post("/api/attendance", { employeeId, date: dateStr, status: value })
       await loadAttendance()
       toast({ title: "Saved", description: `Day ${day + 1} updated` })
-    } catch (e) {
-      toast({ title: "Error", description: "Failed to save attendance", variant: "destructive" })
+    } catch (e: any) {
+      const errorMsg = e instanceof Error ? e.message : String(e) || "Failed to save attendance";
+      if (errorMsg.includes("Insufficient balance")) {
+        toast({ title: "Insufficient Balance", description: errorMsg, variant: "destructive" })
+      } else {
+        toast({ title: "Notice", description: errorMsg, variant: "destructive" })
+      }
     }
   }
 
@@ -168,16 +199,32 @@ export default function AttendancePage() {
     if (!day || !value) return
 
     try {
+      let hasError = false;
+      let lastErrorMsg = "";
       for (const empId of selectedRows) {
         const dateStr = `${selectedYear}-${selectedMonth}-${(day + 1).toString().padStart(2, "0")}`
-        await api.post("/api/attendance", { employeeId: empId, date: dateStr, status: value })
+        try {
+          await api.post("/api/attendance", { employeeId: empId, date: dateStr, status: value })
+        } catch (e: any) {
+          hasError = true;
+          lastErrorMsg = e instanceof Error ? e.message : String(e) || "Some updates failed";
+        }
       }
       await loadAttendance()
       setBulkEditDialog(null)
       setSelectedRows(new Set())
-      toast({ title: "Bulk Update Done" })
-    } catch (e) {
-      toast({ title: "Error", description: "Some updates failed", variant: "destructive" })
+      
+      if (hasError) {
+        if (lastErrorMsg.includes("Insufficient balance")) {
+           toast({ title: "Insufficient Balance", description: lastErrorMsg, variant: "destructive" })
+        } else {
+           toast({ title: "Notice", description: lastErrorMsg, variant: "destructive" })
+        }
+      } else {
+        toast({ title: "Bulk Update Done" })
+      }
+    } catch (e: any) {
+      toast({ title: "Error", description: "Unexpected error during bulk edit", variant: "destructive" })
     }
   }
 
@@ -436,13 +483,9 @@ export default function AttendancePage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="P">P</SelectItem>
-                    <SelectItem value="A">A</SelectItem>
-                    <SelectItem value="Halfday">Halfday</SelectItem>
-                    <SelectItem value="CL">CL</SelectItem>
-                    <SelectItem value="PL">PL</SelectItem>
-                    <SelectItem value="SL">SL</SelectItem>
-                    <SelectItem value="LWP">LWP</SelectItem>
+                    {statusOptions.map(opt => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -493,6 +536,7 @@ export default function AttendancePage() {
                     handleAttendanceChange={handleAttendanceChange}
                     shiftNameMap={shiftNameMap}
                     refreshAttendance={loadAttendance}
+                    statusOptions={statusOptions}
                   />
 
                   {/* Leave Balances */}
@@ -528,6 +572,7 @@ function AttendanceDetails({
   handleAttendanceChange,
   shiftNameMap,
   refreshAttendance,
+  statusOptions,
 }: {
   selectedEmployee: any
   selectedMonth: string
@@ -536,6 +581,7 @@ function AttendanceDetails({
   handleAttendanceChange: (empId: string, day: number, status: string) => Promise<void>
   shiftNameMap: Map<string, string>
   refreshAttendance: () => Promise<void>
+  statusOptions: { value: string; label: string }[]
 }) {
   const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set())
   const [bulkStatus, setBulkStatus] = useState<string>("P")
@@ -571,14 +617,31 @@ function AttendanceDetails({
       return
     }
 
+    let hasError = false;
+    let lastErrorMsg = "";
+
     for (const day of selectedDays) {
       const dateStr = `${selectedYear}-${selectedMonth}-${(day + 1).toString().padStart(2, "0")}`
-      await handleAttendanceChange(selectedEmployee.id, day, bulkStatus)
+      try {
+        await api.post("/api/attendance", { employeeId: selectedEmployee.id, date: dateStr, status: bulkStatus })
+      } catch (e: any) {
+        hasError = true;
+        lastErrorMsg = e instanceof Error ? e.message : String(e) || "Update failed";
+      }
     }
 
     setSelectedDays(new Set())
     await refreshAttendance()
-    toast({ title: "Bulk update saved" })
+    
+    if (hasError) {
+      if (lastErrorMsg.includes("Insufficient balance")) {
+        toast({ title: "Insufficient Balance", description: lastErrorMsg, variant: "destructive" })
+      } else {
+        toast({ title: "Notice", description: lastErrorMsg, variant: "destructive" })
+      }
+    } else {
+      toast({ title: "Bulk update saved" })
+    }
   }
 
   return (
@@ -601,13 +664,9 @@ function AttendanceDetails({
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="P">P</SelectItem>
-                <SelectItem value="A">A</SelectItem>
-                <SelectItem value="Halfday">Halfday</SelectItem>
-                <SelectItem value="CL">CL</SelectItem>
-                <SelectItem value="PL">PL</SelectItem>
-                <SelectItem value="SL">SL</SelectItem>
-                <SelectItem value="LWP">LWP</SelectItem>
+                {statusOptions.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button onClick={handleBulkApply} className="bg-blue-600">
@@ -665,13 +724,9 @@ function AttendanceDetails({
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="P">P</SelectItem>
-                                <SelectItem value="A">A</SelectItem>
-                                <SelectItem value="Halfday">Halfday</SelectItem>
-                                <SelectItem value="CL">CL</SelectItem>
-                                <SelectItem value="PL">PL</SelectItem>
-                                <SelectItem value="SL">SL</SelectItem>
-                                <SelectItem value="LWP">LWP</SelectItem>
+                                {statusOptions.map(opt => (
+                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                ))}
                               </SelectContent>
                             </Select>
                           </TableCell>
