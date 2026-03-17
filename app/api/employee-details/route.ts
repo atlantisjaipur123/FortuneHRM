@@ -136,6 +136,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    const session = await getSession();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     let companyId: string;
     try {
       companyId = getCompanyId();
@@ -161,6 +166,14 @@ export async function POST(req: NextRequest) {
     }
 
     const salaryInput = body.salary || payload.salary || null;
+
+    // Read related records from body (root level), NOT from payload (body.employee)
+    const qualifications = body.qualifications || payload.qualifications || [];
+    const family = body.family || payload.family || [];
+    const nominees = body.nominees || payload.nominees || [];
+    const witnesses = body.witnesses || payload.witnesses || [];
+    const experiences = body.experiences || payload.experiences || [];
+    const companyAssets = body.companyAssets || payload.companyAssets || [];
 
     const result = await prisma.$transaction(
       async (tx) => {
@@ -211,7 +224,12 @@ export async function POST(req: NextRequest) {
           fathersName: toNull(payload.fathersName),
           mothersName: toNull(payload.mothersName),
           caste: toNull(payload.caste),
-          bloodGroup: toNull(payload.bloodGroup),
+          bloodGroup: (() => {
+            const bg = toNull(payload.bloodGroup);
+            if (!bg) return null;
+            // Normalize: "A+" → "A_POSITIVE", "AB-" → "AB_NEGATIVE"
+            return bg.replace('+', '_POSITIVE').replace('-', '_NEGATIVE').toUpperCase();
+          })(),
           nationality: toNull(payload.nationality),
           religion: toEnum(payload.religion),
           noOfDependent: toNumber(payload.noOfDependent, true),
@@ -286,7 +304,16 @@ export async function POST(req: NextRequest) {
           recruitmentAgency: toNull(payload.recruitmentAgency),
           bankMandate: toNull(payload.bankMandate),
           employmentStatus: toEnum(payload.employmentStatus) || "ACTIVE",
-          createdBy: "system", // ← replace with session.id when auth ready
+          reasonForLeaving: toNull(payload.reasonForLeaving),
+          stdCode: toNull(payload.stdCode),
+          lapTops: toNull(payload.lapTops),
+          companyVehicle: toNull(payload.companyVehicle),
+          corpCreditCardNo: toNull(payload.corpCreditCardNo),
+          transportRoute: toNull(payload.transportRoute),
+          workLocation: toNull(payload.workLocation),
+          service: toNull(payload.service),
+          remarks: toNull(payload.remarks),
+          createdBy: session.id,
         };
 
         const createdEmployee = await tx.employee.create({
@@ -300,9 +327,9 @@ export async function POST(req: NextRequest) {
         // ── Related records with field name mapping ─────────────────────
 
         // Qualifications
-        if (payload.qualifications?.length) {
+        if (qualifications?.length) {
           await tx.qualification.createMany({
-            data: payload.qualifications
+            data: qualifications
               .map((q: any) => {
                 const { id, from, to, score, degreeValidityYear, uploadCertification, ...rest } = q;
                 return {
@@ -312,7 +339,18 @@ export async function POST(req: NextRequest) {
                   toYear: to ? new Date(to).getFullYear() : null,
                   percentage: score != null ? String(score) : null,
                   validityYear: degreeValidityYear ? toNumber(degreeValidityYear, true) : null,
-                  certificate: uploadCertification?.trim() || null,
+                  certificate: (() => {
+                    if (!uploadCertification) return null;
+                    // Frontend sends { name, size, base64 } object
+                    if (typeof uploadCertification === 'object' && uploadCertification.base64) {
+                      return uploadCertification.base64;
+                    }
+                    // Backward compat: if it's already a string
+                    if (typeof uploadCertification === 'string' && uploadCertification.trim()) {
+                      return uploadCertification.trim();
+                    }
+                    return null;
+                  })(),
                 };
               })
               .filter((q: any) => q.college?.trim() || q.degree?.trim() || q.fromYear || q.toYear),
@@ -320,9 +358,9 @@ export async function POST(req: NextRequest) {
         }
 
         // Family members – important rename: residing → residingWith
-        if (payload.family?.length) {
+        if (family?.length) {
           await tx.familyMember.createMany({
-            data: payload.family
+            data: family
               .map((f: any) => {
                 const { id, residing, ...rest } = f;
                 return {
@@ -336,8 +374,8 @@ export async function POST(req: NextRequest) {
         }
 
         // Experiences (expects from/to as dates)
-        if (payload.experiences?.length) {
-          const validExperiences = payload.experiences
+        if (experiences?.length) {
+          const validExperiences = experiences
             .filter((e: any) => (e.companyName?.trim() || e.designation?.trim()) && e.from && e.to)
             .map((e: any) => {
               const { id, ...rest } = e;
@@ -353,10 +391,10 @@ export async function POST(req: NextRequest) {
           }
         }
 
-        // Nomineess
-        if (payload.nominees?.length) {
+        // Nominees
+        if (nominees?.length) {
           await tx.nominee.createMany({
-            data: payload.nominees
+            data: nominees
               .map((n: any) => {
                 const { id, gratuityShare, ...rest } = n;
 
@@ -378,9 +416,9 @@ export async function POST(req: NextRequest) {
 
 
         // Witnesses
-        if (payload.witnesses?.length) {
+        if (witnesses?.length) {
           await tx.witness.createMany({
-            data: payload.witnesses
+            data: witnesses
               .map((w: any) => {
                 const { id, ...rest } = w;
                 return { ...rest, employeeId: createdEmployee.id };
@@ -390,9 +428,9 @@ export async function POST(req: NextRequest) {
         }
 
         // Company Assets
-        if (payload.companyAssets?.length) {
+        if (companyAssets?.length) {
           await tx.companyAsset.createMany({
-            data: payload.companyAssets
+            data: companyAssets
               .map((a: any) => {
                 const { id, ...rest } = a;
                 return { ...rest, employeeId: createdEmployee.id };
@@ -428,6 +466,67 @@ export async function POST(req: NextRequest) {
             },
           });
         }
+
+        // --- PHASE 6 & 7: LEAVE AUTO-PROVISIONING & PRORATION ---
+        const currentYear = new Date().getFullYear();
+        const activePolicies = await tx.leavePolicy.findMany({
+          where: { companyId, isActive: true },
+        });
+
+        const leaveBalancesToCreate = [];
+
+        for (const policy of activePolicies) {
+          const app = policy.applicability as any;
+          let isApplicable = true;
+
+          if (app && !app.all) {
+            const fail = 
+              (app.branches?.length > 0 && !app.branches.includes(createdEmployee.branch)) ||
+              (app.departments?.length > 0 && !app.departments.includes(createdEmployee.department)) ||
+              (app.designations?.length > 0 && !app.designations.includes(createdEmployee.designation)) ||
+              (app.categories?.length > 0 && !app.categories.includes(createdEmployee.category)) ||
+              (app.levels?.length > 0 && !app.levels.includes(createdEmployee.level)) ||
+              (app.grades?.length > 0 && !app.grades.includes(createdEmployee.grade)) ||
+              (app.attendanceTypes?.length > 0 && !app.attendanceTypes.includes(createdEmployee.attendanceType));
+            
+            if (fail) isApplicable = false;
+          }
+
+          if (isApplicable) {
+            // Phase 7: Proration Logic
+            const totalDaysPerYear = policy.fixedDays || policy.totalPerYear || 0;
+            let allottedDays = totalDaysPerYear;
+
+            if (createdEmployee.doj) {
+              const dojDate = new Date(createdEmployee.doj);
+              if (dojDate.getFullYear() === currentYear) {
+                const monthsRemaining = 12 - dojDate.getMonth();
+                allottedDays = (totalDaysPerYear / 12) * monthsRemaining;
+                allottedDays = Math.round(allottedDays * 2) / 2; // Round to nearest 0.5
+              }
+            }
+
+            leaveBalancesToCreate.push({
+              companyId,
+              employeeId: createdEmployee.id,
+              leavePolicyId: policy.id,
+              year: currentYear,
+              totalAllotted: allottedDays,
+              carriedOver: 0,
+              used: 0,
+              encashed: 0,
+              lapsed: 0,
+              balance: allottedDays,
+            });
+          }
+        }
+
+        if (leaveBalancesToCreate.length > 0) {
+          await tx.employeeLeaveBalance.createMany({
+            data: leaveBalancesToCreate
+          });
+        }
+        // --- END LEAVE AUTO-PROVISIONING ---
 
         return { employee: createdEmployee, salary: salaryResult };
       },
@@ -692,7 +791,16 @@ export async function PUT(req: NextRequest) {
               toYear: to ? new Date(to).getFullYear() : null,
               percentage: score != null ? String(score) : null,
               validityYear: degreeValidityYear ? parseInt(degreeValidityYear) || null : null,
-              certificate: uploadCertification?.trim?.() || null,
+              certificate: (() => {
+                if (!uploadCertification) return null;
+                if (typeof uploadCertification === 'object' && uploadCertification.base64) {
+                  return uploadCertification.base64;
+                }
+                if (typeof uploadCertification === 'string' && uploadCertification.trim()) {
+                  return uploadCertification.trim();
+                }
+                return null;
+              })(),
             };
           })
           .filter((q: any) => q.college?.trim() || q.degree?.trim() || q.fromYear || q.toYear);

@@ -733,6 +733,7 @@ model EmployeeLeaveBalance {
   used          Float       @default(0)
   encashed      Float       @default(0)
   lapsed        Float       @default(0)
+  balance       Float       @default(0)
   
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt

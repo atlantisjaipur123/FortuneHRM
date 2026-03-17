@@ -47,7 +47,7 @@ const INDIAN_STATES = [
 
 type AddEmployeeProps = {
   employee?: any;
-  onSubmit?: (payload: any) => void;
+  onSubmit?: (payload: any) => void | Promise<void>;
   onCancel?: () => void;
 };
 
@@ -104,9 +104,19 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
     nasscomRegNo: "",
     internalId: "",
     resignationReason: "",
+    reasonForLeaving: "",
     fatherHusbandName: "",
     emergencyContact: "",
     emergencyPhone: "",
+    identityMark: "",
+    photo: "",
+    stdCode: "",
+    scale: "",
+    ptGroup: "",
+    shiftId: "",
+    previousPfNo: "",
+    salaryForEsiOption: "",
+    salaryForEsi: "",
 
     // ================= OFFICE DETAILS TAB =================
     branch: "",
@@ -171,7 +181,7 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
     // ================= OTHER TAB =================
     recruitmentAgency: "",
     bankMandate: "",
-    employmentStatus: "Active",
+    employmentStatus: "ACTIVE",
     lapTops: "",
     companyVehicle: "",
     corpCreditCardNo: "",
@@ -182,6 +192,7 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
 
     // ================= EMPLOYMENT DATES (Shared Across Tabs) =================
     doj: "",
+    dor: "",
     noticePeriodMonths: "",
     probationPeriodMonths: "",
     confirmationDate: "",
@@ -452,9 +463,87 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
 
 
 
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+
+  // ── Per-field validation (returns error message or empty string) ──
+  const validateField = (field: string, value: any): string => {
+    const v = value == null ? "" : String(value).trim();
+    switch (field) {
+      case "code":
+        if (!v) return "Employee Code is required.";
+        if (v.length > 20) return "Max 20 characters.";
+        return "";
+      case "name":
+        if (!v) return "Employee Name is required.";
+        return "";
+      case "doj":
+        if (!v) return "Date of Joining is required.";
+        { const d = new Date(v); if (isNaN(d.getTime())) return "Invalid date."; const y = d.getFullYear(); if (y < 1950 || y > 2099) return "Year must be 1950–2099."; }
+        return "";
+      case "pan":
+        if (!v) return "";
+        if (v.length !== 10 || !/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(v.toUpperCase())) return "Format: ABCDE1234F";
+        return "";
+      case "aadhaar":
+        if (!v) return "";
+        if (!/^\d{12}$/.test(v.replace(/\D/g, ""))) return "Must be 12 digits.";
+        return "";
+      case "uan":
+        if (!v) return "";
+        if (!/^\d{12}$/.test(v.replace(/\D/g, ""))) return "Must be 12 digits.";
+        return "";
+      case "mobile":
+        if (!v) return "";
+        if (!/^\d{10}$/.test(v.replace(/\D/g, ""))) return "Must be 10 digits.";
+        return "";
+      case "email":
+        if (!v) return "";
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return "Invalid email.";
+        return "";
+      case "bankIfsc":
+        if (!v) return "";
+        if (v.replace(/[^A-Za-z0-9]/g, "").length !== 11) return "Must be 11 chars.";
+        return "";
+      case "noOfDependent":
+      case "noticePeriodMonths":
+      case "probationPeriodMonths":
+        if (!v) return "";
+        if (!/^\d+$/.test(v)) return "Must be a number.";
+        return "";
+      // Date fields
+      case "dob": case "dor": case "dateOfMarriage": case "confirmationDate":
+      case "pfJoiningDate": case "pfLastDate": case "esiJoiningDate": case "esiLastDate":
+      case "annualRenewableDate": case "resigLetterDate": case "resigDateLwd":
+      case "appraisalDate": case "commitmentCompletionDate": case "dateOfDeath":
+      case "pensionJoiningDate":
+        if (!v) return "";
+        { const d = new Date(v); if (isNaN(d.getTime())) return "Invalid date."; const y = d.getFullYear(); if (y < 1950 || y > 2099) return "Year must be 1950–2099."; }
+        return "";
+      default:
+        return "";
+    }
+  };
+
   const handleFieldChange = (field: string, value: any) => {
     setEmployee((prev: typeof employee) => ({ ...prev, [field]: value }));
+    // Validate and update field errors
+    const err = validateField(field, value);
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      if (err) next[field] = err; else delete next[field];
+      return next;
+    });
   };
+
+  /** Returns red border class if field has error */
+  const fieldClass = (field: string, base = "w-full p-2 border rounded") =>
+    `${base} ${fieldErrors[field] ? "border-red-500 bg-red-50" : "border-gray-300"}`;
+
+  /** Inline error message shown below input */
+  const FieldError = ({ field }: { field: string }) =>
+    fieldErrors[field]
+      ? <p className="text-red-500 text-xs mt-0.5">{fieldErrors[field]}</p>
+      : null;
   const addRow = (key: string, emptyRow: any) => {
     setEmployee((prev: typeof employee) => ({
       ...prev,
@@ -520,137 +609,330 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
     esiRule,
   ]);
 
+  // ── Sanitization helpers ──────────────────────────────────────────
+  const sanitize = {
+    /** Trim to null — never sends empty strings for optional fields */
+    str: (v: any): string | null => {
+      if (v == null) return null;
+      const s = String(v).trim();
+      return s === "" ? null : s;
+    },
+    /** Trim to string — returns "" instead of null for required fields */
+    req: (v: any): string => String(v ?? "").trim(),
+    /** Boolean coercion */
+    bool: (v: any): boolean => v === true || v === "true" || v === 1,
+    /** Integer or null */
+    int: (v: any): number | null => {
+      if (v == null || v === "") return null;
+      const n = parseInt(String(v), 10);
+      return Number.isNaN(n) ? null : n;
+    },
+    /** Float or null */
+    float: (v: any): number | null => {
+      if (v == null || v === "") return null;
+      const n = parseFloat(String(v));
+      return Number.isNaN(n) ? null : n;
+    },
+    /** Date string → valid ISO or null. Rejects years outside 1950–2099. */
+    date: (v: any): string | null => {
+      if (!v || v === "") return null;
+      const d = new Date(v);
+      if (isNaN(d.getTime())) return null;
+      const year = d.getFullYear();
+      if (year < 1950 || year > 2099) return null; // reject unreasonable dates
+      return d.toISOString();
+    },
+    /** PAN: ABCDE1234F → uppercase, strip non-alnum, max 10 chars */
+    pan: (v: any): string | null => {
+      if (!v) return null;
+      const s = String(v).replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 10);
+      return s === "" ? null : s;
+    },
+    /** Aadhaar: 12 digits only */
+    aadhaar: (v: any): string | null => {
+      if (!v) return null;
+      const s = String(v).replace(/\D/g, "").slice(0, 12);
+      return s === "" ? null : s;
+    },
+    /** UAN: 12 digits only */
+    uan: (v: any): string | null => {
+      if (!v) return null;
+      const s = String(v).replace(/\D/g, "").slice(0, 12);
+      return s === "" ? null : s;
+    },
+    /** ESI No: up to 20 chars, digits and dashes */
+    esiNo: (v: any): string | null => {
+      if (!v) return null;
+      const s = String(v).replace(/[^0-9\-]/g, "").slice(0, 20);
+      return s === "" ? null : s;
+    },
+    /** Mobile: 10 digits */
+    mobile: (v: any): string | null => {
+      if (!v) return null;
+      const s = String(v).replace(/\D/g, "").slice(0, 10);
+      return s === "" ? null : s;
+    },
+    /** Phone: digits, spaces, dashes, parens allowed */
+    phone: (v: any): string | null => {
+      if (!v) return null;
+      const s = String(v).replace(/[^\d\s\-\+\(\)]/g, "").trim();
+      return s === "" ? null : s;
+    },
+    /** Email: lowercase, trimmed */
+    email: (v: any): string | null => {
+      if (!v) return null;
+      const s = String(v).trim().toLowerCase();
+      if (s === "") return null;
+      // basic email format check
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s)) return null;
+      return s;
+    },
+    /** IFSC: 11 alphanumeric chars */
+    ifsc: (v: any): string | null => {
+      if (!v) return null;
+      const s = String(v).replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 11);
+      return s === "" ? null : s;
+    },
+    /** Enum: uppercase, trimmed */
+    enumVal: (v: any, fallback: string): string => {
+      if (!v || String(v).trim() === "") return fallback;
+      return String(v).trim().toUpperCase();
+    },
+    /** PIN code: 6 digits */
+    pin: (v: any): string | null => {
+      if (!v) return null;
+      const s = String(v).replace(/\D/g, "").slice(0, 6);
+      return s === "" ? null : s;
+    },
+  };
+
+  /** Sanitize an address object — all fields trimmed, state uppercased, pin 6 digits */
+  const sanitizeAddress = (addr: any) => {
+    if (!addr || typeof addr !== "object") return null;
+    const cleaned = {
+      flat: sanitize.str(addr.flat),
+      building: sanitize.str(addr.building),
+      area: sanitize.str(addr.area),
+      road: sanitize.str(addr.road),
+      city: sanitize.str(addr.city),
+      district: sanitize.str(addr.district),
+      state: addr.state ? String(addr.state).trim().toUpperCase().replace(/\s+/g, "_") : null,
+      pin: sanitize.pin(addr.pin),
+    };
+    // Return null if entirely empty
+    const hasData = Object.values(cleaned).some((v) => v != null && v !== "");
+    return hasData ? cleaned : null;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
 
-    // Basic validation
-    if (!employee.code?.trim()) {
-      alert("Employee Code is required");
-      setIsSaving(false);
-      return;
+    // Run all validations and collect field-level errors
+    const allErrors: Record<string, string> = {};
+    const fieldsToValidate = [
+      "code", "name", "doj", "pan", "aadhaar", "uan", "mobile", "email", "bankIfsc",
+      "noOfDependent", "noticePeriodMonths", "probationPeriodMonths",
+      "dob", "dor", "dateOfMarriage", "confirmationDate", "pfJoiningDate", "pfLastDate",
+      "esiJoiningDate", "esiLastDate", "annualRenewableDate", "resigLetterDate",
+      "resigDateLwd", "appraisalDate", "commitmentCompletionDate", "dateOfDeath", "pensionJoiningDate",
+    ];
+    fieldsToValidate.forEach((f) => {
+      const err = validateField(f, employee[f]);
+      if (err) allErrors[f] = err;
+    });
+
+    // Logical date cross-checks
+    if (employee.dob && employee.doj) {
+      const dob = new Date(employee.dob);
+      const doj = new Date(employee.doj);
+      if (!isNaN(dob.getTime()) && !isNaN(doj.getTime()) && dob >= doj) {
+        allErrors.dob = (allErrors.dob || "") + " Must be before DOJ.";
+      }
     }
-    if (!employee.branch || !employee.department || !employee.designation) {
-      alert("Branch, Department, and Designation are required");
-      setActiveTab("Office details");
+    if (employee.doj && employee.dor) {
+      const doj = new Date(employee.doj);
+      const dor = new Date(employee.dor);
+      if (!isNaN(doj.getTime()) && !isNaN(dor.getTime()) && doj >= dor) {
+        allErrors.dor = (allErrors.dor || "") + " Must be after DOJ.";
+      }
+    }
+
+    // Branch/Dept/Designation required
+    if (!employee.branch) allErrors.branch = "Branch is required.";
+    if (!employee.department) allErrors.department = "Department is required.";
+    if (!employee.designation) allErrors.designation = "Designation is required.";
+
+    setFieldErrors(allErrors);
+
+    if (Object.keys(allErrors).length > 0) {
       setIsSaving(false);
+      // Switch to the tab that has the first error
+      if (allErrors.branch || allErrors.department || allErrors.designation) setActiveTab("Office details");
+      else if (allErrors.code || allErrors.name || allErrors.dob || allErrors.pan || allErrors.aadhaar || allErrors.mobile || allErrors.email || allErrors.doj) setActiveTab("Personal");
       return;
     }
 
-    // ✅ PROFESSIONAL PAYLOAD - Exactly matches backend expectation
+    // ── Build sanitized payload ─────────────────────────────────────
+    // Maps EVERY column from the Prisma Employee model
     const finalPayload = {
-      // Wrap under "employee" key (this is what the backend uses)
       employee: {
         ...(employee.id && { id: employee.id }),
-        code: employee.code?.trim() || "",
-        name: employee.name?.trim() || "",
-        fatherHusbandName: employee.fatherHusbandName || employee.fathersName || "",
-        pan: employee.pan?.trim() || "",
-        aadhaar: employee.aadhaar?.trim() || "",
-        uan: employee.uan?.trim() || "",
-        pfAcNo: employee.pfAcNo?.trim() || "",
-        esiNo: employee.esiNo?.trim() || "",
-        email: employee.email?.trim()?.toLowerCase() || "",
-        gender: employee.gender || "MALE",
-        maritalStatus: employee.maritalStatus || "UNMARRIED",
-        dob: employee.dob || null,
-        doj: employee.doj || null,
-        dor: employee.dor || null,
-        dateOfMarriage: employee.dateOfMarriage || null,
-        bloodGroup: employee.bloodGroup || "",
-        nationality: employee.nationality || "Indian",
-        religion: employee.religion || "HINDU",
-        caste: employee.caste || "GEN",
-        noOfDependent: employee.noOfDependent || null,
-        spouse: employee.spouse || "",
-        phone: employee.phone?.trim() || "",
-        mobile: employee.mobile?.trim() || "",
-        internalId: employee.internalId || "",
-        nasscomRegNo: employee.nasscomRegNo || "",
-        physicallyHandicap: employee.physicallyHandicap || "NO",
-        registeredInPmrpy: !!employee.registeredInPmrpy,
-        reimbursementApplicable: !!employee.reimbursementApplicable,
-        hraApplicable: !!employee.hraApplicable,
-        bonusApplicable: !!employee.bonusApplicable,
-        gratuityApplicable: !!employee.gratuityApplicable,
-        lwfApplicable: !!employee.lwfApplicable,
-        pfApplicable: !!employee.pfApplicable,
-        esiApplicable: !!employee.esiApplicable,
 
-        // Bank & Financial
-        bankName: employee.bankName || "",
-        bankBranch: employee.bankBranch || "",
-        bankIfsc: employee.bankIfsc || "",
-        bankAddress: employee.bankAddress || "",
-        nameAsPerAc: employee.nameAsPerAc || "",
-        salaryAcNumber: employee.salaryAcNumber || "",
-        paymentMode: employee.paymentMode || "TRANSFER",
-        acType: employee.acType || "ECS",
-        bankRefNo: employee.bankRefNo || "",
-        wardCircleRange: employee.wardCircleRange || "",
-        licPolicyNo: employee.licPolicyNo || "",
-        policyTerm: employee.policyTerm || "",
-        licId: employee.licId || "",
-        annualRenewableDate: employee.annualRenewableDate || null,
+        // ─── Required fields ───
+        code: sanitize.req(employee.code).slice(0, 20),
+        name: sanitize.req(employee.name),
+        doj: sanitize.date(employee.doj),
 
-        // Office Details
-        branch: employee.branch || "",
-        department: employee.department || "",
-        designation: employee.designation || "",
-        level: employee.level || "",
-        grade: employee.grade || "",
-        category: employee.category || "",
-        attendanceType: employee.attendanceType || "",
+        // ─── Personal details ───
+        fatherHusbandName: sanitize.str(employee.fatherHusbandName) || sanitize.str(employee.fathersName),
+        fathersName: sanitize.str(employee.fathersName),
+        mothersName: sanitize.str(employee.mothersName),
+        gender: sanitize.enumVal(employee.gender, "MALE"),
+        maritalStatus: sanitize.enumVal(employee.maritalStatus, "UNMARRIED"),
+        dob: sanitize.date(employee.dob),
+        dor: sanitize.date(employee.dor),
+        dateOfMarriage: sanitize.date(employee.dateOfMarriage),
+        bloodGroup: sanitize.str(employee.bloodGroup),
+        nationality: sanitize.str(employee.nationality) || "Indian",
+        religion: employee.religion ? sanitize.enumVal(employee.religion, "") : null,
+        caste: sanitize.str(employee.caste),
+        noOfDependent: sanitize.int(employee.noOfDependent),
+        spouse: sanitize.str(employee.spouse),
+        photo: sanitize.str(employee.photo),
+        physicallyHandicap: sanitize.str(employee.physicallyHandicap),
+        identityMark: sanitize.str(employee.identityMark),
 
-        // Dates & Periods
-        noticePeriodMonths: employee.noticePeriodMonths || null,
-        probationPeriodMonths: employee.probationPeriodMonths || null,
-        confirmationDate: employee.confirmationDate || null,
-        resigLetterDate: employee.resigLetterDate || null,
-        resigDateLwd: employee.resigDateLwd || null,
-        appraisalDate: employee.appraisalDate || null,
-        commitmentCompletionDate: employee.commitmentCompletionDate || null,
-        dateOfDeath: employee.dateOfDeath || null,
-        resignationReason: employee.resignationReason || null,
+        // ─── Identity docs (sanitized) ───
+        pan: sanitize.pan(employee.pan),
+        aadhaar: sanitize.aadhaar(employee.aadhaar),
+        uan: sanitize.uan(employee.uan),
+        pfAcNo: sanitize.str(employee.pfAcNo)?.slice(0, 30) ?? null,
+        esiNo: sanitize.esiNo(employee.esiNo),
+        email: sanitize.email(employee.email),
+        nasscomRegNo: sanitize.str(employee.nasscomRegNo),
 
-        // ADDRESSES (critical - must be objects)
-        permanentAddress: employee.permanentAddress || {},
-        correspondenceAddress: employee.correspondenceAddress || {},
+        // ─── Contact ───
+        stdCode: sanitize.str(employee.stdCode),
+        phone: sanitize.phone(employee.phone),
+        mobile: sanitize.mobile(employee.mobile),
+        emergencyContact: sanitize.str(employee.emergencyContact),
+        emergencyPhone: sanitize.phone(employee.emergencyPhone),
+        internalId: sanitize.str(employee.internalId),
 
-        // Other fields from your state
-        fathersName: employee.fathersName || "",
-        mothersName: employee.mothersName || "",
-        lapTops: employee.lapTops || "",
-        companyVehicle: employee.companyVehicle || "",
-        corpCreditCardNo: employee.corpCreditCardNo || "",
-        transportRoute: employee.transportRoute || "",
-        workLocation: employee.workLocation || "",
-        service: employee.service || "",
-        remarks: employee.remarks || "",
-        recruitmentAgency: employee.recruitmentAgency || "",
-        bankMandate: employee.bankMandate || "",
-        employmentStatus: employee.employmentStatus || "ACTIVE",
+        // ─── Office details ───
+        branch: sanitize.str(employee.branch),
+        department: sanitize.str(employee.department),
+        designation: sanitize.str(employee.designation),
+        level: sanitize.str(employee.level),
+        grade: sanitize.str(employee.grade),
+        category: sanitize.str(employee.category),
+        scale: sanitize.str(employee.scale),
+        ptGroup: sanitize.str(employee.ptGroup),
+        attendanceType: sanitize.str(employee.attendanceType),
+        shiftId: sanitize.str(employee.shiftId),
+
+        // ─── Employment periods ───
+        noticePeriodMonths: sanitize.int(employee.noticePeriodMonths),
+        probationPeriodMonths: sanitize.int(employee.probationPeriodMonths),
+        confirmationDate: sanitize.date(employee.confirmationDate),
+        resigLetterDate: sanitize.date(employee.resigLetterDate),
+        resigDateLwd: sanitize.date(employee.resigDateLwd),
+        resignationReason: sanitize.str(employee.resignationReason),
+        appraisalDate: sanitize.date(employee.appraisalDate),
+        commitmentCompletionDate: sanitize.date(employee.commitmentCompletionDate),
+        dateOfDeath: sanitize.date(employee.dateOfDeath),
+
+        // ─── Booleans ───
+        registeredInPmrpy: sanitize.bool(employee.registeredInPmrpy),
+        reimbursementApplicable: sanitize.bool(employee.reimbursementApplicable),
+        hraApplicable: sanitize.bool(employee.hraApplicable),
+        bonusApplicable: sanitize.bool(employee.bonusApplicable),
+        gratuityApplicable: sanitize.bool(employee.gratuityApplicable),
+        lwfApplicable: sanitize.bool(employee.lwfApplicable),
+
+        // ─── Bank & Financial ───
+        bankName: sanitize.str(employee.bankName),
+        bankBranch: sanitize.str(employee.bankBranch),
+        bankIfsc: sanitize.ifsc(employee.bankIfsc),
+        bankAddress: sanitize.str(employee.bankAddress),
+        nameAsPerAc: sanitize.str(employee.nameAsPerAc),
+        salaryAcNumber: sanitize.str(employee.salaryAcNumber),
+        paymentMode: employee.paymentMode ? sanitize.enumVal(employee.paymentMode, "TRANSFER") : "TRANSFER",
+        acType: employee.acType ? sanitize.enumVal(employee.acType, "ECS") : "ECS",
+        bankRefNo: sanitize.str(employee.bankRefNo),
+        wardCircleRange: sanitize.str(employee.wardCircleRange),
+        licPolicyNo: sanitize.str(employee.licPolicyNo),
+        policyTerm: sanitize.str(employee.policyTerm),
+        licId: sanitize.str(employee.licId),
+        annualRenewableDate: sanitize.date(employee.annualRenewableDate),
+
+        // ─── PF details ───
+        pfApplicable: sanitize.bool(employee.pfApplicable),
+        pfJoiningDate: sanitize.date(employee.pfJoiningDate),
+        pfLastDate: sanitize.date(employee.pfLastDate),
+        previousPfNo: sanitize.str(employee.previousPfNo),
+        salaryForPfOption: sanitize.str(employee.salaryForPfOption),
+        salaryForPf: sanitize.float(employee.salaryForPf),
+        minAmtPf: sanitize.float(employee.minAmtPf),
+        pensionAppl: sanitize.bool(employee.pensionAppl),
+        pensionJoiningDate: sanitize.date(employee.pensionJoiningDate),
+        pensionOnHigherWages: sanitize.bool(employee.pensionOnHigherWages),
+        noLimit: sanitize.bool(employee.noLimit),
+
+        // ─── ESI details ───
+        esiApplicable: sanitize.bool(employee.esiApplicable),
+        esiJoiningDate: sanitize.date(employee.esiJoiningDate),
+        esiLastDate: sanitize.date(employee.esiLastDate),
+        salaryForEsiOption: sanitize.str(employee.salaryForEsiOption),
+        salaryForEsi: sanitize.float(employee.salaryForEsi),
+        minAmtEsiContribution: sanitize.float(employee.minAmtEsiContribution),
+        dispensaryOrPanel: sanitize.str(employee.dispensaryOrPanel),
+
+        // ─── Other / miscellaneous ───
+        recruitmentAgency: sanitize.str(employee.recruitmentAgency),
+        bankMandate: sanitize.str(employee.bankMandate),
+        employmentStatus: sanitize.enumVal(employee.employmentStatus, "ACTIVE"),
+        lapTops: sanitize.str(employee.lapTops),
+        companyVehicle: sanitize.str(employee.companyVehicle),
+        corpCreditCardNo: sanitize.str(employee.corpCreditCardNo),
+        transportRoute: sanitize.str(employee.transportRoute),
+        workLocation: sanitize.str(employee.workLocation),
+        reasonForLeaving: sanitize.str(employee.reasonForLeaving),
+        service: sanitize.str(employee.service),
+        remarks: sanitize.str(employee.remarks),
+
+        // ─── Addresses (sanitized objects) ───
+        permanentAddress: sanitizeAddress(employee.permanentAddress),
+        correspondenceAddress: sanitizeAddress(employee.correspondenceAddress),
       },
 
       // Related records (backend expects these at root)
-      qualifications: employee.qualifications || [],
-      family: employee.family || [],
-      nominees: employee.nominees || [],
-      witnesses: employee.witnesses || [],
-      experiences: employee.experiences || [],
+      qualifications: (employee.qualifications || []).filter((q: any) => q.college?.trim() || q.degree?.trim()),
+      family: (employee.family || []).filter((f: any) => f.name?.trim() || f.relationship?.trim()),
+      nominees: (employee.nominees || []).filter((n: any) => n.name?.trim() || n.relationship?.trim()),
+      witnesses: (employee.witnesses || []).filter((w: any) => w.name?.trim()),
+      experiences: (employee.experiences || []).filter((x: any) => x.companyName?.trim() || x.designation?.trim()),
 
-      // Salary (backend supports this directly)
-      salary: {
-        mode: salaryMode,
-        inputAmount: salaryAmount,
-        selectedHeadIds: selectedHeadIds || [],
-      },
+      // Salary
+      salary: salaryAmount
+        ? {
+          mode: salaryMode,
+          inputAmount: Number(salaryAmount),
+          selectedHeadIds: selectedHeadIds || [],
+        }
+        : null,
     };
 
-    console.log("🚀 FINAL PAYLOAD (Create):", JSON.stringify(finalPayload, null, 2));
+    console.log("🚀 FINAL PAYLOAD:", JSON.stringify(finalPayload, null, 2));
 
-    onSubmit?.(finalPayload);   // ← send to parent
-    setIsSaving(false);
+    try {
+      await onSubmit?.(finalPayload);
+    } catch (err) {
+      console.error("Submit error:", err);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
 
@@ -673,25 +955,34 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
       </div>
 
       <form className="bg-white p-6 rounded-md" onSubmit={handleSubmit}>
+        {/* ── Validation error banner ── */}
+        {Object.keys(fieldErrors).length > 0 && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-300 rounded text-red-700 text-sm">
+            <strong>Please fix the highlighted fields before submitting.</strong>
+          </div>
+        )}
         {activeTab === "Personal" && (
           <div className="grid grid-cols-2 gap-6">
             <div>
               <label className="block text-sm font-bold">Code <span className="text-red-500">*</span></label>
               <input
                 type="text"
-                className="w-full p-2 border border-gray-300 rounded"
+                className={fieldClass("code")}
                 value={employee.code || ""}
+                maxLength={20}
                 onChange={(e) => handleFieldChange("code", e.target.value)}
                 required
               />
+              <FieldError field="code" />
 
-              <label className="block text-sm font-bold mt-4">Name</label>
+              <label className="block text-sm font-bold mt-4">Name <span className="text-red-500">*</span></label>
               <input
                 type="text"
-                className="w-full p-2 border border-gray-300 rounded"
+                className={fieldClass("name")}
                 value={employee.name || ""}
                 onChange={(e) => handleFieldChange("name", e.target.value)}
               />
+              <FieldError field="name" />
               <div className="col-span-2 flex flex-col space-y-4 mt-4">
 
                 {/* Permanent Address */}
@@ -806,6 +1097,15 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                   disabled={isSameAsAbove}
                   type="text"
                   className="w-full p-2 border border-gray-300 rounded mt-1"
+                  placeholder="Flat / House No."
+                  value={employee.correspondenceAddress?.flat || ""}
+                  onChange={(e) => handleAddressChange("correspondenceAddress", "flat", e.target.value)}
+                />
+
+                <input
+                  disabled={isSameAsAbove}
+                  type="text"
+                  className="w-full p-2 border border-gray-300 rounded mt-1"
                   placeholder="Building"
                   value={employee.correspondenceAddress?.building || ""}
                   onChange={(e) => handleAddressChange("correspondenceAddress", "building", e.target.value)}
@@ -879,26 +1179,31 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
               <label className="block text-sm font-bold mt-4">E-Mail</label>
               <input
                 type="email"
-                className="w-full p-2 border border-gray-300 rounded"
+                className={fieldClass("email")}
                 value={employee.email || ""}
                 onChange={(e) => handleFieldChange("email", e.target.value)}
               />
+              <FieldError field="email" />
 
               <label className="block text-sm font-bold mt-4">DOB</label>
               <input
                 type="date"
-                className="w-full p-2 border border-gray-300 rounded"
+                min="1950-01-01" max="2099-12-31"
+                className={fieldClass("dob")}
                 value={employee.dob || ""}
                 onChange={(e) => handleFieldChange("dob", e.target.value)}
               />
+              <FieldError field="dob" />
 
               <label className="block text-sm font-bold mt-4">PAN</label>
               <input
                 type="text"
-                className="w-full p-2 border border-gray-300 rounded"
+                maxLength={10}
+                className={fieldClass("pan")}
                 value={employee.pan || ""}
-                onChange={(e) => handleFieldChange("pan", e.target.value)}
+                onChange={(e) => handleFieldChange("pan", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
               />
+              <FieldError field="pan" />
 
               <label className="block text-sm font-bold mt-4">NASSCOM Reg No.</label>
               <input
@@ -911,10 +1216,26 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
 
             <div>
               <label className="block text-sm font-bold">Aadhaar No.</label>
-              <input type="text" value={employee.aadhaar || ""} onChange={(e) => handleFieldChange("aadhaar", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={12}
+                className={fieldClass("aadhaar")}
+                value={employee.aadhaar || ""}
+                onChange={(e) => handleFieldChange("aadhaar", e.target.value.replace(/\D/g, ""))}
+              />
+              <FieldError field="aadhaar" />
 
               <label className="block text-sm font-bold mt-4">Mobile No.</label>
-              <input type="text" value={employee.mobile || ""} onChange={(e) => handleFieldChange("mobile", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={10}
+                className={fieldClass("mobile")}
+                value={employee.mobile || ""}
+                onChange={(e) => handleFieldChange("mobile", e.target.value.replace(/\D/g, ""))}
+              />
+              <FieldError field="mobile" />
 
               <label className="block text-sm font-bold mt-4">Internal ID</label>
               <input type="text" value={employee.internalId || ""} onChange={(e) => handleFieldChange("internalId", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
@@ -922,39 +1243,52 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
               <label className="block text-sm font-bold mt-4">Notice Period</label>
               <input
                 type="text"
-                className="w-full p-2 border border-gray-300 rounded"
+                inputMode="numeric"
+                maxLength={3}
+                className={fieldClass("noticePeriodMonths")}
                 value={employee.noticePeriodMonths || ""}
-                onChange={(e) => handleFieldChange("noticePeriodMonths", e.target.value)}
+                onChange={(e) => handleFieldChange("noticePeriodMonths", e.target.value.replace(/\D/g, ""))}
+                placeholder="Months"
               />
+              <FieldError field="noticePeriodMonths" />
 
-              <label className="block text-sm font-bold mt-4">Joining Date</label>
+              <label className="block text-sm font-bold mt-4">Joining Date <span className="text-red-500">*</span></label>
               <input
                 type="date"
-                className="w-full p-2 border border-gray-300 rounded"
+                min="1950-01-01" max="2099-12-31"
+                className={fieldClass("doj")}
                 value={employee.doj || ""}
                 onChange={(e) => handleFieldChange("doj", e.target.value)}
               />
+              <FieldError field="doj" />
 
               <label className="block text-sm font-bold mt-4">Probation Period</label>
-              <input type="text" value={employee.probationPeriodMonths || ""} onChange={(e) => handleFieldChange("probationPeriodMonths", e.target.value)} className="w-full p-2 border border-gray-300 rounded" placeholder="Months" />
+              <input type="text" inputMode="numeric" maxLength={3} value={employee.probationPeriodMonths || ""} onChange={(e) => handleFieldChange("probationPeriodMonths", e.target.value.replace(/\D/g, ""))} className={fieldClass("probationPeriodMonths")} placeholder="Months" />
+              <FieldError field="probationPeriodMonths" />
 
               <label className="block text-sm font-bold mt-4">Confirmation Date</label>
-              <input type="date" value={employee.confirmationDate || ""} onChange={(e) => handleFieldChange("confirmationDate", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="date" min="1950-01-01" max="2099-12-31" value={employee.confirmationDate || ""} onChange={(e) => handleFieldChange("confirmationDate", e.target.value)} className={fieldClass("confirmationDate")} />
+              <FieldError field="confirmationDate" />
 
               <label className="block text-sm font-bold mt-4">Resig. Letter Date</label>
-              <input type="date" value={employee.resigLetterDate || ""} onChange={(e) => handleFieldChange("resigLetterDate", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="date" min="1950-01-01" max="2099-12-31" value={employee.resigLetterDate || ""} onChange={(e) => handleFieldChange("resigLetterDate", e.target.value)} className={fieldClass("resigLetterDate")} />
+              <FieldError field="resigLetterDate" />
 
               <label className="block text-sm font-bold mt-4">Resig. Date L.W.D.</label>
-              <input type="date" value={employee.resigDateLwd || ""} onChange={(e) => handleFieldChange("resigDateLwd", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="date" min="1950-01-01" max="2099-12-31" value={employee.resigDateLwd || ""} onChange={(e) => handleFieldChange("resigDateLwd", e.target.value)} className={fieldClass("resigDateLwd")} />
+              <FieldError field="resigDateLwd" />
 
               <label className="block text-sm font-bold mt-4">Appraisal Date</label>
-              <input type="date" value={employee.appraisalDate || ""} onChange={(e) => handleFieldChange("appraisalDate", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="date" min="1950-01-01" max="2099-12-31" value={employee.appraisalDate || ""} onChange={(e) => handleFieldChange("appraisalDate", e.target.value)} className={fieldClass("appraisalDate")} />
+              <FieldError field="appraisalDate" />
 
               <label className="block text-sm font-bold mt-4">Commitment Completion Date</label>
-              <input type="date" value={employee.commitmentCompletionDate || ""} onChange={(e) => handleFieldChange("commitmentCompletionDate", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="date" min="1950-01-01" max="2099-12-31" value={employee.commitmentCompletionDate || ""} onChange={(e) => handleFieldChange("commitmentCompletionDate", e.target.value)} className={fieldClass("commitmentCompletionDate")} />
+              <FieldError field="commitmentCompletionDate" />
 
               <label className="block text-sm font-bold mt-4">Date of Death</label>
-              <input type="date" value={employee.dateOfDeath || ""} onChange={(e) => handleFieldChange("dateOfDeath", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+              <input type="date" min="1950-01-01" max="2099-12-31" value={employee.dateOfDeath || ""} onChange={(e) => handleFieldChange("dateOfDeath", e.target.value)} className={fieldClass("dateOfDeath")} />
+              <FieldError field="dateOfDeath" />
 
               <label className="block text-sm font-bold mt-4">Resignation Reason</label>
               <select value={employee.resignationReason || ""} onChange={(e) => handleFieldChange("resignationReason", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
@@ -1016,10 +1350,12 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                 </select>
 
                 <label className="block text-sm font-bold mt-4">Date of Marriage</label>
-                <input type="date" value={employee.dateOfMarriage || ""} onChange={(e) => handleFieldChange("dateOfMarriage", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+                <input type="date" min="1950-01-01" max="2099-12-31" value={employee.dateOfMarriage || ""} onChange={(e) => handleFieldChange("dateOfMarriage", e.target.value)} className={fieldClass("dateOfMarriage")} />
+                <FieldError field="dateOfMarriage" />
 
                 <label className="block text-sm font-bold mt-4">No. Dependent</label>
-                <input type="text" value={employee.noOfDependent || ""} onChange={(e) => handleFieldChange("noOfDependent", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
+                <input type="text" inputMode="numeric" maxLength={2} value={employee.noOfDependent || ""} onChange={(e) => handleFieldChange("noOfDependent", e.target.value.replace(/\D/g, ""))} className={fieldClass("noOfDependent")} />
+                <FieldError field="noOfDependent" />
               </div>
 
               <div>
@@ -1742,13 +2078,13 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
 
             <label className="block text-sm font-bold">Employment Status</label>
             <select value={employee.employmentStatus || ""} onChange={(e) => handleFieldChange("employmentStatus", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
-              <option>Active</option>
-              <option>Probation</option>
-              <option>Resigned</option>
-              <option>Terminated</option>
-              <option>Retired</option>
-              <option>Deceased</option>
-              <option>Other</option>
+              <option value="">Select Status</option>
+              <option value="ACTIVE">Active</option>
+              <option value="PROBATION">Probation</option>
+              <option value="RESIGNED">Resigned</option>
+              <option value="TERMINATED">Terminated</option>
+              <option value="RETIRED">Retired</option>
+              <option value="DECEASED">Deceased</option>
             </select>
 
             <label className="block text-sm font-bold">Lap Tops</label>
@@ -1768,12 +2104,13 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
 
 
             <label className="block text-sm font-bold mt-4">Reason For Leaving</label>
-            <select className="w-full p-2 border border-gray-300 rounded">
-              <option>Resigned</option>
-              <option>Terminated</option>
-              <option>Retired</option>
-              <option>Deceased</option>
-              <option>Other</option>
+            <select value={employee.reasonForLeaving || ""} onChange={(e) => handleFieldChange("reasonForLeaving", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
+              <option value="">Select Reason</option>
+              <option value="Resigned">Resigned</option>
+              <option value="Terminated">Terminated</option>
+              <option value="Retired">Retired</option>
+              <option value="Deceased">Deceased</option>
+              <option value="Other">Other</option>
             </select>
 
             <label className="block text-sm font-bold mt-4">Service : -</label>

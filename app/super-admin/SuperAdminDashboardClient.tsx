@@ -813,8 +813,8 @@ const handleConfirm = () => {
                         <TableHead className="min-w-[50px] sm:min-w-[80px]"><input type="checkbox" checked={selectedRows.size === filteredCompanies.length} onChange={handleSelectAll} /></TableHead>
                         <TableHead className="min-w-[50px] sm:min-w-[80px]">Sr.No.</TableHead>
                         <TableHead className="min-w-[80px] sm:min-w-[120px]">
-                          <Button variant="ghost" onClick={() => setSortConfig({ key: 'id', direction: sortConfig?.key === 'id' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
-                            Company ID <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
+                          <Button variant="ghost" onClick={() => setSortConfig({ key: 'code', direction: sortConfig?.key === 'code' && sortConfig.direction === 'asc' ? 'desc' : 'asc' })} className="text-xs sm:text-sm">
+                            Company Code <ArrowUpDown className="ml-1 h-3 w-3 sm:h-4 sm:w-4" />
                           </Button>
                         </TableHead>
                         <TableHead className="min-w-[100px] sm:min-w-[150px]">
@@ -852,7 +852,7 @@ const handleConfirm = () => {
                           >
                             <TableCell className="min-w-[50px] sm:min-w-[80px]"><input type="checkbox" checked={selectedRows.has(company.id)} onChange={(e) => handleSelectRow(company.id, e)} /></TableCell>
                             <TableCell className="min-w-[50px] sm:min-w-[80px]">{index + 1}</TableCell>
-                            <TableCell className="min-w-[80px] sm:min-w-[120px]">{company.id}</TableCell>
+                            <TableCell className="min-w-[80px] sm:min-w-[120px]">{company.code}</TableCell>
                             <TableCell className="min-w-[100px] sm:min-w-[150px]">
                               <button className="text-blue-600 hover:underline font-medium text-xs sm:text-sm" onClick={() => { setCurrentCompany(company); setIsCompanyConfirmed(false); setCompanySearchTerm(""); }}>
                                 {company.name}

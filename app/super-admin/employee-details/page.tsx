@@ -39,19 +39,29 @@ const sanitizeForPrisma = (data: any) => {
   // 3. Convert Strings to Numbers for Int/Float fields
   const numbers = ['noOfDependent', 'noticePeriodMonths', 'probationPeriodMonths', 'salaryForPf', 'minAmtPf', 'salaryForEsi', 'minAmtEsiContribution'];
   numbers.forEach(key => {
-    if (sanitized[key]) sanitized[key] = Number(sanitized[key]);
+    if (sanitized[key] != null && sanitized[key] !== "") {
+      sanitized[key] = Number(sanitized[key]);
+      if (isNaN(sanitized[key])) delete sanitized[key]; // remove NaN values
+    } else {
+      delete sanitized[key]; // don't send null/empty as numbers
+    }
   });
   // 4. FIX: Convert Date Strings to ISO format
-  const dateFields = ['dob', 'doj', 'dor', 'dateOfMarriage', 'confirmationDate', 'pfJoiningDate', 'esiJoiningDate', 'annualRenewableDate'];
+  const dateFields = ['dob', 'doj', 'dor', 'dateOfMarriage', 'confirmationDate', 'pfJoiningDate', 'pfLastDate', 'esiJoiningDate', 'esiLastDate', 'annualRenewableDate', 'resigLetterDate', 'resigDateLwd', 'appraisalDate', 'commitmentCompletionDate', 'dateOfDeath', 'pensionJoiningDate'];
   dateFields.forEach(field => {
     if (sanitized[field] && sanitized[field] !== "") {
-      sanitized[field] = new Date(sanitized[field]).toISOString();
+      const d = new Date(sanitized[field]);
+      if (isNaN(d.getTime())) {
+        delete sanitized[field]; // invalid date → remove
+      } else {
+        sanitized[field] = d.toISOString();
+      }
     } else {
       delete sanitized[field]; // Don't send empty strings to Date fields
     }
   });
   // 5. FIX: Ensure Booleans are actual booleans
-  const boolFields = ['reimbursementApplicable', 'hraApplicable', 'bonusApplicable', 'gratuityApplicable', 'lwfApplicable', 'pfApplicable', 'pensionAppl', 'esiApplicable'];
+  const boolFields = ['reimbursementApplicable', 'hraApplicable', 'bonusApplicable', 'gratuityApplicable', 'lwfApplicable', 'pfApplicable', 'pensionAppl', 'esiApplicable', 'registeredInPmrpy', 'noLimit', 'pensionOnHigherWages'];
   boolFields.forEach(field => {
     if (sanitized[field] !== undefined) sanitized[field] = sanitized[field] === true || sanitized[field] === 'true';
   });
