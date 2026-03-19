@@ -480,7 +480,7 @@ export async function POST(req: NextRequest) {
           let isApplicable = true;
 
           if (app && !app.all) {
-            const fail = 
+            const fail =
               (app.branches?.length > 0 && !app.branches.includes(createdEmployee.branch)) ||
               (app.departments?.length > 0 && !app.departments.includes(createdEmployee.department)) ||
               (app.designations?.length > 0 && !app.designations.includes(createdEmployee.designation)) ||
@@ -488,7 +488,7 @@ export async function POST(req: NextRequest) {
               (app.levels?.length > 0 && !app.levels.includes(createdEmployee.level)) ||
               (app.grades?.length > 0 && !app.grades.includes(createdEmployee.grade)) ||
               (app.attendanceTypes?.length > 0 && !app.attendanceTypes.includes(createdEmployee.attendanceType));
-            
+
             if (fail) isApplicable = false;
           }
 

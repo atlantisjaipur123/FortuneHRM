@@ -158,7 +158,8 @@ export async function PUT(req: NextRequest) {
       { status: 404 }
     );
   }
-  if (typeof active === "boolean") {
+  // Quick toggle without full form
+  if (typeof active === "boolean" && !name) {
     const updated = await prisma.salaryHead.update({
       where: { id },
       data: {
@@ -166,7 +167,6 @@ export async function PUT(req: NextRequest) {
         updatedBy: user.id,
       },
     });
-
     return NextResponse.json({ success: true, salaryHead: updated });
   }
 
@@ -181,12 +181,17 @@ export async function PUT(req: NextRequest) {
     updatedBy: user.id,
   };
 
-  // 🚨 SYSTEM HEAD: only name editable
+  if (typeof active === "boolean") {
+    updateData.isActive = active;
+  }
+
+  // 🚨 SYSTEM HEAD: only name and active editable
   if (existing.isSystem) {
-    updateData.name = name;
+    if (name) updateData.name = name;
   } else {
     // Normal salary head → full edit allowed
     updateData = {
+      ...updateData,
       name,
       shortName,
       fieldType,
@@ -195,7 +200,6 @@ export async function PUT(req: NextRequest) {
       value,
       form16Field,
       applicableFor,
-      updatedBy: user.id,
     };
   }
 
@@ -203,7 +207,6 @@ export async function PUT(req: NextRequest) {
     where: { id },
     data: updateData,
   });
-
 
   return NextResponse.json({ success: true, salaryHead: updated });
 }

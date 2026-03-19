@@ -1,3 +1,4 @@
+
 // app/attendance/page.tsx
 "use client"
 
@@ -16,6 +17,31 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { api } from "@/app/lib/api"
 import { useCompanySetups } from "@/hooks/useCompanySetups"
+
+// Helper function to calculate week off days for a month
+function calculateWeekOffDays(month: number, year: number, shift: any): number {
+  if (!shift?.defineWeeklyOff || !shift?.weeklyOffPattern) return 0;
+
+  const daysInMonth = new Date(year, month, 0).getDate();
+  let weekOffCount = 0;
+
+  const offDays = new Set<string>();
+  shift.weeklyOffPattern.forEach((pattern: any) => {
+    if (pattern.type === "Full day") {
+      offDays.add(pattern.day);
+    }
+  });
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month - 1, day);
+    const dayName = date.toLocaleString('en-US', { weekday: 'short' });
+    if (offDays.has(dayName)) {
+      weekOffCount++;
+    }
+  }
+
+  return weekOffCount;
+}
 
 export default function AttendancePage() {
   // ============== REAL SETUP DATA FROM DB (no localStorage) ==============
@@ -213,12 +239,12 @@ export default function AttendancePage() {
       await loadAttendance()
       setBulkEditDialog(null)
       setSelectedRows(new Set())
-      
+
       if (hasError) {
         if (lastErrorMsg.includes("Insufficient balance")) {
-           toast({ title: "Insufficient Balance", description: lastErrorMsg, variant: "destructive" })
+          toast({ title: "Insufficient Balance", description: lastErrorMsg, variant: "destructive" })
         } else {
-           toast({ title: "Notice", description: lastErrorMsg, variant: "destructive" })
+          toast({ title: "Notice", description: lastErrorMsg, variant: "destructive" })
         }
       } else {
         toast({ title: "Bulk Update Done" })
@@ -396,50 +422,78 @@ export default function AttendancePage() {
                     <TableHead>Code</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Branch</TableHead>
-                    <TableHead>Category</TableHead>
                     <TableHead>Department</TableHead>
-                    <TableHead>Designation</TableHead>
-                    <TableHead>Level</TableHead>
-                    <TableHead>Grade</TableHead>
-                    <TableHead>Att. Type</TableHead>
-                    <TableHead>Shift</TableHead>
+                    <TableHead>P</TableHead>
+                    <TableHead>A</TableHead>
+                    <TableHead>WO</TableHead>
+                    {leavePolicyCodes.map(policy => (
+                      <TableHead key={policy.code}>{policy.code}</TableHead>
+                    ))}
+                    <TableHead>Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="text-center py-8 text-gray-500">
+                      <TableCell colSpan={9 + leavePolicyCodes.length} className="text-center py-8 text-gray-500">
                         Loading attendance...
                       </TableCell>
                     </TableRow>
                   ) : filteredEmployees.length > 0 ? (
-                    filteredEmployees.map((emp) => (
-                      <TableRow
-                        key={emp.id}
-                        className="hover:bg-gray-100 cursor-pointer"
-                        onClick={() => setSelectedEmployee(emp)}
-                      >
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Checkbox
-                            checked={selectedRows.has(emp.id)}
-                            onCheckedChange={(ch) => handleSelectRow(emp.id, !!ch)}
-                          />
-                        </TableCell>
-                        <TableCell>{emp.code}</TableCell>
-                        <TableCell>{emp.name}</TableCell>
-                        <TableCell>{emp.branch}</TableCell>
-                        <TableCell>{emp.category}</TableCell>
-                        <TableCell>{emp.department}</TableCell>
-                        <TableCell>{emp.designation}</TableCell>
-                        <TableCell>{emp.level}</TableCell>
-                        <TableCell>{emp.grade}</TableCell>
-                        <TableCell>{emp.attendanceType}</TableCell>
-                        <TableCell>{shiftNameMap.get(emp.shiftId) || emp.shiftId || "—"}</TableCell>
-                      </TableRow>
-                    ))
+                    filteredEmployees.map((emp) => {
+                      // Calculate attendance summary
+                      const attendance = emp.attendance || [];
+                      const summary: Record<string, number> = {};
+                      attendance.forEach((status: string) => {
+                        summary[status] = (summary[status] || 0) + 1;
+                      });
+
+                      // Calculate week off days
+                      const shiftData = shiftsList.find((s: any) => s.id === emp.shiftId);
+                      const weekOffDays = calculateWeekOffDays(parseInt(selectedMonth), parseInt(selectedYear), shiftData);
+
+                      // Calculate total
+                      const present = summary['P'] || 0;
+                      const absent = summary['A'] || 0;
+                      const halfday = summary['Halfday'] || 0;
+                      const leaves = leavePolicyCodes.reduce((sum, policy) => sum + (summary[policy.code] || 0), 0);
+                      const total = present + absent + weekOffDays + leaves + halfday;
+
+                      return (
+                        <TableRow
+                          key={emp.id}
+                          className="hover:bg-gray-100 cursor-pointer"
+                          onClick={() => setSelectedEmployee(emp)}
+                        >
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedRows.has(emp.id)}
+                              onCheckedChange={(ch) => handleSelectRow(emp.id, !!ch)}
+                            />
+                          </TableCell>
+                          <TableCell>{emp.code}</TableCell>
+                          <TableCell>{emp.name}</TableCell>
+                          <TableCell>{emp.branch}</TableCell>
+                          <TableCell>{emp.department}</TableCell>
+                          <TableCell className="text-center font-semibold text-green-600">{summary['P'] || 0}</TableCell>
+                          <TableCell className="text-center font-semibold text-red-600">{summary['A'] || 0}</TableCell>
+                          <TableCell className="text-center font-semibold text-blue-600">{weekOffDays}</TableCell>
+                          {leavePolicyCodes.map(policy => (
+                            <TableCell key={policy.code} className="text-center font-semibold text-purple-600">
+                              {summary[policy.code] || 0}
+                            </TableCell>
+                          ))}
+                          <TableCell className="text-center font-bold">
+                            <span className={total === daysInMonth ? "text-green-600" : "text-red-600"}>
+                              {total}/{daysInMonth}
+                            </span>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={11} className="text-center py-8 text-gray-500">
+                      <TableCell colSpan={9 + leavePolicyCodes.length} className="text-center py-8 text-gray-500">
                         No employees match the selected filters.
                       </TableCell>
                     </TableRow>
@@ -509,21 +563,21 @@ export default function AttendancePage() {
             {selectedEmployee && (
               <ScrollArea className="max-h-[85vh]">
                 <div className="space-y-6">
-                  {/* Basic Info */}
+                  {/* Leave Balances - Moved to top */}
                   <Card>
-                    <CardHeader className="bg-blue-50">
-                      <CardTitle className="text-base">Basic Information</CardTitle>
+                    <CardHeader className="bg-purple-50">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <Info className="h-4 w-4" />
+                        Leave Balances
+                      </CardTitle>
                     </CardHeader>
-                    <CardContent className="grid grid-cols-2 md:grid-cols-3 gap-4 p-6">
-                      <div><Label>Code</Label><p>{selectedEmployee.code}</p></div>
-                      <div><Label>Branch</Label><p>{selectedEmployee.branch}</p></div>
-                      <div><Label>Category</Label><p>{selectedEmployee.category}</p></div>
-                      <div><Label>Department</Label><p>{selectedEmployee.department}</p></div>
-                      <div><Label>Designation</Label><p>{selectedEmployee.designation}</p></div>
-                      <div><Label>Level</Label><p>{selectedEmployee.level}</p></div>
-                      <div><Label>Grade</Label><p>{selectedEmployee.grade}</p></div>
-                      <div><Label>Attendance Type</Label><p>{selectedEmployee.attendanceType}</p></div>
-                      <div><Label>Shift</Label><p>{shiftNameMap.get(selectedEmployee.shiftId) || selectedEmployee.shiftId || "—"}</p></div>
+                    <CardContent className="p-6 grid grid-cols-2 sm:grid-cols-4 gap-6">
+                      {Object.entries(selectedEmployee.leaveBalances || {}).map(([code, bal]) => (
+                        <div key={code} className="text-center">
+                          <Badge className="bg-purple-600 text-white mb-2">{code}</Badge>
+                          <p className="text-2xl font-semibold text-gray-800">{String(bal)}</p>
+                        </div>
+                      ))}
                     </CardContent>
                   </Card>
 
@@ -538,21 +592,6 @@ export default function AttendancePage() {
                     refreshAttendance={loadAttendance}
                     statusOptions={statusOptions}
                   />
-
-                  {/* Leave Balances */}
-                  <Card>
-                    <CardHeader className="bg-blue-50">
-                      <CardTitle className="text-base">Leave Balances</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-6 grid grid-cols-2 sm:grid-cols-4 gap-6">
-                      {Object.entries(selectedEmployee.leaveBalances || {}).map(([code, bal]) => (
-                        <div key={code} className="text-center">
-                          <Badge className="bg-purple-600 text-white mb-2">{code}</Badge>
-                          <p className="text-2xl font-semibold text-gray-800">{String(bal)}</p>
-                        </div>
-                      ))}
-                    </CardContent>
-                  </Card>
                 </div>
               </ScrollArea>
             )}
@@ -583,16 +622,170 @@ function AttendanceDetails({
   refreshAttendance: () => Promise<void>
   statusOptions: { value: string; label: string }[]
 }) {
-  const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set())
-  const [bulkStatus, setBulkStatus] = useState<string>("P")
+  const [localAttendance, setLocalAttendance] = useState<string[]>([]);
+  const [changes, setChanges] = useState<Record<number, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [selectedDays, setSelectedDays] = useState<Set<number>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState<string>("P");
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  // Initialize local attendance when employee changes
+  useEffect(() => {
+    if (selectedEmployee) {
+      setLocalAttendance([...(selectedEmployee.attendance || [])]);
+      setChanges({});
+      setSelectedDays(new Set());
+      setValidationErrors([]);
+    }
+  }, [selectedEmployee]);
+
+  const getCurrentAttendance = (day: number) => {
+    return changes[day] !== undefined ? changes[day] : localAttendance[day] || "P";
+  };
+
+  const handleLocalChange = (day: number, value: string) => {
+    setChanges(prev => ({
+      ...prev,
+      [day]: value
+    }));
+    // Run validation in real-time and clear errors if valid
+    setTimeout(() => {
+      const errors = validateLeaveBalances();
+      setValidationErrors(errors);
+    }, 0);
+  };
+
+  // Helper function to check if a status is a leave code
+  const isLeaveCode = (status: string) => {
+    return !["P", "A", "Halfday"].includes(status);
+  };
+
+  // Local leave balance validation
+  const validateLeaveBalances = () => {
+    const errors: string[] = [];
+    const leaveBalances = selectedEmployee?.leaveBalances || {};
+    const proposedLeaveUsage: Record<string, number> = {};
+
+    // Count total proposed leave usage for the month
+    for (let day = 0; day < daysInMonth; day++) {
+      const status = getCurrentAttendance(day);
+      if (isLeaveCode(status)) {
+        proposedLeaveUsage[status] = (proposedLeaveUsage[status] || 0) + 1;
+      }
+    }
+
+    // Check each leave type against available balance
+    // The available balance already accounts for existing usage across all months
+    Object.entries(proposedLeaveUsage).forEach(([leaveCode, daysUsed]) => {
+      const availableBalance = leaveBalances[leaveCode] || 0;
+      if (daysUsed > availableBalance) {
+        errors.push(`${leaveCode}: ${daysUsed} days requested but only ${availableBalance} days available`);
+      }
+    });
+
+    return errors;
+  };
+
+  const handleSaveChanges = async () => {
+    // Validate leave balances locally first
+    const errors = validateLeaveBalances();
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      toast({
+        title: "Insufficient Leave Balance",
+        description: errors.join(". "),
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (Object.keys(changes).length === 0) {
+      toast({ title: "No changes to save" });
+      return;
+    }
+
+    setSaving(true);
+    setValidationErrors([]); // Clear errors during save
+
+    let hasError = false;
+    let lastErrorMsg = "";
+
+    try {
+      // Send all changes in one request
+      const changeRequests = Object.entries(changes).map(([dayStr, status]) => {
+        const day = parseInt(dayStr);
+        const dateStr = `${selectedYear}-${selectedMonth}-${(day + 1).toString().padStart(2, "0")}`;
+        return {
+          employeeId: selectedEmployee.id,
+          date: dateStr,
+          status
+        };
+      });
+
+      // Send batch request
+      await api.patch("/api/attendance", { changes: changeRequests });
+
+      // Update local state
+      const newAttendance = [...localAttendance];
+      Object.entries(changes).forEach(([dayStr, status]) => {
+        const day = parseInt(dayStr);
+        newAttendance[day] = status;
+      });
+      setLocalAttendance(newAttendance);
+      setChanges({});
+      setValidationErrors([]);
+
+      toast({ title: "All changes saved successfully" });
+      await refreshAttendance();
+    } catch (e: any) {
+      hasError = true;
+      lastErrorMsg = e instanceof Error ? e.message : String(e) || "Failed to save changes";
+      toast({ title: "Error", description: lastErrorMsg, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSelectAllDays = (checked: boolean) => {
+    if (checked) {
+      setSelectedDays(new Set(Array.from({ length: daysInMonth }, (_, i) => i)));
+    } else {
+      setSelectedDays(new Set());
+    }
+  };
+
+  const handleBulkApply = () => {
+    if (selectedDays.size === 0) {
+      toast({ title: "No days selected", variant: "destructive" });
+      return;
+    }
+
+    // Apply the bulk status to all selected days
+    const newChanges = { ...changes };
+    selectedDays.forEach(day => {
+      newChanges[day] = bulkStatus;
+    });
+
+    setChanges(newChanges);
+    setSelectedDays(new Set());
+
+    // Run validation after bulk changes
+    setTimeout(() => {
+      const errors = validateLeaveBalances();
+      setValidationErrors(errors);
+    }, 0);
+
+    toast({ title: `Applied ${bulkStatus} to ${selectedDays.size} days` });
+  };
 
   const attendanceSummary = useMemo(() => {
     const counts: Record<string, number> = {}
-    selectedEmployee.attendance?.slice(0, daysInMonth).forEach((s: string) => {
-      counts[s] = (counts[s] || 0) + 1
-    })
+    for (let day = 0; day < daysInMonth; day++) {
+      const status = getCurrentAttendance(day);
+      counts[status] = (counts[status] || 0) + 1;
+    }
     return counts
-  }, [selectedEmployee.attendance, daysInMonth])
+  }, [localAttendance, changes, daysInMonth])
 
   const getStatusColor = (s: string) => {
     if (s === "P") return "bg-green-500"
@@ -603,77 +796,62 @@ function AttendanceDetails({
     return "bg-gray-500"
   }
 
-  const handleSelectAllDays = (checked: boolean) => {
-    if (checked) {
-      setSelectedDays(new Set(Array.from({ length: daysInMonth }, (_, i) => i)))
-    } else {
-      setSelectedDays(new Set())
-    }
-  }
-
-  const handleBulkApply = async () => {
-    if (selectedDays.size === 0) {
-      toast({ title: "No days selected", variant: "destructive" })
-      return
-    }
-
-    let hasError = false;
-    let lastErrorMsg = "";
-
-    for (const day of selectedDays) {
-      const dateStr = `${selectedYear}-${selectedMonth}-${(day + 1).toString().padStart(2, "0")}`
-      try {
-        await api.post("/api/attendance", { employeeId: selectedEmployee.id, date: dateStr, status: bulkStatus })
-      } catch (e: any) {
-        hasError = true;
-        lastErrorMsg = e instanceof Error ? e.message : String(e) || "Update failed";
-      }
-    }
-
-    setSelectedDays(new Set())
-    await refreshAttendance()
-    
-    if (hasError) {
-      if (lastErrorMsg.includes("Insufficient balance")) {
-        toast({ title: "Insufficient Balance", description: lastErrorMsg, variant: "destructive" })
-      } else {
-        toast({ title: "Notice", description: lastErrorMsg, variant: "destructive" })
-      }
-    } else {
-      toast({ title: "Bulk update saved" })
-    }
-  }
-
   return (
     <Card>
       <CardHeader className="bg-blue-50">
-        <CardTitle className="text-base flex items-center gap-2">
-          <Calendar className="h-4 w-4" /> Daily Attendance Grid
+        <CardTitle className="text-base flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <Calendar className="h-4 w-4" /> Daily Attendance Grid
+          </span>
+          {Object.keys(changes).length > 0 && (
+            <Button
+              onClick={handleSaveChanges}
+              disabled={saving}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {saving ? "Saving..." : `Save ${Object.keys(changes).length} Changes`}
+            </Button>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6">
-        <div className="flex items-center gap-3 mb-4">
-          <Checkbox checked={selectedDays.size === daysInMonth} onCheckedChange={handleSelectAllDays} />
-          <span>Select All Days</span>
-        </div>
-
-        {selectedDays.size > 0 && (
-          <div className="flex gap-3 mb-6">
-            <Select value={bulkStatus} onValueChange={setBulkStatus}>
-              <SelectTrigger className="w-40">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {statusOptions.map(opt => (
-                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button onClick={handleBulkApply} className="bg-blue-600">
-              Apply to {selectedDays.size} day(s)
-            </Button>
+        {/* Validation Errors */}
+        {validationErrors.length > 0 && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <h4 className="text-red-800 font-semibold mb-2">Leave Balance Errors:</h4>
+            <ul className="text-red-700 text-sm">
+              {validationErrors.map((error, index) => (
+                <li key={index}>• {error}</li>
+              ))}
+            </ul>
           </div>
         )}
+
+        {/* Bulk Selection Controls */}
+        <div className="flex items-center gap-3 mb-4">
+          <Checkbox
+            checked={selectedDays.size === daysInMonth}
+            onCheckedChange={handleSelectAllDays}
+          />
+          <span className="text-sm">Select All Days</span>
+          {selectedDays.size > 0 && (
+            <>
+              <Select value={bulkStatus} onValueChange={setBulkStatus}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {statusOptions.map(opt => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button onClick={handleBulkApply} className="bg-blue-600">
+                Apply to {selectedDays.size} day(s)
+              </Button>
+            </>
+          )}
+        </div>
 
         {/* 3-Column Grid of Days */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -695,12 +873,13 @@ function AttendanceDetails({
                   <TableBody>
                     {Array.from({ length: end - start }, (_, i) => {
                       const day = start + i
-                      const status = selectedEmployee.attendance[day] || "P"
+                      const status = getCurrentAttendance(day)
                       const dateObj = new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, day + 1)
                       const weekday = dateObj.toLocaleString("default", { weekday: "short" })
+                      const hasChange = changes[day] !== undefined
 
                       return (
-                        <TableRow key={day}>
+                        <TableRow key={day} className={hasChange ? "bg-yellow-50" : ""}>
                           <TableCell>
                             <Checkbox
                               checked={selectedDays.has(day)}
@@ -714,11 +893,12 @@ function AttendanceDetails({
                           </TableCell>
                           <TableCell className="font-medium">
                             {day + 1} <span className="text-xs text-gray-500">({weekday})</span>
+                            {hasChange && <span className="ml-1 text-xs text-orange-600">●</span>}
                           </TableCell>
                           <TableCell>
                             <Select
                               value={status}
-                              onValueChange={(v) => handleAttendanceChange(selectedEmployee.id, day, v)}
+                              onValueChange={(v) => handleLocalChange(day, v)}
                             >
                               <SelectTrigger className="w-28 text-sm">
                                 <SelectValue />
