@@ -65,8 +65,8 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
   const tabs = [
     "Personal",
     "Office details",
-    "Qualification",
     "Financial",
+    "Qualification",
     "Salary",
     "Other",
     "Family",
@@ -129,8 +129,6 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
 
     // ================= QUALIFICATION & EXPERIENCE (Shared) =================
     educationalQualification: "",
-    previousYears: "",
-    previousMonths: "",
 
     // ================= FINANCIAL TAB =================
     // Bank Details
@@ -230,13 +228,9 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
     qualifications: [],
     witnesses: [],
     experiences: [],
-    companyAssets: [],
   });
 
-  const [totalExperience, setTotalExperience] = useState({
-    years: "",
-    months: "",
-  });
+  // Removed totalExperience state
   const tableInput = "w-full h-9 px-2 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-400";
   const tableTextarea = "w-full px-2 py-1 text-sm border border-gray-300 rounded resize-none focus:outline-none focus:ring-1 focus:ring-blue-400";
 
@@ -302,6 +296,32 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
 
       setIsSameAsAbove(addressesMatch);
 
+      // Normalize Qualifications (Backend: percentage/validityYear -> Frontend: score/degreeValidityYear)
+      if (cloned.qualifications) {
+        cloned.qualifications = cloned.qualifications.map((q: any) => ({
+          ...q,
+          score: q.percentage || q.cgpa || "",
+          degreeValidityYear: q.validityYear || "",
+        }));
+      }
+
+      // Normalize Family (Backend: residingWith -> Frontend: residing)
+      if (cloned.family) {
+        cloned.family = cloned.family.map((f: any) => ({
+          ...f,
+          residing: f.residingWith,
+        }));
+      }
+
+      // Normalize Experiences (Format dates for <input type="date">)
+      if (cloned.experiences) {
+        cloned.experiences = cloned.experiences.map((exp: any) => ({
+          ...exp,
+          from: exp.from ? new Date(exp.from).toISOString().split("T")[0] : "",
+          to: exp.to ? new Date(exp.to).toISOString().split("T")[0] : "",
+        }));
+      }
+
       setEmployee(cloned);
 
       // Salary prefill (unchanged)
@@ -320,7 +340,6 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
         qualifications: [],
         witnesses: [],
         experiences: [],
-        companyAssets: [],
       });
       setIsSameAsAbove(false);
       setSalaryMode("CTC");
@@ -2586,31 +2605,6 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
             <label className="block text-sm font-bold mb-2">
               Previous Work Experience : -
             </label>
-
-            <div className="flex gap-2 mb-4">
-              <input
-                type="text"
-                placeholder="Years"
-                className="p-2 border border-gray-300 rounded w-32"
-                value={totalExperience.years}
-                onChange={(e) => {
-                  const newVal = e.target.value;
-                  setTotalExperience((p) => ({ ...p, years: newVal }))
-                  handleFieldChange("previousYears", newVal);
-                }}
-              />
-              <input
-                type="text"
-                placeholder="Months"
-                className="p-2 border border-gray-300 rounded w-32"
-                value={totalExperience.months}
-                onChange={(e) => {
-                  const newVal = e.target.value;
-                  setTotalExperience((p) => ({ ...p, months: newVal }))
-                  handleFieldChange("previousMonths", newVal);
-                }}
-              />
-            </div>
 
             <table className="w-full border-collapse border border-gray-300 table-fixed">
               <colgroup>

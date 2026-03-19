@@ -125,60 +125,6 @@ export async function POST(req: NextRequest) {
         // Combine: if it's a leave code, store it in notes so we can recover it in GET
         const finalNotes = leaveCode || userNotes || null;
 
-        // --- PREVENT NEGATIVE LEAVE BALANCE ---
-        if (leaveCode && leaveCode !== oldLeaveCode) {
-            const leaveYear = attendanceDate.getFullYear();
-            const newPolicy = await prisma.leavePolicy.findFirst({
-                where: { companyId, code: leaveCode, isActive: true },
-            });
-
-            if (!newPolicy) {
-                return NextResponse.json({ success: false, error: `Leave policy ${leaveCode} not found.` }, { status: 400 });
-            }
-
-            const newBalance = await prisma.employeeLeaveBalance.findUnique({
-                where: { employeeId_leavePolicyId_year: { employeeId, leavePolicyId: newPolicy.id, year: leaveYear } }
-            });
-
-            // Calculate current total allotted vs used
-            const availableBalance = newBalance !== null ? newBalance.balance : (newPolicy.fixedDays || 0);
-            const amountToDeduct = newPolicy.leaveValue || 1;
-
-            if (availableBalance < amountToDeduct) {
-                return NextResponse.json({
-                    success: false,
-                    error: `Insufficient balance for ${newPolicy.name}. Available: ${availableBalance}, Required: ${amountToDeduct}`
-                }, { status: 400 });
-            }
-
-            // --- PHASE 5: STRICT APPLICABILITY CHECK ---
-            const employeeData = await prisma.employee.findUnique({
-                where: { id: employeeId },
-                select: { branch: true, department: true, designation: true, category: true, level: true, grade: true, attendanceType: true }
-            });
-
-            if (employeeData && newPolicy.applicability) {
-                const app = newPolicy.applicability as any;
-                if (app && !app.all) {
-                    const fail = 
-                        (app.branches?.length > 0 && !app.branches.includes(employeeData.branch)) ||
-                        (app.departments?.length > 0 && !app.departments.includes(employeeData.department)) ||
-                        (app.designations?.length > 0 && !app.designations.includes(employeeData.designation)) ||
-                        (app.categories?.length > 0 && !app.categories.includes(employeeData.category)) ||
-                        (app.levels?.length > 0 && !app.levels.includes(employeeData.level)) ||
-                        (app.grades?.length > 0 && !app.grades.includes(employeeData.grade)) ||
-                        (app.attendanceTypes?.length > 0 && !app.attendanceTypes.includes(employeeData.attendanceType));
-
-                    if (fail) {
-                        return NextResponse.json({
-                            success: false,
-                            error: `${newPolicy.name} is not applicable to this employee's category or branch.`
-                        }, { status: 400 });
-                    }
-                }
-            }
-        }
-
         await prisma.attendance.upsert({
             where: { employeeId_date: { employeeId, date: attendanceDate } },
             update: {
@@ -210,14 +156,9 @@ export async function POST(req: NextRequest) {
                         where: { employeeId_leavePolicyId_year: { employeeId, leavePolicyId: oldPolicy.id, year: leaveYear } }
                     });
                     if (oldBalance && oldBalance.used > 0) {
-                        const updatedUsed = Math.max(0, oldBalance.used - (oldPolicy.leaveValue || 1));
-                        const updatedBalance = (oldBalance.totalAllotted + oldBalance.carriedOver) - updatedUsed - oldBalance.encashed - oldBalance.lapsed;
                         await prisma.employeeLeaveBalance.update({
                             where: { id: oldBalance.id },
-                            data: { 
-                                used: updatedUsed,
-                                balance: updatedBalance
-                            }
+                            data: { used: Math.max(0, oldBalance.used - (oldPolicy.leaveValue || 1)) }
                         });
                     }
                 }
@@ -233,25 +174,17 @@ export async function POST(req: NextRequest) {
                         where: { employeeId_leavePolicyId_year: { employeeId, leavePolicyId: newPolicy.id, year: leaveYear } }
                     });
                     if (newBalance) {
-                        const updatedUsed = newBalance.used + (newPolicy.leaveValue || 1);
-                        const updatedBalance = (newBalance.totalAllotted + newBalance.carriedOver) - updatedUsed - newBalance.encashed - newBalance.lapsed;
                         await prisma.employeeLeaveBalance.update({
                             where: { id: newBalance.id },
-                            data: { 
-                                used: updatedUsed,
-                                balance: updatedBalance
-                            }
+                            data: { used: newBalance.used + (newPolicy.leaveValue || 1) }
                         });
                     } else {
-                        const usedAmt = newPolicy.leaveValue || 1;
-                        const totalAmt = newPolicy.fixedDays || 0;
                         await prisma.employeeLeaveBalance.create({
                             data: {
                                 companyId, employeeId, leavePolicyId: newPolicy.id, year: leaveYear,
-                                totalAllotted: totalAmt,
-                                used: usedAmt,
+                                totalAllotted: newPolicy.fixedDays || 0,
+                                used: newPolicy.leaveValue || 1,
                                 carriedOver: 0, encashed: 0, lapsed: 0,
-                                balance: totalAmt - usedAmt
                             },
                         });
                     }
@@ -262,6 +195,127 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ success: true });
     } catch (error: any) {
         console.error("[ATTENDANCE POST] Error:", error.message);
+        return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+    }
+}
+
+/* ─── POST BATCH ───────────────────────────────────────────────────── */
+export async function PATCH(req: NextRequest) {
+    try {
+        const companyId = getCompanyId();
+        const session = await getSession();
+        const { changes } = await req.json();
+
+        if (!Array.isArray(changes) || changes.length === 0) {
+            return NextResponse.json({ success: false, error: "Invalid batch data" }, { status: 400 });
+        }
+
+        const results = [];
+        let hasError = false;
+        let lastError = "";
+
+        for (const change of changes) {
+            const { employeeId, date, status: frontendStatus } = change;
+            const attendanceDate = new Date(date);
+            const { enumStatus, leaveCode } = mapToPrismaStatus(frontendStatus);
+
+            try {
+                // Find existing record to see if we need to refund a previous leave
+                const existingRecord = await prisma.attendance.findUnique({
+                    where: { employeeId_date: { employeeId, date: attendanceDate } }
+                });
+
+                const oldLeaveCode = (existingRecord?.status === "ON_LEAVE" && existingRecord?.notes) ? existingRecord.notes : null;
+
+                // Combine: if it's a leave code, store it in notes so we can recover it in GET
+                const finalNotes = leaveCode || null;
+
+                await prisma.attendance.upsert({
+                    where: { employeeId_date: { employeeId, date: attendanceDate } },
+                    update: {
+                        status: enumStatus as any,
+                        notes: finalNotes,
+                        updatedBy: session?.id || "system",
+                    },
+                    create: {
+                        companyId,
+                        employeeId,
+                        date: attendanceDate,
+                        status: enumStatus as any,
+                        notes: finalNotes,
+                        createdBy: session?.id || "system",
+                    },
+                });
+
+                // Handle Leave Balance Refund/Deduction logically
+                if (oldLeaveCode !== leaveCode) {
+                    const leaveYear = attendanceDate.getFullYear();
+
+                    // 1. REFUND old leave if there was one
+                    if (oldLeaveCode) {
+                        const oldPolicy = await prisma.leavePolicy.findFirst({
+                            where: { companyId, code: oldLeaveCode } // No isActive check for refunding old policies
+                        });
+                        if (oldPolicy) {
+                            const oldBalance = await prisma.employeeLeaveBalance.findUnique({
+                                where: { employeeId_leavePolicyId_year: { employeeId, leavePolicyId: oldPolicy.id, year: leaveYear } }
+                            });
+                            if (oldBalance && oldBalance.used > 0) {
+                                await prisma.employeeLeaveBalance.update({
+                                    where: { id: oldBalance.id },
+                                    data: { used: Math.max(0, oldBalance.used - (oldPolicy.leaveValue || 1)) }
+                                });
+                            }
+                        }
+                    }
+
+                    // 2. DEDUCT new leave if applicable
+                    if (leaveCode) {
+                        const newPolicy = await prisma.leavePolicy.findFirst({
+                            where: { companyId, code: leaveCode, isActive: true },
+                        });
+                        if (newPolicy) {
+                            const newBalance = await prisma.employeeLeaveBalance.findUnique({
+                                where: { employeeId_leavePolicyId_year: { employeeId, leavePolicyId: newPolicy.id, year: leaveYear } }
+                            });
+                            if (newBalance) {
+                                await prisma.employeeLeaveBalance.update({
+                                    where: { id: newBalance.id },
+                                    data: { used: newBalance.used + (newPolicy.leaveValue || 1) }
+                                });
+                            } else {
+                                await prisma.employeeLeaveBalance.create({
+                                    data: {
+                                        companyId, employeeId, leavePolicyId: newPolicy.id, year: leaveYear,
+                                        totalAllotted: newPolicy.fixedDays || 0,
+                                        used: newPolicy.leaveValue || 1,
+                                        carriedOver: 0, encashed: 0, lapsed: 0,
+                                    },
+                                });
+                            }
+                        }
+                    }
+                }
+
+                results.push({ employeeId, date, status: frontendStatus, success: true });
+            } catch (error: any) {
+                hasError = true;
+                lastError = error.message;
+                results.push({ employeeId, date, status: frontendStatus, success: false, error: error.message });
+            }
+        }
+
+        if (hasError) {
+            return NextResponse.json({
+                success: false,
+                error: `Some updates failed: ${lastError}`,
+                results
+            }, { status: 207 }); // 207 Multi-Status
+        }
+
+        return NextResponse.json({ success: true, results });
+    } catch (error: any) {
+        console.error("[ATTENDANCE BATCH] Error:", error.message);
         return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 }

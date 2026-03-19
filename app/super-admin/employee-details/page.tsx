@@ -238,8 +238,6 @@ interface Employee {
   family: FamilyMember[];
   nominees: Nominee[];
   witnesses: Nominee[];
-  previousYears: string;
-  previousMonths: string;
   experiences: Experience[];
   branch: string;
   category: string;
@@ -414,8 +412,6 @@ export default function EmployeeDetailsPage() {
         family: [],
         nominees: [],
         witnesses: [],
-        previousYears: "",
-        previousMonths: "",
         experiences: [],
         branch: emp.branch || "",
         category: emp.category || "",
@@ -508,7 +504,6 @@ export default function EmployeeDetailsPage() {
         family = [],
         nominees = [],
         witnesses = [],
-        // companyAssets not sent by child yet → keep empty
       } = formData;
 
       // 1. Sanitize the main employee object (dates, enums, numbers, booleans)
@@ -817,8 +812,6 @@ export default function EmployeeDetailsPage() {
         ...e,
         id: lastId + i + 1,
         photo: (e as any).photo || "",
-        previousYears: (e as any).previousYears || "",
-        previousMonths: (e as any).previousMonths || "",
       })) as unknown as Employee[];
 
       setEmployees((prev) => [...prev, ...newEmployees]);
