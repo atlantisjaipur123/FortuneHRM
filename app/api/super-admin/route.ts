@@ -267,7 +267,6 @@ export async function POST(request: NextRequest) {
       dontGeneratePF: body.dontGeneratePF === true || body.dontGeneratePF === "true" || false,
       // Missing fields - Additional Details
       paoRegNo: body.paoRegNo || null,
-      tdsCircle: body.tdsCircle || null,
       labourId: body.labourId || null,
       companyType: body.companyType
         ? (body.companyType.toUpperCase() as CompanyType)
@@ -511,7 +510,6 @@ export async function PUT(request: NextRequest) {
     }
     // Missing fields - Additional Details
     if (body.paoRegNo !== undefined) updateData.paoRegNo = body.paoRegNo || null
-    if (body.tdsCircle !== undefined) updateData.tdsCircle = body.tdsCircle || null
     if (body.labourId !== undefined) updateData.labourId = body.labourId || null
     if (body.companyType !== undefined) {
       updateData.companyType = body.companyType ? (body.companyType.toUpperCase() as CompanyType) : null

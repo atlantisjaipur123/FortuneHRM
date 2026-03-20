@@ -285,7 +285,7 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
       // Prepare update data for API
       const updateData: any = {
         id: selectedCompany.id,
-        name: formData.get("nameAdd") as string || selectedCompany.name,
+        name: formData.get("name") as string || selectedCompany.name,
         code: formData.get("code") as string || selectedCompany.code,
         pan: formData.get("pan") as string || (selectedCompany as any).pan || "",
         tan: formData.get("tan") as string || (selectedCompany as any).tan || "",
@@ -303,8 +303,8 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
         email: formData.get("email") as string || selectedCompany.email || undefined,
         dateOfStartingBusiness: formData.get("dateOfStartingBusiness") as string || selectedCompany.dateOfStartingBusiness || undefined,
         typeOfCompany: formData.get("typeOfCompany") as string || selectedCompany.typeOfCompany || undefined,
-        nature: formData.get("natureOfBusiness") as string || (selectedCompany as any).nature || undefined,
-        natureOfCompany: formData.get("natureOfBusiness") as string || (selectedCompany as any).nature || undefined,
+        nature: formData.get("natureOfCompany") as string || (selectedCompany as any).nature || undefined,
+        natureOfCompany: formData.get("natureOfCompany") as string || (selectedCompany as any).nature || undefined,
         pfRegionalOffice: formData.get("pfRegionalOffice") as string || selectedCompany.pfRegionalOffice || undefined,
         pensionCoverageDate: formData.get("pensionCoverageDate") as string || selectedCompany.pensionCoverageDate || undefined,
         esiLocalOffice: formData.get("esiLocalOffice") as string || selectedCompany.esiLocalOffice || undefined,
@@ -362,7 +362,7 @@ export function SuperAdminDashboardClient({ companies: initialCompanies, stats }
       }
 
       // Call API to update company
-      const response = await fetch("/api/super-admin", {
+      const response = await fetch(`/api/super-admin?id=${selectedCompany.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

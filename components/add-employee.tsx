@@ -1991,12 +1991,6 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
               <div className="flex items-center">
                 <input type="checkbox" checked={employee.pfApplicable || false} onChange={(e) => handleFieldChange("pfApplicable", e.target.checked)} /> PF Applicable
               </div>
-
-              <label className="block text-sm font-bold mt-4">Educational Qual.</label>
-              <input type="text" value={employee.educationalQualification || ""} onChange={(e) => handleFieldChange("educationalQualification", e.target.value)} className="w-full p-2 border border-gray-300 rounded" />
-
-
-
               <label className="block text-sm font-bold mt-4">Physically Handicap</label>
               <select value={employee.physicallyHandicap || ""} onChange={(e) => handleFieldChange("physicallyHandicap", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
                 <option>NO</option>
