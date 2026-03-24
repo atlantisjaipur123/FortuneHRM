@@ -2,7 +2,9 @@
 // app/attendance/page.tsx
 "use client"
 
-import React, { useState, useMemo, useEffect } from "react"
+import React, { useState, useMemo, useEffect, useRef } from "react"
+import * as XLSX from "xlsx"
+import * as FileSaver from "file-saver"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
@@ -11,37 +13,14 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "@/hooks/use-toast"
-import { Calendar, Info, User } from "lucide-react"
+import { Calendar, Info, User, ChevronLeft, ChevronRight, Download } from "lucide-react"
 import { GlobalLayout } from "@/app/components/global-layout"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { api } from "@/app/lib/api"
 import { useCompanySetups } from "@/hooks/useCompanySetups"
 
-// Helper function to calculate week off days for a month
-function calculateWeekOffDays(month: number, year: number, shift: any): number {
-  if (!shift?.defineWeeklyOff || !shift?.weeklyOffPattern) return 0;
-
-  const daysInMonth = new Date(year, month, 0).getDate();
-  let weekOffCount = 0;
-
-  const offDays = new Set<string>();
-  shift.weeklyOffPattern.forEach((pattern: any) => {
-    if (pattern.type === "Full day") {
-      offDays.add(pattern.day);
-    }
-  });
-
-  for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(year, month - 1, day);
-    const dayName = date.toLocaleString('en-US', { weekday: 'short' });
-    if (offDays.has(dayName)) {
-      weekOffCount++;
-    }
-  }
-
-  return weekOffCount;
-}
+// Helper function removed since API now correctly tracks WO
 
 export default function AttendancePage() {
   // ============== REAL SETUP DATA FROM DB (no localStorage) ==============
@@ -56,15 +35,15 @@ export default function AttendancePage() {
   const attendanceTypes = useMemo<string[]>(() => setups?.attendanceTypes?.map((a: any) => a.name) || [], [setups])
   const shiftsList = useMemo<any[]>(() => setups?.shifts || [], [setups]) // full objects for id + name
 
-  // ============== FILTER STATES ==============
-  const [selectedBranch, setSelectedBranch] = useState<string>("all")
-  const [selectedCategory, setSelectedCategory] = useState<string>("all")
-  const [selectedDepartment, setSelectedDepartment] = useState<string>("all")
-  const [selectedDesignation, setSelectedDesignation] = useState<string>("all")
-  const [selectedLevel, setSelectedLevel] = useState<string>("all")
-  const [selectedGrade, setSelectedGrade] = useState<string>("all")
-  const [selectedAttendanceType, setSelectedAttendanceType] = useState<string>("all")
-  const [selectedShift, setSelectedShift] = useState<string>("all")
+  // ============== FILTER STATES (multi-select arrays, empty = all) ==============
+  const [selectedBranches, setSelectedBranches] = useState<string[]>([])
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([])
+  const [selectedDesignations, setSelectedDesignations] = useState<string[]>([])
+  const [selectedLevels, setSelectedLevels] = useState<string[]>([])
+  const [selectedGrades, setSelectedGrades] = useState<string[]>([])
+  const [selectedAttendanceTypes, setSelectedAttendanceTypes] = useState<string[]>([])
+  const [selectedShifts, setSelectedShifts] = useState<string[]>([])
 
   // ============== MONTH / YEAR ==============
   const currentDate = new Date()
@@ -73,6 +52,29 @@ export default function AttendancePage() {
 
   const daysInMonth = useMemo(() => {
     return new Date(parseInt(selectedYear), parseInt(selectedMonth), 0).getDate()
+  }, [selectedMonth, selectedYear])
+
+  // ============== MONTH NAVIGATION ==============
+  const goToPrevMonth = () => {
+    let m = parseInt(selectedMonth) - 1
+    let y = parseInt(selectedYear)
+    if (m < 1) { m = 12; y-- }
+    setSelectedMonth(m.toString().padStart(2, "0"))
+    setSelectedYear(y.toString())
+  }
+
+  const goToNextMonth = () => {
+    let m = parseInt(selectedMonth) + 1
+    let y = parseInt(selectedYear)
+    if (m > 12) { m = 1; y++ }
+    setSelectedMonth(m.toString().padStart(2, "0"))
+    setSelectedYear(y.toString())
+  }
+
+  // ============== MONTH DISPLAY LABEL ==============
+  const monthLabel = useMemo(() => {
+    const date = new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1)
+    return date.toLocaleString('default', { month: 'long', year: 'numeric' })
   }, [selectedMonth, selectedYear])
 
   // ============== MAIN DATA ==============
@@ -120,10 +122,11 @@ export default function AttendancePage() {
     const defaults = [
       { value: "P", label: "P — Present" },
       { value: "A", label: "A — Absent" },
+      { value: "WO", label: "WO — Week Off" },
       { value: "Halfday", label: "Halfday" },
     ]
     const fromPolicies = leavePolicyCodes
-      .filter(p => !['P', 'A', 'HALFDAY'].includes(p.code.toUpperCase()))
+      .filter(p => !['P', 'A', 'WO', 'HALFDAY'].includes(p.code.toUpperCase()))
       .map(p => ({ value: p.code, label: `${p.code} — ${p.name}` }))
     return [...defaults, ...fromPolicies]
   }, [leavePolicyCodes])
@@ -145,14 +148,14 @@ export default function AttendancePage() {
   // ============== FILTERED EMPLOYEES (REAL FILTERING) ==============
   const filteredEmployees = useMemo(() => {
     return employees.filter((emp) => {
-      const branchMatch = selectedBranch === "all" || emp.branch === selectedBranch
-      const catMatch = selectedCategory === "all" || emp.category === selectedCategory
-      const deptMatch = selectedDepartment === "all" || emp.department === selectedDepartment
-      const desigMatch = selectedDesignation === "all" || emp.designation === selectedDesignation
-      const levelMatch = selectedLevel === "all" || emp.level === selectedLevel
-      const gradeMatch = selectedGrade === "all" || emp.grade === selectedGrade
-      const attTypeMatch = selectedAttendanceType === "all" || emp.attendanceType === selectedAttendanceType
-      const shiftMatch = selectedShift === "all" || emp.shiftId === selectedShift
+      const branchMatch = selectedBranches.length === 0 || selectedBranches.includes(emp.branch)
+      const catMatch = selectedCategories.length === 0 || selectedCategories.includes(emp.category)
+      const deptMatch = selectedDepartments.length === 0 || selectedDepartments.includes(emp.department)
+      const desigMatch = selectedDesignations.length === 0 || selectedDesignations.includes(emp.designation)
+      const levelMatch = selectedLevels.length === 0 || selectedLevels.includes(emp.level)
+      const gradeMatch = selectedGrades.length === 0 || selectedGrades.includes(emp.grade)
+      const attTypeMatch = selectedAttendanceTypes.length === 0 || selectedAttendanceTypes.includes(emp.attendanceType)
+      const shiftMatch = selectedShifts.length === 0 || selectedShifts.includes(emp.shiftId)
 
       return (
         branchMatch &&
@@ -167,14 +170,14 @@ export default function AttendancePage() {
     })
   }, [
     employees,
-    selectedBranch,
-    selectedCategory,
-    selectedDepartment,
-    selectedDesignation,
-    selectedLevel,
-    selectedGrade,
-    selectedAttendanceType,
-    selectedShift,
+    selectedBranches,
+    selectedCategories,
+    selectedDepartments,
+    selectedDesignations,
+    selectedLevels,
+    selectedGrades,
+    selectedAttendanceTypes,
+    selectedShifts,
   ])
 
   // ============== SHIFT NAME MAP (for nice display) ==============
@@ -257,9 +260,23 @@ export default function AttendancePage() {
   return (
     <GlobalLayout>
       <div className="min-h-screen bg-gradient-to-br from-gray-100 via-gray-200 to-gray-300 p-6 text-gray-900">
-        <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-teal-500 mb-8">
-          Attendance Management
-        </h1>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-4xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-teal-500">
+            Attendance Management
+          </h1>
+          {/* Quick Month Navigation */}
+          <div className="flex items-center gap-3 bg-white rounded-xl shadow-sm border border-gray-200 px-4 py-2">
+            <Button onClick={goToPrevMonth} variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <span className="text-lg font-semibold text-gray-800 min-w-[160px] text-center">
+              {monthLabel}
+            </span>
+            <Button onClick={goToNextMonth} variant="ghost" size="sm" className="h-8 w-8 p-0">
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          </div>
+        </div>
 
         {/* FILTER CARD */}
         <Card className="bg-white border border-gray-300 rounded-lg shadow-sm mb-6">
@@ -300,89 +317,15 @@ export default function AttendancePage() {
                 </Select>
               </div>
 
-              {/* All other filters */}
-              <div>
-                <Label>Branch</Label>
-                <Select value={selectedBranch} onValueChange={setSelectedBranch}>
-                  <SelectTrigger><SelectValue placeholder="All Branches" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Branches</SelectItem>
-                    {branches.map((b) => <SelectItem key={b} value={b}>{b}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Category</Label>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger><SelectValue placeholder="All Categories" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Categories</SelectItem>
-                    {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Department</Label>
-                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                  <SelectTrigger><SelectValue placeholder="All Departments" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Departments</SelectItem>
-                    {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Designation</Label>
-                <Select value={selectedDesignation} onValueChange={setSelectedDesignation}>
-                  <SelectTrigger><SelectValue placeholder="All Designations" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Designations</SelectItem>
-                    {designations.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Level</Label>
-                <Select value={selectedLevel} onValueChange={setSelectedLevel}>
-                  <SelectTrigger><SelectValue placeholder="All Levels" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Levels</SelectItem>
-                    {levels.map((l) => <SelectItem key={l} value={l}>{l}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Grade</Label>
-                <Select value={selectedGrade} onValueChange={setSelectedGrade}>
-                  <SelectTrigger><SelectValue placeholder="All Grades" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Grades</SelectItem>
-                    {grades.map((g) => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Attendance Type</Label>
-                <Select value={selectedAttendanceType} onValueChange={setSelectedAttendanceType}>
-                  <SelectTrigger><SelectValue placeholder="All Types" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Types</SelectItem>
-                    {attendanceTypes.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Shift</Label>
-                <Select value={selectedShift} onValueChange={setSelectedShift}>
-                  <SelectTrigger><SelectValue placeholder="All Shifts" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Shifts</SelectItem>
-                    {shiftsList.map((s: any) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* All other filters — multi-select checkboxes */}
+              <MultiCheckboxFilter label="Branch" options={branches.map(b => ({ value: b, label: b }))} selected={selectedBranches} onChange={setSelectedBranches} />
+              <MultiCheckboxFilter label="Category" options={categories.map(c => ({ value: c, label: c }))} selected={selectedCategories} onChange={setSelectedCategories} />
+              <MultiCheckboxFilter label="Department" options={departments.map(d => ({ value: d, label: d }))} selected={selectedDepartments} onChange={setSelectedDepartments} />
+              <MultiCheckboxFilter label="Designation" options={designations.map(d => ({ value: d, label: d }))} selected={selectedDesignations} onChange={setSelectedDesignations} />
+              <MultiCheckboxFilter label="Level" options={levels.map(l => ({ value: l, label: l }))} selected={selectedLevels} onChange={setSelectedLevels} />
+              <MultiCheckboxFilter label="Grade" options={grades.map(g => ({ value: g, label: g }))} selected={selectedGrades} onChange={setSelectedGrades} />
+              <MultiCheckboxFilter label="Attendance Type" options={attendanceTypes.map(t => ({ value: t, label: t }))} selected={selectedAttendanceTypes} onChange={setSelectedAttendanceTypes} />
+              <MultiCheckboxFilter label="Shift" options={shiftsList.map((s: any) => ({ value: s.id, label: s.name }))} selected={selectedShifts} onChange={setSelectedShifts} />
             </div>
           </CardContent>
         </Card>
@@ -390,9 +333,52 @@ export default function AttendancePage() {
         {/* MAIN TABLE CARD */}
         <Card className="bg-white border border-gray-300 rounded-lg shadow-sm">
           <CardHeader className="bg-blue-50 p-4 rounded-t-lg">
-            <CardTitle className="text-lg font-semibold text-gray-900">
-              Attendance Records — {selectedMonth}/{selectedYear}
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg font-semibold text-gray-900">
+                Attendance Records — {monthLabel}
+              </CardTitle>
+              <Button
+                onClick={() => {
+                  const rows = filteredEmployees.map(emp => {
+                    const attendance = emp.attendance || []
+                    const summary: Record<string, number> = {}
+                    attendance.forEach((status: string) => { summary[status] = (summary[status] || 0) + 1 })
+                    const wo = summary['WO'] || 0
+                    const present = summary['P'] || 0
+                    const absent = summary['A'] || 0
+                    const halfday = summary['Halfday'] || 0
+                    const row: any = {
+                      'Code': emp.code,
+                      'Name': emp.name,
+                      'Department': emp.department || '',
+                      'Status': emp.employmentStatus === 'ACTIVE' ? 'Active' : 'Deactive',
+                      'DOJ': emp.doj ? new Date(emp.doj).toLocaleDateString('en-IN') : '',
+                      'Present': present,
+                      'Absent': absent,
+                      'Halfday': halfday,
+                      'WO': wo,
+                    }
+                    leavePolicyCodes.forEach(p => { row[p.code] = summary[p.code] || 0 })
+                    const leaves = leavePolicyCodes.reduce((s, p) => s + (summary[p.code] || 0), 0)
+                    row['Total'] = present + absent + wo + leaves + halfday
+                    row['Days in Month'] = daysInMonth
+                    return row
+                  })
+                  const ws = XLSX.utils.json_to_sheet(rows)
+                  const wb = { Sheets: { Attendance: ws }, SheetNames: ['Attendance'] }
+                  const buf = XLSX.write(wb, { bookType: 'xlsx', type: 'array' })
+                  FileSaver.saveAs(
+                    new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+                    `attendance_${selectedMonth}_${selectedYear}.xlsx`
+                  )
+                }}
+                variant="outline"
+                className="flex items-center gap-2 bg-white hover:bg-green-50 border-green-300 text-green-700"
+              >
+                <Download className="h-4 w-4" />
+                Export to Excel
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="p-4">
             {selectedRows.size > 0 && (
@@ -421,8 +407,9 @@ export default function AttendancePage() {
                     </TableHead>
                     <TableHead>Code</TableHead>
                     <TableHead>Name</TableHead>
-                    <TableHead>Branch</TableHead>
                     <TableHead>Department</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>DOJ</TableHead>
                     <TableHead>P</TableHead>
                     <TableHead>A</TableHead>
                     <TableHead>WO</TableHead>
@@ -435,7 +422,7 @@ export default function AttendancePage() {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={9 + leavePolicyCodes.length} className="text-center py-8 text-gray-500">
+                      <TableCell colSpan={10 + leavePolicyCodes.length} className="text-center py-8 text-gray-500">
                         Loading attendance...
                       </TableCell>
                     </TableRow>
@@ -449,8 +436,7 @@ export default function AttendancePage() {
                       });
 
                       // Calculate week off days
-                      const shiftData = shiftsList.find((s: any) => s.id === emp.shiftId);
-                      const weekOffDays = calculateWeekOffDays(parseInt(selectedMonth), parseInt(selectedYear), shiftData);
+                      const weekOffDays = summary['WO'] || 0;
 
                       // Calculate total
                       const present = summary['P'] || 0;
@@ -473,8 +459,13 @@ export default function AttendancePage() {
                           </TableCell>
                           <TableCell>{emp.code}</TableCell>
                           <TableCell>{emp.name}</TableCell>
-                          <TableCell>{emp.branch}</TableCell>
                           <TableCell>{emp.department}</TableCell>
+                          <TableCell>
+                            <Badge className={emp.employmentStatus === 'ACTIVE' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                              {emp.employmentStatus === 'ACTIVE' ? 'Active' : 'Deactive'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm">{emp.doj ? new Date(emp.doj).toLocaleDateString('en-IN') : '—'}</TableCell>
                           <TableCell className="text-center font-semibold text-green-600">{summary['P'] || 0}</TableCell>
                           <TableCell className="text-center font-semibold text-red-600">{summary['A'] || 0}</TableCell>
                           <TableCell className="text-center font-semibold text-blue-600">{weekOffDays}</TableCell>
@@ -493,7 +484,7 @@ export default function AttendancePage() {
                     })
                   ) : (
                     <TableRow>
-                      <TableCell colSpan={9 + leavePolicyCodes.length} className="text-center py-8 text-gray-500">
+                      <TableCell colSpan={10 + leavePolicyCodes.length} className="text-center py-8 text-gray-500">
                         No employees match the selected filters.
                       </TableCell>
                     </TableRow>
@@ -657,7 +648,7 @@ function AttendanceDetails({
 
   // Helper function to check if a status is a leave code
   const isLeaveCode = (status: string) => {
-    return !["P", "A", "Halfday"].includes(status);
+    return !["P", "A", "WO", "Halfday"].includes(status);
   };
 
   // Local leave balance validation
@@ -853,83 +844,180 @@ function AttendanceDetails({
           )}
         </div>
 
-        {/* 3-Column Grid of Days */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[0, 1, 2].map((col) => {
-            const start = col * 10
-            const end = Math.min(start + 10, daysInMonth)
-            if (start >= daysInMonth) return null
-
-            return (
-              <div key={col} className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-gray-50">
-                      <TableHead className="w-12" />
-                      <TableHead>Date</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {Array.from({ length: end - start }, (_, i) => {
-                      const day = start + i
-                      const status = getCurrentAttendance(day)
-                      const dateObj = new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, day + 1)
-                      const weekday = dateObj.toLocaleString("default", { weekday: "short" })
-                      const hasChange = changes[day] !== undefined
-
-                      return (
-                        <TableRow key={day} className={hasChange ? "bg-yellow-50" : ""}>
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedDays.has(day)}
-                              onCheckedChange={(ch) => {
-                                const ns = new Set(selectedDays)
-                                if (ch) ns.add(day)
-                                else ns.delete(day)
-                                setSelectedDays(ns)
-                              }}
-                            />
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {day + 1} <span className="text-xs text-gray-500">({weekday})</span>
-                            {hasChange && <span className="ml-1 text-xs text-orange-600">●</span>}
-                          </TableCell>
-                          <TableCell>
-                            <Select
-                              value={status}
-                              onValueChange={(v) => handleLocalChange(day, v)}
-                            >
-                              <SelectTrigger className="w-28 text-sm">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {statusOptions.map(opt => (
-                                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+        {/* Summary — shown at top with all status types */}
+        <div className="mb-4 grid grid-cols-3 sm:grid-cols-6 gap-2">
+          {(() => {
+            const allStatuses: { key: string; label: string }[] = [
+              { key: 'P', label: 'P' },
+              { key: 'A', label: 'A' },
+              { key: 'WO', label: 'WO' },
+              { key: 'Halfday', label: 'HD' },
+              ...statusOptions
+                .filter(o => !['P', 'A', 'WO', 'Halfday'].includes(o.value))
+                .map(o => ({ key: o.value, label: o.value })),
+            ]
+            return allStatuses.map(({ key, label }) => (
+              <div key={key} className="text-center bg-gray-50 p-2 rounded-md">
+                <Badge className={`${getStatusColor(key)} text-white text-xs px-1.5 py-0.5`}>{label}</Badge>
+                <p className="text-lg font-bold text-gray-800 mt-0.5">{attendanceSummary[key] || 0}</p>
               </div>
-            )
-          })}
+            ))
+          })()}
         </div>
 
-        {/* Summary */}
-        <div className="mt-8 grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {Object.entries(attendanceSummary).map(([status, count]) => (
-            <div key={status} className="text-center bg-gray-50 p-4 rounded-lg">
-              <Badge className={`${getStatusColor(status)} text-white mb-1`}>{status}</Badge>
-              <p className="text-3xl font-bold text-gray-800">{count}</p>
+        {/* 3-Column Grid of Days (dynamic sizing for 28-31 days) */}
+        {(() => {
+          const perCol = Math.ceil(daysInMonth / 3)
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {[0, 1, 2].map((col) => {
+                const start = col * perCol
+                const end = Math.min(start + perCol, daysInMonth)
+                if (start >= daysInMonth) return null
+
+                return (
+                  <div key={col} className="border rounded-lg overflow-hidden">
+                    <Table>
+                      <TableHeader>
+                        <TableRow className="bg-gray-50">
+                          <TableHead className="w-12" />
+                          <TableHead>Date</TableHead>
+                          <TableHead>Status</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {Array.from({ length: end - start }, (_, i) => {
+                          const day = start + i
+                          const status = getCurrentAttendance(day)
+                          const dateObj = new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1, day + 1)
+                          const weekday = dateObj.toLocaleString("default", { weekday: "short" })
+                          const hasChange = changes[day] !== undefined
+
+                          return (
+                            <TableRow key={day} className={hasChange ? "bg-yellow-50" : ""}>
+                              <TableCell>
+                                <Checkbox
+                                  checked={selectedDays.has(day)}
+                                  onCheckedChange={(ch) => {
+                                    const ns = new Set(selectedDays)
+                                    if (ch) ns.add(day)
+                                    else ns.delete(day)
+                                    setSelectedDays(ns)
+                                  }}
+                                />
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {day + 1} <span className="text-xs text-gray-500">({weekday})</span>
+                                {hasChange && <span className="ml-1 text-xs text-orange-600">●</span>}
+                              </TableCell>
+                              <TableCell>
+                                <Select
+                                  value={status}
+                                  onValueChange={(v) => handleLocalChange(day, v)}
+                                >
+                                  <SelectTrigger className="w-28 text-sm">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {statusOptions.map(opt => (
+                                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
+                            </TableRow>
+                          )
+                        })}
+                      </TableBody>
+                    </Table>
+                  </div>
+                )
+              })}
             </div>
-          ))}
-        </div>
+          )
+        })()}
       </CardContent>
     </Card>
+  )
+}
+
+/* ====================== MULTI-SELECT CHECKBOX FILTER ====================== */
+function MultiCheckboxFilter({
+  label,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string
+  options: { value: string; label: string }[]
+  selected: string[]
+  onChange: (values: string[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // Close on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const toggle = (val: string) => {
+    if (selected.includes(val)) {
+      onChange(selected.filter(v => v !== val))
+    } else {
+      onChange([...selected, val])
+    }
+  }
+
+  const displayText = selected.length === 0
+    ? `All ${label}s`
+    : selected.length === 1
+      ? options.find(o => o.value === selected[0])?.label || selected[0]
+      : `${selected.length} selected`
+
+  return (
+    <div ref={ref} className="relative">
+      <Label>{label}</Label>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+      >
+        <span className="truncate">{displayText}</span>
+        <svg className="h-4 w-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 w-full max-h-60 overflow-auto rounded-md border bg-white shadow-lg p-2">
+          {selected.length > 0 && (
+            <button
+              type="button"
+              onClick={() => onChange([])}
+              className="w-full text-left text-xs text-blue-600 hover:text-blue-800 mb-1 px-2 py-1"
+            >
+              Clear all
+            </button>
+          )}
+          {options.length === 0 ? (
+            <p className="text-sm text-gray-400 px-2 py-1">No options</p>
+          ) : (
+            options.map(opt => (
+              <label key={opt.value} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-gray-100 cursor-pointer text-sm">
+                <Checkbox
+                  checked={selected.includes(opt.value)}
+                  onCheckedChange={() => toggle(opt.value)}
+                />
+                {opt.label}
+              </label>
+            ))
+          )}
+        </div>
+      )}
+    </div>
   )
 }

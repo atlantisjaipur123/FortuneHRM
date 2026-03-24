@@ -88,6 +88,65 @@ export async function POST(req: NextRequest) {
     });
 
     console.log("[LEAVE POST] SUCCESS → ID:", policy.id);
+
+    // ═══════════════════════════════════════════════════════════════
+    // AUTO-ASSIGN: Create EmployeeLeaveBalance for eligible employees
+    // ═══════════════════════════════════════════════════════════════
+    try {
+      const currentYear = new Date().getFullYear();
+      const applicability = (policy.applicability || { all: true }) as any;
+
+      // Build employee filter based on applicability rules
+      let empWhere: any = { companyId, deletedAt: null, employmentStatus: "ACTIVE" };
+
+      if (!applicability.all) {
+        const andConditions: any[] = [];
+        if (applicability.branches?.length > 0) {
+          andConditions.push({ branch: { in: applicability.branches } });
+        }
+        if (applicability.departments?.length > 0) {
+          andConditions.push({ department: { in: applicability.departments } });
+        }
+        if (applicability.levels?.length > 0) {
+          andConditions.push({ level: { in: applicability.levels } });
+        }
+        if (applicability.categories?.length > 0) {
+          andConditions.push({ category: { in: applicability.categories } });
+        }
+        if (andConditions.length > 0) {
+          empWhere.AND = andConditions;
+        }
+      }
+
+      const eligibleEmployees = await prisma.employee.findMany({
+        where: empWhere,
+        select: { id: true },
+      });
+
+      if (eligibleEmployees.length > 0) {
+        const totalAllotted = Number(policy.fixedDays) || 0;
+        await prisma.employeeLeaveBalance.createMany({
+          data: eligibleEmployees.map((emp) => ({
+            companyId,
+            employeeId: emp.id,
+            leavePolicyId: policy.id,
+            year: currentYear,
+            totalAllotted,
+            carriedOver: 0,
+            used: 0,
+            encashed: 0,
+            lapsed: 0,
+            balance: totalAllotted,
+          })),
+          skipDuplicates: true,
+        });
+        console.log(`[LEAVE POST] Auto-assigned ${policy.code} to ${eligibleEmployees.length} employees`);
+      }
+    } catch (allocErr: any) {
+      // Don't fail the policy creation if allocation has issues
+      console.error("[LEAVE POST] Auto-allocation warning:", allocErr.message);
+    }
+
     return NextResponse.json({ success: true, policy }, { status: 201 });
   } catch (e: any) {
     console.error("[LEAVE POST] FAILED:", e.message, "| Code:", e.code);

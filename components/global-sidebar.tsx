@@ -129,6 +129,7 @@ export function GlobalSidebar({ user, client }: GlobalSidebarProps) {
 
   const leaveAttendance = [
     { id: "attendance", title: "Attendance", icon: Clock, href: "/super-admin/attendance" },
+    { id: "payroll", title: "Payroll", icon: Calculator, href: "/super-admin/payroll" },
     { id: "payroll-cycle", title: "Payroll Cycle", icon: Clock3, href: "/super-admin/payroll-cycle" },
     { id: "leave", title: "Leave", icon: CalendarDays, href: "/super-admin/leave" },
     { id: "short-leave", title: "Short Leave", icon: UserCheck, href: "/super-admin/short-leave" },
