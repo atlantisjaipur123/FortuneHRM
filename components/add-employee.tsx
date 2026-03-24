@@ -1513,7 +1513,7 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                 </select>
               </div>
 
-              {/* Attendance Type (MISSING FIELD ADDED HERE) */}
+              {/* Attendance Type */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Attendance Type</label>
                 <select
@@ -1524,6 +1524,21 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                   <option value="">{setupsLoading ? "Loading..." : "Select Type"}</option>
                   {setups?.attendanceTypes?.map((at: any) => (
                     <option key={at.id} value={at.name}>{at.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Shift */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Shift</label>
+                <select
+                  value={employee.shiftId || ""}
+                  onChange={(e) => handleFieldChange("shiftId", e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">{setupsLoading ? "Loading..." : "Select Shift"}</option>
+                  {setups?.shifts?.filter((s: any) => s.isActive !== false).map((s: any) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
               </div>

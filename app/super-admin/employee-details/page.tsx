@@ -418,6 +418,8 @@ export default function EmployeeDetailsPage() {
         designation: emp.designation || "",
         department: emp.department || "",
         level: emp.level || "",
+        grade: emp.grade || "",
+        attendanceType: emp.attendanceType || "",
         ptGroup: emp.ptGroup || "",
         shiftId: emp.shiftId || "",
       }));
@@ -504,6 +506,7 @@ export default function EmployeeDetailsPage() {
         family = [],
         nominees = [],
         witnesses = [],
+
       } = formData;
 
       // 1. Sanitize the main employee object (dates, enums, numbers, booleans)

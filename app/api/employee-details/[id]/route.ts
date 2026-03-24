@@ -167,8 +167,10 @@ export async function GET(
       designation: employee.designation || "",
       department: employee.department || "",
       level: employee.scale || "",
+      grade: employee.grade || "",
+      attendanceType: employee.attendanceType || "",
       ptGroup: employee.ptGroup || "",
-      shift: employee.shiftId || "",
+      shiftId: employee.shiftId || "",
       salaryConfig: employee.salaryConfig
         ? {
           salaryMode: employee.salaryConfig.salaryMode,
