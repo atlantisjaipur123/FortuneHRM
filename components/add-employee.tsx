@@ -1358,14 +1358,14 @@ const AddEmployee = ({ employee: employeeProp, onSubmit, onCancel }: AddEmployee
                 <label className="block text-sm font-bold mt-4">Blood Group</label>
                 <select value={employee.bloodGroup || ""} onChange={(e) => handleFieldChange("bloodGroup", e.target.value)} className="w-full p-2 border border-gray-300 rounded">
                   <option value="">Select</option>
-                  <option value="A+">A+</option>
-                  <option value="A-">A-</option>
-                  <option value="B+">B+</option>
-                  <option value="B-">B-</option>
-                  <option value="AB+">AB+</option>
-                  <option value="AB-">AB-</option>
-                  <option value="O+">O+</option>
-                  <option value="O-">O-</option>
+                  <option value="A_POSITIVE">A+</option>
+                  <option value="A_NEGATIVE">A-</option>
+                  <option value="B_POSITIVE">B+</option>
+                  <option value="B_NEGATIVE">B-</option>
+                  <option value="AB_POSITIVE">AB+</option>
+                  <option value="AB_NEGATIVE">AB-</option>
+                  <option value="O_POSITIVE">O+</option>
+                  <option value="O_NEGATIVE">O-</option>
                 </select>
 
                 <label className="block text-sm font-bold mt-4">Date of Marriage</label>

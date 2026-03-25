@@ -845,7 +845,7 @@ export default function EmployeeDetailsPage() {
         "Father's Name": emp.fathersName,
         "Mother's Name": emp.mothersName,
         Caste: emp.caste,
-        "Blood Group": emp.bloodGroup,
+        "Blood Group": emp.bloodGroup ? emp.bloodGroup.replace('_POSITIVE', '+').replace('_NEGATIVE', '-') : "",
         Nationality: emp.nationality,
         Religion: emp.religion,
         "Date of Marriage": emp.dateOfMarriage,

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { GlobalLayout } from "@/app/components/global-layout"
-import { ChevronLeft, ChevronRight, Download } from "lucide-react"
+import { ChevronLeft, ChevronRight, Download, Save, CheckCircle } from "lucide-react"
 import { api } from "@/app/lib/api"
 import { toast } from "@/hooks/use-toast"
 
@@ -22,6 +22,7 @@ export default function PayrollPage() {
   const [records, setRecords] = useState<any[]>([])
   const [salaryHeads, setSalaryHeads] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
 
   const monthLabel = useMemo(() => {
     const date = new Date(parseInt(selectedYear), parseInt(selectedMonth) - 1)
@@ -64,6 +65,28 @@ export default function PayrollPage() {
   useEffect(() => {
     loadPayroll()
   }, [selectedMonth, selectedYear])
+
+  const savePayroll = async () => {
+    if (!records || records.length === 0) return;
+    setSaving(true);
+    try {
+      const res = await api.post("/api/payroll", {
+        records,
+        month: selectedMonth,
+        year: selectedYear
+      });
+      if (res.success) {
+        toast({ title: "Success", description: res.message || "Payroll saved successfully" });
+        loadPayroll(); // Reload to get the saved status
+      } else {
+        toast({ title: "Error", description: res.error || "Failed to save payroll", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message || "Failed to save payroll", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const exportToExcel = () => {
     const rows = records.map((rec, index) => {
@@ -157,6 +180,9 @@ export default function PayrollPage() {
                       </SelectContent>
                       </Select>
                   </div>
+                  <Button onClick={savePayroll} disabled={loading || saving} className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white">
+                      <Save className="h-4 w-4" /> {saving ? "Saving..." : "Save Payroll"}
+                  </Button>
                   <Button
                     onClick={exportToExcel}
                     variant="outline"
@@ -181,6 +207,7 @@ export default function PayrollPage() {
                             {salaryHeads.map(head => (
                                 <TableHead key={head} className="py-3 px-4 text-right font-bold text-gray-700 min-w-[120px]">{head}</TableHead>
                             ))}
+                            <TableHead className="py-3 px-4 text-right font-bold text-gray-900 bg-gray-200 min-w-[120px]">Gross Salary</TableHead>
                             <TableHead className="py-3 px-4 text-right font-bold text-gray-700 min-w-[120px] border-l border-gray-200">PF (Emp)</TableHead>
                             <TableHead className="py-3 px-4 text-right font-bold text-gray-700 min-w-[120px]">ESI (Emp)</TableHead>
                             <TableHead className="py-3 px-4 text-right font-bold text-gray-700 min-w-[120px]">PF (Employer)</TableHead>
@@ -203,7 +230,10 @@ export default function PayrollPage() {
                         ) : records.length > 0 ? (
                             records.map((rec, idx) => (
                                 <TableRow key={rec.id} className="hover:bg-gray-50/80 border-b border-gray-100 transition-colors">
-                                    <TableCell className="text-center text-gray-600 border-r border-gray-100">{idx + 1}</TableCell>
+                                    <TableCell className="text-center text-gray-600 border-r border-gray-100">
+                                        {rec.isSaved && <CheckCircle className="inline h-4 w-4 text-green-500 mr-1" />}
+                                        {idx + 1}
+                                    </TableCell>
                                     <TableCell className="font-semibold text-gray-800 border-r border-gray-100">{rec.code}</TableCell>
                                     <TableCell className="font-semibold text-gray-900 border-r border-gray-100">{rec.name}</TableCell>
                                     <TableCell className="text-center font-medium text-gray-600 bg-gray-50/50">{rec.daysInMonth}</TableCell>
@@ -213,6 +243,7 @@ export default function PayrollPage() {
                                             {fmt(rec.heads[head])}
                                         </TableCell>
                                     ))}
+                                    <TableCell className="text-right font-bold text-gray-900 bg-gray-100">{fmt(rec.grossAmount)}</TableCell>
                                     <TableCell className="text-right text-orange-700 font-medium border-l border-gray-200 bg-orange-50/20">{fmt(rec.pfEmployee)}</TableCell>
                                     <TableCell className="text-right text-orange-700 font-medium bg-orange-50/20">{fmt(rec.esiEmployee)}</TableCell>
                                     <TableCell className="text-right text-purple-700 font-medium bg-purple-50/20">{fmt(rec.pfEmployer)}</TableCell>

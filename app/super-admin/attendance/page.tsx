@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Input } from "@/components/ui/input"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { toast } from "@/hooks/use-toast"
@@ -44,6 +45,7 @@ export default function AttendancePage() {
   const [selectedGrades, setSelectedGrades] = useState<string[]>([])
   const [selectedAttendanceTypes, setSelectedAttendanceTypes] = useState<string[]>([])
   const [selectedShifts, setSelectedShifts] = useState<string[]>([])
+  const [searchQuery, setSearchQuery] = useState("")
 
   // ============== MONTH / YEAR ==============
   const currentDate = new Date()
@@ -157,6 +159,10 @@ export default function AttendancePage() {
       const attTypeMatch = selectedAttendanceTypes.length === 0 || selectedAttendanceTypes.includes(emp.attendanceType)
       const shiftMatch = selectedShifts.length === 0 || selectedShifts.includes(emp.shiftId)
 
+      const searchMatch = !searchQuery ||
+        emp.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        emp.code?.toLowerCase().includes(searchQuery.toLowerCase())
+
       return (
         branchMatch &&
         catMatch &&
@@ -165,7 +171,8 @@ export default function AttendancePage() {
         levelMatch &&
         gradeMatch &&
         attTypeMatch &&
-        shiftMatch
+        shiftMatch &&
+        searchMatch
       )
     })
   }, [
@@ -178,6 +185,7 @@ export default function AttendancePage() {
     selectedGrades,
     selectedAttendanceTypes,
     selectedShifts,
+    searchQuery,
   ])
 
   // ============== SHIFT NAME MAP (for nice display) ==============
@@ -283,7 +291,15 @@ export default function AttendancePage() {
           <CardHeader className="bg-blue-50 p-4 rounded-t-lg">
             <CardTitle className="text-lg font-semibold text-gray-900">Filter Attendance</CardTitle>
           </CardHeader>
-          <CardContent className="p-4">
+          <CardContent className="p-4 space-y-4">
+            <div className="w-full md:w-1/3">
+              <Label>Search Employee</Label>
+              <Input
+                placeholder="Search by name or code..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {/* Month & Year */}
               <div>
@@ -360,6 +376,7 @@ export default function AttendancePage() {
                     }
                     leavePolicyCodes.forEach(p => { row[p.code] = summary[p.code] || 0 })
                     const leaves = leavePolicyCodes.reduce((s, p) => s + (summary[p.code] || 0), 0)
+                    row['Payable'] = present + wo + leaves + (halfday * 0.5)
                     row['Total'] = present + absent + wo + leaves + halfday
                     row['Days in Month'] = daysInMonth
                     return row
@@ -413,16 +430,18 @@ export default function AttendancePage() {
                     <TableHead>P</TableHead>
                     <TableHead>A</TableHead>
                     <TableHead>WO</TableHead>
+                    <TableHead>HD</TableHead>
                     {leavePolicyCodes.map(policy => (
                       <TableHead key={policy.code}>{policy.code}</TableHead>
                     ))}
+                    <TableHead>Payable</TableHead>
                     <TableHead>Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={10 + leavePolicyCodes.length} className="text-center py-8 text-gray-500">
+                      <TableCell colSpan={12 + leavePolicyCodes.length} className="text-center py-8 text-gray-500">
                         Loading attendance...
                       </TableCell>
                     </TableRow>
@@ -444,6 +463,7 @@ export default function AttendancePage() {
                       const halfday = summary['Halfday'] || 0;
                       const leaves = leavePolicyCodes.reduce((sum, policy) => sum + (summary[policy.code] || 0), 0);
                       const total = present + absent + weekOffDays + leaves + halfday;
+                      const payable = present + weekOffDays + leaves + (halfday * 0.5);
 
                       return (
                         <TableRow
@@ -469,11 +489,15 @@ export default function AttendancePage() {
                           <TableCell className="text-center font-semibold text-green-600">{summary['P'] || 0}</TableCell>
                           <TableCell className="text-center font-semibold text-red-600">{summary['A'] || 0}</TableCell>
                           <TableCell className="text-center font-semibold text-blue-600">{weekOffDays}</TableCell>
+                          <TableCell className="text-center font-semibold text-yellow-600">{halfday}</TableCell>
                           {leavePolicyCodes.map(policy => (
                             <TableCell key={policy.code} className="text-center font-semibold text-purple-600">
                               {summary[policy.code] || 0}
                             </TableCell>
                           ))}
+                          <TableCell className="text-center font-bold text-gray-800">
+                            {payable}
+                          </TableCell>
                           <TableCell className="text-center font-bold">
                             <span className={total === daysInMonth ? "text-green-600" : "text-red-600"}>
                               {total}/{daysInMonth}
@@ -876,7 +900,7 @@ function AttendanceDetails({
                 if (start >= daysInMonth) return null
 
                 return (
-                  <div key={col} className="border rounded-lg overflow-hidden">
+                  <div key={col} className="border rounded-lg overflow-visible pb-4">
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-gray-50">

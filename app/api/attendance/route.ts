@@ -57,7 +57,10 @@ export async function GET(req: NextRequest) {
         const daily = await prisma.attendance.findMany({
             where: {
                 companyId,
-                date: { gte: new Date(year, month - 1, 1), lt: new Date(year, month, 1) },
+                date: { 
+                    gte: new Date(Date.UTC(year, month - 1, 1)), 
+                    lt: new Date(Date.UTC(year, month, 1)) 
+                },
             },
         });
 
@@ -84,7 +87,13 @@ export async function GET(req: NextRequest) {
             const daysInMonth = new Date(year, month, 0).getDate();
             const attendance = Array.from({ length: daysInMonth }, (_, i) => {
                 const d = new Date(year, month - 1, i + 1);
-                const rec = daily.find(r => r.employeeId === emp.id && r.date.toDateString() === d.toDateString());
+                const targetDateStr = `${year}-${String(month).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`;
+                
+                const rec = daily.find(r => {
+                    if (r.employeeId !== emp.id) return false;
+                    const rDateStr = r.date.toISOString().split('T')[0];
+                    return rDateStr === targetDateStr;
+                });
                 if (!rec) {
                     // Check if week off
                     let isWO = false;
@@ -132,7 +141,7 @@ export async function GET(req: NextRequest) {
 
             for (const policy of leavePolicies) {
                 const applicability = (policy as any).applicability || { all: true };
-                
+
                 for (const emp of employees) {
                     const key = `${emp.id}:${policy.id}`;
                     if (existingBalanceKeys.has(key)) continue;
@@ -169,7 +178,7 @@ export async function GET(req: NextRequest) {
                     skipDuplicates: true,
                 });
                 console.log(`[ATTENDANCE GET] Auto-created ${missingRecords.length} missing leave balance records`);
-                
+
                 // Re-fetch balances so response includes the new records
                 const updatedBalances = await prisma.employeeLeaveBalance.findMany({
                     where: { companyId, year },
