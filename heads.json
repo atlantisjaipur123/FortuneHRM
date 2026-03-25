@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Special Allowance",
+    "applicableFor": {
+      "PF": false,
+      "PT": false,
+      "ESI": false,
+      "LWF": false,
+      "Bonus": false,
+      "Gratuity": false,
+      "LeaveEncashment": false
+    }
+  },
+  {
+    "name": "Special Allowance",
+    "applicableFor": {
+      "PF": false,
+      "PT": false,
+      "ESI": false,
+      "LWF": false,
+      "Bonus": false,
+      "Gratuity": false,
+      "LeaveEncashment": false
+    }
+  },
+  {
+    "name": "Basic ",
+    "applicableFor": {
+      "PF": true,
+      "PT": false,
+      "ESI": true,
+      "LWF": false,
+      "Bonus": false,
+      "Gratuity": true,
+      "LeaveEncashment": false
+    }
+  },
+  {
+    "name": "food",
+    "applicableFor": {
+      "PF": true,
+      "PT": true,
+      "ESI": false,
+      "LWF": false,
+      "Bonus": false,
+      "Gratuity": true,
+      "LeaveEncashment": false
+    }
+  },
+  {
+    "name": "transport",
+    "applicableFor": {
+      "PF": false,
+      "PT": false,
+      "ESI": false,
+      "LWF": false,
+      "Bonus": false,
+      "Gratuity": false,
+      "LeaveEncashment": false
+    }
+  }
+]
